@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+@layer base {
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    @apply bg-accent/15;
+  }
+}
+
+@layer utilities {
+  /* Subtle dotted grid used behind the hero. */
+  .bg-dot-grid {
+    background-image: radial-gradient(circle at 1px 1px, #e6e6ea 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+  /* Fade the grid toward the edges. */
+  .mask-fade {
+    -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 40%, #000 40%, transparent 100%);
+    mask-image: radial-gradient(ellipse 60% 55% at 50% 40%, #000 40%, transparent 100%);
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  .container-x {
+    @apply mx-auto w-full max-w-6xl px-6;
+  }
+}

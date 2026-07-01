@@ -1,0 +1,23 @@
+node_modules
+.next
+out
+build
+.env
+.env*.local
+dev.db
+dev.db-journal
+prisma/dev.db
+prisma/dev.db-journal
+*.log
+.DS_Store
+next-env.d.ts
+
+# Local Claude Code settings (keep out of version control)
+.claude/settings.local.json
+
+# Sentry
+.sentryclirc
+
+# Secrets & personal files — never commit
+Passwords.txt
+*.tsbuildinfo

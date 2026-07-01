@@ -1,130 +1,69 @@
-"use client";
-
-import { useEffect, useState } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { brand } from "@/lib/brand";
+import { Logo } from "@/components/marketing/Logo";
+import { createClient } from "@/lib/supabase/server";
 
-interface BotRow {
-  id: string;
-  name: string;
-  platform: "telegram" | "discord";
-  status: string;
-  updatedAt: string;
-}
+export const metadata: Metadata = { title: "Dashboard" };
 
-export default function DashboardPage() {
-  const [bots, setBots] = useState<BotRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [name, setName] = useState("");
-  const [platform, setPlatform] = useState<"telegram" | "discord">("telegram");
-  const [creating, setCreating] = useState(false);
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  async function load() {
-    setLoading(true);
-    const res = await fetch("/api/bots");
-    setBots(await res.json());
-    setLoading(false);
-  }
+  // Middleware already guards this, but double-check on the server.
+  if (!user) redirect("/login");
 
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function createBot(e: React.FormEvent) {
-    e.preventDefault();
-    if (!name.trim()) return;
-    setCreating(true);
-    await fetch("/api/bots", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: name.trim(), platform }),
-    });
-    setName("");
-    setCreating(false);
-    load();
-  }
-
-  async function removeBot(id: string) {
-    if (!confirm("Удалить бота? Он будет остановлен.")) return;
-    await fetch(`/api/bots/${id}`, { method: "DELETE" });
-    load();
-  }
+  const name = user.user_metadata?.name ?? user.email?.split("@")[0] ?? "there";
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="text-lg font-bold">
-          Bot<span className="text-brand">Construct</span>.io
-        </Link>
-      </div>
-
-      <h1 className="mt-8 text-2xl font-bold">Мои боты</h1>
-
-      <form onSubmit={createBot} className="mt-4 flex flex-wrap gap-2 rounded-xl border border-neutral-800 bg-neutral-900/50 p-4">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="Название бота"
-          className="flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm outline-none focus:border-brand"
-        />
-        <select
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value as "telegram" | "discord")}
-          className="rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2 text-sm"
-        >
-          <option value="telegram">Telegram</option>
-          <option value="discord">Discord</option>
-        </select>
-        <button
-          disabled={creating}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
-        >
-          {creating ? "Создаю…" : "Создать"}
-        </button>
-      </form>
-
-      <div className="mt-6 space-y-2">
-        {loading && <p className="text-sm text-neutral-500">Загрузка…</p>}
-        {!loading && bots.length === 0 && (
-          <p className="text-sm text-neutral-500">Пока нет ботов. Создайте первого выше.</p>
-        )}
-        {bots.map((b) => (
-          <div
-            key={b.id}
-            className="flex items-center justify-between rounded-xl border border-neutral-800 bg-neutral-900/50 px-4 py-3"
-          >
-            <div>
-              <div className="font-medium">{b.name}</div>
-              <div className="text-xs text-neutral-500">
-                {b.platform === "telegram" ? "Telegram" : "Discord"} ·{" "}
-                <StatusBadge status={b.status} />
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Link
-                href={`/builder/${b.id}`}
-                className="rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-800"
-              >
-                Открыть
-              </Link>
-              <button
-                onClick={() => removeBot(b.id)}
-                className="rounded-lg border border-red-900 px-3 py-1.5 text-sm text-red-400 hover:bg-red-950"
-              >
-                Удалить
+    <div className="min-h-screen bg-muted/30">
+      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md">
+        <div className="container-x flex h-16 items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+            <Logo className="h-6 w-6" />
+            {brand.name}
+          </Link>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
+            <form action="/auth/signout" method="post">
+              <button className="rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-muted">
+                Sign out
               </button>
-            </div>
+            </form>
           </div>
-        ))}
-      </div>
-    </main>
-  );
-}
+        </div>
+      </header>
 
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    running: "text-green-400",
-    error: "text-red-400",
-    stopped: "text-neutral-500",
-  };
-  return <span className={map[status] ?? "text-neutral-500"}>{status}</span>;
+      <main className="container-x py-12">
+        <div className="flex items-end justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Welcome, {name} 👋</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Your bots live here. Build your first one.</p>
+          </div>
+          <button
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-soft hover:bg-accent-hover"
+            title="Coming in the next update"
+          >
+            + New bot
+          </button>
+        </div>
+
+        {/* Empty state — the real builder lands in the next phase. */}
+        <div className="mt-10 grid place-items-center rounded-2xl border border-dashed border-border bg-background py-20 text-center">
+          <div className="max-w-sm">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent-soft text-accent">
+              <Logo className="h-6 w-6" />
+            </div>
+            <h2 className="mt-4 font-medium">No bots yet</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              The AI builder is being wired up next. Soon you’ll describe a bot here and watch it come to life.
+            </p>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
 }

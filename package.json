@@ -15,6 +15,8 @@
     "@anthropic-ai/sdk": "^0.32.1",
     "@prisma/client": "^6.1.0",
     "@sentry/nextjs": "^10.63.0",
+    "@supabase/ssr": "^0.12.0",
+    "@supabase/supabase-js": "^2.110.0",
     "@xyflow/react": "^12.3.6",
     "discord.js": "^14.16.3",
     "grammy": "^1.32.0",

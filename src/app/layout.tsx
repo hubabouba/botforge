@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import { brand } from "@/lib/brand";
 import { PostHogProvider } from "@/components/PostHogProvider";
+import { ThemeProvider } from "@/components/theme-provider";
+import { DevBanner } from "@/components/DevBanner";
 import "./globals.css";
 
 const inter = Inter({
@@ -31,9 +33,14 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${mono.variable}`} suppressHydrationWarning>
       <body>
-        <PostHogProvider>{children}</PostHogProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <PostHogProvider>
+            <DevBanner />
+            {children}
+          </PostHogProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

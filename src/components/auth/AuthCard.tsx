@@ -155,7 +155,7 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
               </form>
 
               {error && (
-                <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>
+                <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-500">{error}</p>
               )}
             </>
           )}

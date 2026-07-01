@@ -5,6 +5,7 @@ import Link from "next/link";
 import { brand, navLinks } from "@/lib/brand";
 import { ButtonLink } from "@/components/ui/Button";
 import { Logo } from "@/components/marketing/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 export function Navbar() {
@@ -31,6 +32,7 @@ export function Navbar() {
         </div>
 
         <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle />
           <ButtonLink href="/login" variant="ghost" size="sm">
             Log in
           </ButtonLink>
@@ -39,13 +41,16 @@ export function Navbar() {
           </ButtonLink>
         </div>
 
-        <button
-          aria-label="Menu"
-          onClick={() => setOpen((v) => !v)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg border border-border md:hidden"
-        >
-          <span className="text-lg leading-none">{open ? "✕" : "≡"}</span>
-        </button>
+        <div className="flex items-center gap-2 md:hidden">
+          <ThemeToggle />
+          <button
+            aria-label="Menu"
+            onClick={() => setOpen((v) => !v)}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border"
+          >
+            <span className="text-lg leading-none">{open ? "✕" : "≡"}</span>
+          </button>
+        </div>
       </nav>
 
       <div className={cn("border-t border-border md:hidden", open ? "block" : "hidden")}>

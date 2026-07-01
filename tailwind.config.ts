@@ -1,24 +1,24 @@
 import type { Config } from "tailwindcss";
 
 export default {
+  darkMode: "class",
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   theme: {
     extend: {
       colors: {
-        // Light minimalist system (Linear/Vercel-inspired).
-        background: "#ffffff",
-        foreground: "#0a0a0a",
-        muted: "#f6f6f7",
-        "muted-foreground": "#6b7280",
-        border: "#ececef",
-        // Indigo accent.
+        // Semantic tokens driven by CSS variables so they swap with the theme.
+        background: "rgb(var(--background) / <alpha-value>)",
+        foreground: "rgb(var(--foreground) / <alpha-value>)",
+        muted: "rgb(var(--muted) / <alpha-value>)",
+        "muted-foreground": "rgb(var(--muted-foreground) / <alpha-value>)",
+        border: "rgb(var(--border) / <alpha-value>)",
         accent: {
-          DEFAULT: "#4f46e5",
-          hover: "#4338ca",
-          soft: "#eef2ff",
-          foreground: "#ffffff",
+          DEFAULT: "rgb(var(--accent) / <alpha-value>)",
+          hover: "rgb(var(--accent-hover) / <alpha-value>)",
+          soft: "rgb(var(--accent-soft) / <alpha-value>)",
+          foreground: "rgb(var(--accent-foreground) / <alpha-value>)",
         },
-        // Dark surfaces for the workspace preview / app shell.
+        // Fixed dark surfaces for product mocks / app shell (same in both themes).
         ink: {
           950: "#0a0a0f",
           900: "#111117",

@@ -19,6 +19,7 @@ export function CTA() {
                 Build a bot
               </ButtonLink>
             </div>
+            <p className="mt-4 text-xs text-neutral-500">No credit card · cancel anytime</p>
           </div>
         </div>
       </div>

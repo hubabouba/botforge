@@ -23,7 +23,7 @@ const faqs = [
 
 export function FAQ() {
   return (
-    <section id="faq" className="py-24">
+    <section id="faq" className="scroll-mt-20 py-24">
       <div className="container-x grid gap-12 md:grid-cols-[1fr_1.4fr]">
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-accent">FAQ</p>

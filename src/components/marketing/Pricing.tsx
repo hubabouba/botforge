@@ -12,7 +12,7 @@ function Check() {
 
 export function Pricing() {
   return (
-    <section id="pricing" className="border-t border-border bg-muted/40 py-24">
+    <section id="pricing" className="scroll-mt-20 border-t border-border bg-muted/40 py-24">
       <div className="container-x">
         <div className="mx-auto max-w-2xl text-center">
           <p className="font-mono text-xs uppercase tracking-widest text-accent">Pricing</p>

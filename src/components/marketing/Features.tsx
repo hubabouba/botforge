@@ -43,7 +43,7 @@ const features = [
 
 export function Features() {
   return (
-    <section id="features" className="py-24">
+    <section id="features" className="scroll-mt-20 py-24">
       <div className="container-x">
         <div className="max-w-2xl">
           <p className="font-mono text-xs uppercase tracking-widest text-accent">Features</p>
@@ -57,8 +57,11 @@ export function Features() {
 
         <div className="mt-14 grid gap-px overflow-hidden rounded-2xl border border-border bg-border sm:grid-cols-2 lg:grid-cols-3">
           {features.map((f) => (
-            <div key={f.title} className="bg-background p-6 transition-colors hover:bg-muted/50">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-soft text-accent">
+            <div
+              key={f.title}
+              className="group relative bg-background p-6 transition-colors hover:bg-muted/40"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-violet-500 text-white shadow-soft transition-transform group-hover:-translate-y-0.5">
                 {f.icon}
               </div>
               <h3 className="mt-4 font-medium">{f.title}</h3>

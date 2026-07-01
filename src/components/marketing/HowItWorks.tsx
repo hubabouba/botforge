@@ -18,7 +18,7 @@ const steps = [
 
 export function HowItWorks() {
   return (
-    <section id="how" className="border-t border-border bg-muted/40 py-24">
+    <section id="how" className="scroll-mt-20 border-t border-border bg-muted/40 py-24">
       <div className="container-x">
         <div className="max-w-2xl">
           <p className="font-mono text-xs uppercase tracking-widest text-accent">How it works</p>
@@ -27,11 +27,14 @@ export function HowItWorks() {
           </h2>
         </div>
 
-        <div className="mt-14 grid gap-8 md:grid-cols-3">
+        <div className="relative mt-14 grid gap-8 md:grid-cols-3">
+          {/* connector line on desktop */}
+          <div className="pointer-events-none absolute left-0 right-0 top-5 hidden h-px bg-gradient-to-r from-transparent via-border to-transparent md:block" />
           {steps.map((s) => (
             <div key={s.n} className="relative">
-              <div className="font-mono text-sm text-muted-foreground">{s.n}</div>
-              <div className="mt-3 h-px w-full bg-border" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background font-mono text-sm font-medium text-accent shadow-soft">
+                {s.n}
+              </div>
               <h3 className="mt-5 text-lg font-medium">{s.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{s.body}</p>
             </div>

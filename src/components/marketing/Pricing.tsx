@@ -15,11 +15,11 @@ export function Pricing() {
     <section id="pricing" className="border-t border-border bg-muted/40 py-24">
       <div className="container-x">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="font-mono text-xs uppercase tracking-widest text-accent">Тарифы</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-accent">Pricing</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Начните бесплатно. Растите, когда нужно.
+            Start free. Scale when you need to.
           </h2>
-          <p className="mt-4 text-muted-foreground">Ежемесячная подписка. Отмена в любой момент.</p>
+          <p className="mt-4 text-muted-foreground">Monthly subscription. Cancel anytime.</p>
         </div>
 
         <div className="mx-auto mt-14 grid max-w-5xl gap-6 md:grid-cols-3">
@@ -35,7 +35,7 @@ export function Pricing() {
                 <h3 className="font-medium">{tier.name}</h3>
                 {tier.highlighted && (
                   <span className="rounded-full bg-accent-soft px-2.5 py-0.5 text-xs font-medium text-accent">
-                    Популярный
+                    Popular
                   </span>
                 )}
               </div>
@@ -43,7 +43,7 @@ export function Pricing() {
 
               <div className="mt-5 flex items-baseline gap-1">
                 <span className="text-4xl font-semibold tracking-tight">${tier.price}</span>
-                <span className="text-sm text-muted-foreground">/мес</span>
+                <span className="text-sm text-muted-foreground">/mo</span>
               </div>
 
               <ButtonLink

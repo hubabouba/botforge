@@ -5,9 +5,9 @@
 export const brand = {
   name: "Botforge",
   domain: "botforge.dev",
-  tagline: "Боты на заказ — голосом. ИИ пишет код, вы запускаете.",
+  tagline: "Bots built for you — by voice. AI writes the code, you ship it.",
   description:
-    "Botforge — AI-лаборатория, где вы описываете бота словами, а ИИ пишет настоящий рабочий код для Telegram и Discord. Редактируйте, запускайте и скачивайте — всё в браузере.",
+    "Botforge is an AI lab where you describe a bot in plain words and AI writes real, working code for Telegram and Discord. Edit, run, and download — all in your browser.",
 } as const;
 
 export interface PricingTier {
@@ -18,7 +18,7 @@ export interface PricingTier {
   features: string[];
   cta: string;
   highlighted?: boolean;
-  // Filled once Stripe products are created (Fase 6).
+  // Filled once Stripe products are created (Phase 6).
   stripePriceId?: string;
 }
 
@@ -27,44 +27,44 @@ export const pricingTiers: PricingTier[] = [
     id: "free",
     name: "Free",
     price: 0,
-    tagline: "Попробовать и собрать первого бота.",
-    features: ["1 проект", "Базовая ИИ-модель", "Запуск в песочнице", "Скачать код (ZIP)"],
-    cta: "Начать бесплатно",
+    tagline: "Try it and build your first bot.",
+    features: ["1 project", "Basic AI model", "Run in sandbox", "Download code (ZIP)"],
+    cta: "Start free",
   },
   {
     id: "basic",
     name: "Basic",
     price: 9,
-    tagline: "Для личных ботов и небольших проектов.",
+    tagline: "For personal bots and small projects.",
     features: [
-      "До 5 проектов",
-      "Стандартная ИИ-модель",
-      "Авто-исправление ошибок",
-      "История чата и версий",
-      "Email-поддержка",
+      "Up to 5 projects",
+      "Standard AI model",
+      "Automatic error fixing",
+      "Chat & version history",
+      "Email support",
     ],
-    cta: "Оформить Basic",
+    cta: "Get Basic",
   },
   {
     id: "pro",
     name: "Pro",
     price: 29,
-    tagline: "Для тех, кто делает ботов всерьёз.",
+    tagline: "For people who build bots seriously.",
     features: [
-      "Безлимит проектов",
-      "Продвинутая ИИ-модель",
-      "Приоритетная генерация",
-      "Аналитика и логи",
-      "Приоритетная поддержка",
+      "Unlimited projects",
+      "Advanced AI model",
+      "Priority generation",
+      "Analytics & logs",
+      "Priority support",
     ],
-    cta: "Оформить Pro",
+    cta: "Get Pro",
     highlighted: true,
   },
 ];
 
 export const navLinks = [
-  { label: "Возможности", href: "#features" },
-  { label: "Как это работает", href: "#how" },
-  { label: "Тарифы", href: "#pricing" },
-  { label: "Вопросы", href: "#faq" },
+  { label: "Features", href: "#features" },
+  { label: "How it works", href: "#how" },
+  { label: "Pricing", href: "#pricing" },
+  { label: "FAQ", href: "#faq" },
 ];

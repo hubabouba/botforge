@@ -1,23 +1,23 @@
 const faqs = [
   {
-    q: "Мне нужно уметь программировать?",
-    a: "Нет. Вы описываете бота обычными словами, а ИИ пишет код. Но если вы разработчик — код открыт, его можно править прямо в редакторе.",
+    q: "Do I need to know how to code?",
+    a: "No. You describe the bot in plain words and the AI writes the code. But if you are a developer, the code is open and you can edit it right in the editor.",
   },
   {
-    q: "Код действительно мой?",
-    a: "Да. Botforge генерирует стандартный проект (Python/Node) без скрытых зависимостей. Скачивайте ZIP и разворачивайте где угодно.",
+    q: "Is the code really mine?",
+    a: "Yes. Botforge generates a standard project (Python/Node) with no hidden dependencies. Download the ZIP and deploy it anywhere.",
   },
   {
-    q: "Какие платформы поддерживаются?",
-    a: "Telegram и Discord на старте. Архитектура рассчитана на добавление новых платформ без переписывания проектов.",
+    q: "Which platforms are supported?",
+    a: "Telegram and Discord at launch. The architecture is built to add new platforms without rewriting your projects.",
   },
   {
-    q: "Что если бот сломается?",
-    a: "Встроенное авто-исправление читает логи, находит причину и предлагает исправленный код. Обычно — в один клик.",
+    q: "What if the bot breaks?",
+    a: "Built-in auto-fixing reads the logs, finds the cause, and proposes corrected code — usually in one click.",
   },
   {
-    q: "Можно отменить подписку?",
-    a: "В любой момент из личного кабинета. Доступ сохраняется до конца оплаченного периода.",
+    q: "Can I cancel my subscription?",
+    a: "Anytime, from your account. Access stays until the end of the paid period.",
   },
 ];
 
@@ -26,10 +26,10 @@ export function FAQ() {
     <section id="faq" className="py-24">
       <div className="container-x grid gap-12 md:grid-cols-[1fr_1.4fr]">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-accent">Вопросы</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Частые вопросы</h2>
+          <p className="font-mono text-xs uppercase tracking-widest text-accent">FAQ</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Frequently asked questions</h2>
           <p className="mt-4 text-sm text-muted-foreground">
-            Не нашли ответ? Напишите нам — ответим в течение дня.
+            Didn’t find an answer? Write to us — we reply within a day.
           </p>
         </div>
 

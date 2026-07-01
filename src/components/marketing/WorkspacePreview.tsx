@@ -3,7 +3,7 @@
  * (file tree · code editor · tabs · run/download). Pure presentational.
  */
 const files = ["main.py", "handlers.py", "jobs.py", "services.py", "database.py", "requirements.txt"];
-const tabs = ["Код", "Архитектура", "Логи", "Аналитика"];
+const tabs = ["Code", "Architecture", "Logs", "Analytics"];
 
 // Tiny syntax-highlighted code lines (spans, not a real editor).
 const K = "text-[#c792ea]"; // keyword
@@ -36,16 +36,16 @@ export function WorkspacePreview() {
         </div>
         <div className="ml-auto flex items-center gap-2">
           <span className="hidden items-center gap-1.5 rounded-md bg-emerald-500/10 px-2 py-1 text-xs text-emerald-400 sm:inline-flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Запустить
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Run
           </span>
-          <span className="rounded-md border border-ink-700 px-2 py-1 text-xs text-neutral-400">Скачать ZIP</span>
+          <span className="rounded-md border border-ink-700 px-2 py-1 text-xs text-neutral-400">Download ZIP</span>
         </div>
       </div>
 
       <div className="grid grid-cols-[130px_1fr] sm:grid-cols-[160px_1fr]">
         {/* File tree */}
         <div className="border-r border-ink-800 p-3">
-          <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-neutral-600">Проводник</div>
+          <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-neutral-600">Explorer</div>
           <div className="mb-1 flex items-center gap-1.5 text-xs text-neutral-400">▾ bot_src</div>
           {files.map((f, i) => (
             <div

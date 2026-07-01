@@ -15,7 +15,7 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <html lang="ru">
+    <html lang="en">
       <body style={{ fontFamily: "system-ui, sans-serif", background: "#fff", color: "#0a0a0a" }}>
         <div
           style={{
@@ -27,9 +27,9 @@ export default function GlobalError({
           }}
         >
           <div style={{ maxWidth: 420 }}>
-            <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>Что-то пошло не так</h1>
+            <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0 }}>Something went wrong</h1>
             <p style={{ color: "#6b7280", marginTop: 8, fontSize: 14 }}>
-              Мы уже получили отчёт об ошибке и разбираемся. Попробуйте обновить страницу.
+              We’ve received the error report and are looking into it. Try refreshing the page.
             </p>
             <button
               onClick={() => reset()}
@@ -45,7 +45,7 @@ export default function GlobalError({
                 cursor: "pointer",
               }}
             >
-              Попробовать снова
+              Try again
             </button>
           </div>
         </div>

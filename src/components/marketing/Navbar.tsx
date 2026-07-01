@@ -32,15 +32,15 @@ export function Navbar() {
 
         <div className="hidden items-center gap-2 md:flex">
           <ButtonLink href="/login" variant="ghost" size="sm">
-            Войти
+            Log in
           </ButtonLink>
           <ButtonLink href="/signup" size="sm">
-            Начать
+            Get started
           </ButtonLink>
         </div>
 
         <button
-          aria-label="Меню"
+          aria-label="Menu"
           onClick={() => setOpen((v) => !v)}
           className="flex h-9 w-9 items-center justify-center rounded-lg border border-border md:hidden"
         >
@@ -62,10 +62,10 @@ export function Navbar() {
           ))}
           <div className="mt-2 flex gap-2">
             <ButtonLink href="/login" variant="ghost" size="sm" className="flex-1">
-              Войти
+              Log in
             </ButtonLink>
             <ButtonLink href="/signup" size="sm" className="flex-1">
-              Начать
+              Get started
             </ButtonLink>
           </div>
         </div>

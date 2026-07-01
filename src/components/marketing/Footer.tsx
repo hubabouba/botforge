@@ -4,25 +4,25 @@ import { Logo } from "@/components/marketing/Logo";
 
 const columns = [
   {
-    title: "Продукт",
+    title: "Product",
     links: [
-      { label: "Возможности", href: "#features" },
-      { label: "Тарифы", href: "#pricing" },
-      { label: "Как это работает", href: "#how" },
+      { label: "Features", href: "#features" },
+      { label: "Pricing", href: "#pricing" },
+      { label: "How it works", href: "#how" },
     ],
   },
   {
-    title: "Компания",
+    title: "Company",
     links: [
-      { label: "Вопросы", href: "#faq" },
-      { label: "Контакты", href: `mailto:hello@${brand.domain}` },
+      { label: "FAQ", href: "#faq" },
+      { label: "Contact", href: `mailto:hello@${brand.domain}` },
     ],
   },
   {
-    title: "Правовое",
+    title: "Legal",
     links: [
-      { label: "Конфиденциальность", href: "/privacy" },
-      { label: "Условия использования", href: "/terms" },
+      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Terms of Service", href: "/terms" },
     ],
   },
 ];
@@ -56,8 +56,8 @@ export function Footer() {
       </div>
 
       <div className="container-x mt-12 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-sm text-muted-foreground sm:flex-row">
-        <span>© {new Date().getFullYear()} {brand.name}. Все права защищены.</span>
-        <span className="font-mono text-xs">Сделано в лаборатории · {brand.domain}</span>
+        <span>© {new Date().getFullYear()} {brand.name}. All rights reserved.</span>
+        <span className="font-mono text-xs">Built in the lab · {brand.domain}</span>
       </div>
     </footer>
   );

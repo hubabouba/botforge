@@ -18,12 +18,12 @@ const mono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: `${brand.name} — AI-лаборатория для создания ботов`,
+    default: `${brand.name} — the AI lab for building bots`,
     template: `%s · ${brand.name}`,
   },
   description: brand.description,
   openGraph: {
-    title: `${brand.name} — AI-лаборатория для создания ботов`,
+    title: `${brand.name} — the AI lab for building bots`,
     description: brand.description,
     type: "website",
   },
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru" className={`${inter.variable} ${mono.variable}`}>
+    <html lang="en" className={`${inter.variable} ${mono.variable}`}>
       <body>
         <PostHogProvider>{children}</PostHogProvider>
       </body>

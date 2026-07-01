@@ -2,50 +2,50 @@ import type { Metadata } from "next";
 import { brand } from "@/lib/brand";
 import { LegalShell } from "@/components/marketing/LegalShell";
 
-export const metadata: Metadata = { title: "Политика конфиденциальности" };
+export const metadata: Metadata = { title: "Privacy Policy" };
 
 export default function PrivacyPage() {
   return (
-    <LegalShell title="Политика конфиденциальности" updated="1 июля 2026">
+    <LegalShell title="Privacy Policy" updated="July 1, 2026">
       <p>
-        Эта политика описывает, какие данные {brand.name} («мы») собирает и как их использует.
-        Документ является черновиком и требует проверки юристом перед запуском.
+        This policy describes what data {brand.name} (“we”) collects and how we use it.
+        This document is a draft and should be reviewed by a lawyer before launch.
       </p>
 
-      <h2>Какие данные мы собираем</h2>
+      <h2>What we collect</h2>
       <p>
-        Аккаунт: email и данные аутентификации (через нашего провайдера авторизации).
-        Контент: описания ботов, сгенерированный код и проекты, которые вы создаёте.
-        Платежи: обрабатываются Stripe; мы не храним данные карт. Технические данные:
-        логи, IP, тип устройства и обезличенная продуктовая аналитика.
+        Account: your email and authentication data (via our auth provider).
+        Content: bot descriptions, generated code, and the projects you create.
+        Payments: handled by Stripe; we do not store card data. Technical data:
+        logs, IP address, device type, and anonymized product analytics.
       </p>
 
-      <h2>Как мы используем данные</h2>
+      <h2>How we use data</h2>
       <p>
-        Чтобы предоставлять сервис (генерация и запуск ботов), обрабатывать подписки,
-        улучшать продукт и обеспечивать безопасность. Мы не продаём ваши данные.
+        To provide the service (generating and running bots), process subscriptions,
+        improve the product, and keep it secure. We do not sell your data.
       </p>
 
-      <h2>Обработчики данных</h2>
+      <h2>Data processors</h2>
       <p>
-        Мы используем: Supabase (база данных и авторизация), Stripe (платежи),
-        Vercel (хостинг), Sentry (ошибки), PostHog (аналитика) и Anthropic (генерация кода).
+        We use: Supabase (database and auth), Stripe (payments), Vercel (hosting),
+        Sentry (errors), PostHog (analytics), and Anthropic (code generation).
       </p>
 
-      <h2>Ваши права</h2>
+      <h2>Your rights</h2>
       <p>
-        Вы можете запросить доступ, исправление или удаление своих данных, написав на{" "}
+        You can request access to, correction of, or deletion of your data by emailing{" "}
         <a href={`mailto:privacy@${brand.domain}`}>privacy@{brand.domain}</a>.
       </p>
 
-      <h2>Файлы cookie</h2>
+      <h2>Cookies</h2>
       <p>
-        Мы используем необходимые cookie для входа и аналитические cookie для улучшения продукта.
+        We use essential cookies for sign-in and analytics cookies to improve the product.
       </p>
 
-      <h2>Контакты</h2>
+      <h2>Contact</h2>
       <p>
-        По вопросам конфиденциальности: <a href={`mailto:privacy@${brand.domain}`}>privacy@{brand.domain}</a>.
+        For privacy questions: <a href={`mailto:privacy@${brand.domain}`}>privacy@{brand.domain}</a>.
       </p>
     </LegalShell>
   );

@@ -9,14 +9,14 @@ export function CTA() {
           <div className="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-accent/30 blur-3xl" />
           <div className="relative">
             <h2 className="mx-auto max-w-2xl text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-              Ваш первый бот — сегодня вечером
+              Your first bot — tonight
             </h2>
             <p className="mx-auto mt-4 max-w-lg text-balance text-neutral-400">
-              Опишите идею — остальное сделает Botforge. Бесплатно, без карты.
+              Describe the idea — Botforge does the rest. Free, no credit card.
             </p>
             <div className="mt-8 flex justify-center">
               <ButtonLink href="/signup" size="lg">
-                Собрать бота
+                Build a bot
               </ButtonLink>
             </div>
           </div>

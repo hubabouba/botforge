@@ -5,12 +5,13 @@ type Variant = "primary" | "secondary" | "ghost";
 type Size = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 disabled:opacity-50 disabled:pointer-events-none";
+  "group/btn relative inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none";
 
 const variants: Record<Variant, string> = {
-  primary: "bg-accent text-accent-foreground hover:bg-accent-hover shadow-soft",
-  secondary: "bg-foreground text-background hover:opacity-90",
-  ghost: "text-foreground hover:bg-muted border border-border",
+  primary:
+    "shine bg-gradient-to-b from-accent to-accent-hover text-accent-foreground shadow-glow hover:shadow-glow-lg hover:-translate-y-0.5",
+  secondary: "bg-foreground text-background shadow-soft hover:-translate-y-0.5 hover:opacity-95",
+  ghost: "border border-border bg-background/40 text-foreground backdrop-blur-sm hover:bg-muted hover:border-border",
 };
 
 const sizes: Record<Size, string> = {
@@ -35,7 +36,7 @@ export function Button({
 }: CommonProps & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button className={cn(base, variants[variant], sizes[size], className)} {...props}>
-      {children}
+      <span className="relative z-[2] inline-flex items-center gap-2">{children}</span>
     </button>
   );
 }

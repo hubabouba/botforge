@@ -52,6 +52,9 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
       {/* Brand panel (desktop only) */}
       <aside className="relative hidden overflow-hidden bg-ink-950 p-12 lg:flex lg:flex-col lg:justify-between">
         <div className="pointer-events-none absolute inset-0 bg-dot-grid opacity-[0.05]" />
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="aurora animate-aurora-2 opacity-60" />
+        </div>
         <div className="pointer-events-none absolute -left-24 top-1/3 h-72 w-72 rounded-full bg-accent/25 blur-3xl" />
         <Link href="/" className="relative flex items-center gap-2 font-semibold tracking-tight text-white">
           <Logo className="h-7 w-7" />

@@ -27,8 +27,10 @@ export function Pricing() {
             <div
               key={tier.id}
               className={cn(
-                "flex flex-col rounded-2xl border bg-background p-6",
-                tier.highlighted ? "border-accent shadow-lift ring-1 ring-accent/20" : "border-border shadow-soft",
+                "card-hover flex flex-col rounded-2xl border bg-background p-6",
+                tier.highlighted
+                  ? "border-gradient border-accent/40 shadow-glow-lg md:-translate-y-3 md:scale-[1.03]"
+                  : "border-border shadow-soft",
               )}
             >
               <div className="flex items-center justify-between">

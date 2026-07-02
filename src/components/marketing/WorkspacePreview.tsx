@@ -16,6 +16,11 @@ export function WorkspacePreview() {
     <div className="overflow-hidden rounded-2xl border border-ink-800 bg-ink-950 shadow-lift">
       {/* Top bar */}
       <div className="flex items-center gap-3 border-b border-ink-800 px-4 py-2.5">
+        <div className="hidden items-center gap-1.5 sm:flex">
+          <span className="h-2.5 w-2.5 rounded-full bg-[#ff5f57]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#febc2e]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-[#28c840]" />
+        </div>
         <div className="flex items-center gap-2 text-sm font-medium text-neutral-200">
           <span className="grid h-5 w-5 place-items-center rounded bg-accent text-[11px] text-white">B</span>
           crypto-alert-bot

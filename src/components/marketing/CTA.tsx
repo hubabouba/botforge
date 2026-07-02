@@ -4,8 +4,11 @@ export function CTA() {
   return (
     <section className="py-24">
       <div className="container-x">
-        <div className="relative overflow-hidden rounded-3xl bg-ink-950 px-6 py-16 text-center sm:px-16">
+        <div className="relative overflow-hidden rounded-3xl border border-ink-800 bg-ink-950 px-6 py-16 text-center shadow-lift sm:px-16">
           <div className="pointer-events-none absolute inset-0 bg-dot-grid opacity-[0.06]" />
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="aurora animate-aurora-1 opacity-70" />
+          </div>
           <div className="pointer-events-none absolute -top-24 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-accent/30 blur-3xl" />
           <div className="relative">
             <h2 className="mx-auto max-w-2xl text-balance text-3xl font-semibold tracking-tight text-white sm:text-4xl">

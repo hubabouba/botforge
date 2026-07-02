@@ -6,8 +6,10 @@ export function Hero() {
     <section className="relative overflow-hidden">
       {/* Dotted grid backdrop, faded at edges */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-dot-grid mask-fade" />
-      {/* Soft accent glow behind the headline */}
-      <div className="pointer-events-none absolute left-1/2 top-[-6rem] -z-10 h-[28rem] w-[42rem] -translate-x-1/2 rounded-full bg-gradient-to-br from-accent/25 via-violet-400/15 to-transparent blur-3xl" />
+      {/* Ambient aurora — two slow drifting color fields behind the headline */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 overflow-hidden">
+        <div className="aurora animate-aurora-1" />
+      </div>
 
       <div className="container-x pt-20 pb-16 sm:pt-28">
         <div className="mx-auto max-w-3xl text-center">

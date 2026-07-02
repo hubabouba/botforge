@@ -6,10 +6,6 @@ export function Hero() {
     <section className="relative overflow-hidden">
       {/* Dotted grid backdrop, faded at edges */}
       <div className="pointer-events-none absolute inset-0 -z-10 bg-dot-grid mask-fade" />
-      {/* Ambient aurora — two slow drifting color fields behind the headline */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 overflow-hidden">
-        <div className="aurora animate-aurora-1" />
-      </div>
 
       <div className="container-x pt-20 pb-16 sm:pt-28">
         <div className="mx-auto max-w-3xl text-center">
@@ -29,7 +25,7 @@ export function Hero() {
           </a>
 
           <h1 className="animate-fade-up mt-6 text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-            Bots written by <span className="text-gradient">AI</span>.
+            Bots written by <span className="text-accent">AI</span>.
             <br />
             <span className="text-muted-foreground">Code that belongs to you.</span>
           </h1>

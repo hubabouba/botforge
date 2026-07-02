@@ -59,15 +59,13 @@ export function Features() {
           {features.map((f) => (
             <div
               key={f.title}
-              className="group relative bg-background p-6 transition-colors duration-300 hover:bg-muted/40"
+              className="group relative bg-background p-6 transition-colors duration-200 hover:bg-muted/40"
             >
-              {/* Accent wash that fades in on hover */}
-              <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/[0.06] to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
-              <div className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-accent to-violet-500 text-white shadow-glow transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-105">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-soft text-accent">
                 {f.icon}
               </div>
-              <h3 className="relative mt-4 font-medium">{f.title}</h3>
-              <p className="relative mt-1.5 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
+              <h3 className="mt-4 font-medium">{f.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{f.body}</p>
             </div>
           ))}
         </div>

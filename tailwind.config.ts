@@ -38,9 +38,6 @@ export default {
       boxShadow: {
         soft: "0 1px 2px rgba(10,10,15,0.04), 0 8px 24px rgba(10,10,15,0.06)",
         lift: "0 2px 4px rgba(10,10,15,0.05), 0 16px 40px rgba(10,10,15,0.10)",
-        // Colored accent glow — used sparingly on primary CTAs and popular plan.
-        glow: "0 1px 2px rgba(79,70,229,0.20), 0 12px 32px -8px rgba(79,70,229,0.45)",
-        "glow-lg": "0 2px 6px rgba(79,70,229,0.18), 0 24px 64px -12px rgba(79,70,229,0.55)",
       },
       keyframes: {
         "fade-up": {
@@ -48,32 +45,10 @@ export default {
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         blink: { "0%,100%": { opacity: "1" }, "50%": { opacity: "0" } },
-        // Slow drifting aurora blobs behind hero/CTA.
-        "aurora-1": {
-          "0%,100%": { transform: "translate(0,0) scale(1)" },
-          "50%": { transform: "translate(6%,-4%) scale(1.12)" },
-        },
-        "aurora-2": {
-          "0%,100%": { transform: "translate(0,0) scale(1)" },
-          "50%": { transform: "translate(-5%,5%) scale(1.08)" },
-        },
-        // Diagonal sheen sweep across primary buttons on hover.
-        shimmer: {
-          "0%": { transform: "translateX(-120%)" },
-          "100%": { transform: "translateX(220%)" },
-        },
-        float: {
-          "0%,100%": { transform: "translateY(0)" },
-          "50%": { transform: "translateY(-6px)" },
-        },
       },
       animation: {
         "fade-up": "fade-up 0.6s cubic-bezier(0.16,1,0.3,1) both",
         blink: "blink 1.1s steps(1) infinite",
-        "aurora-1": "aurora-1 18s ease-in-out infinite",
-        "aurora-2": "aurora-2 22s ease-in-out infinite",
-        shimmer: "shimmer 1.1s ease-out",
-        float: "float 6s ease-in-out infinite",
       },
     },
   },

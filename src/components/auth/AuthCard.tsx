@@ -5,6 +5,7 @@ import Link from "next/link";
 import { brand } from "@/lib/brand";
 import { Logo } from "@/components/marketing/Logo";
 import { Button } from "@/components/ui/Button";
+import { Mail } from "@/components/icons";
 import { createClient } from "@/lib/supabase/client";
 
 type Provider = "google" | "github";
@@ -52,10 +53,6 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
       {/* Brand panel (desktop only) */}
       <aside className="relative hidden overflow-hidden bg-ink-950 p-12 lg:flex lg:flex-col lg:justify-between">
         <div className="pointer-events-none absolute inset-0 bg-dot-grid opacity-[0.05]" />
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="aurora animate-aurora-2 opacity-60" />
-        </div>
-        <div className="pointer-events-none absolute -left-24 top-1/3 h-72 w-72 rounded-full bg-accent/25 blur-3xl" />
         <Link href="/" className="relative flex items-center gap-2 font-semibold tracking-tight text-white">
           <Logo className="h-7 w-7" />
           {brand.name}
@@ -105,8 +102,10 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
 
           {status === "sent" ? (
             <div className="mt-8 rounded-xl border border-border bg-muted/50 p-5 text-center">
-              <div className="text-3xl">📬</div>
-              <p className="mt-2 font-medium">Check your email</p>
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent">
+                <Mail className="h-5 w-5" />
+              </div>
+              <p className="mt-3 font-medium">Check your email</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 We sent a magic link to <span className="font-medium text-foreground">{email}</span>.
                 Open it on this device to finish signing in.

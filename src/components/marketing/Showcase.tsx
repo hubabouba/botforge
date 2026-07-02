@@ -3,6 +3,8 @@
  * auto-fixing a crash — the thing that makes the product feel alive. Echoes the
  * real workspace (chat · reasoning · one-click fix).
  */
+import { Plus } from "@/components/icons";
+
 export function Showcase() {
   return (
     <section className="py-24">
@@ -11,7 +13,7 @@ export function Showcase() {
         <div>
           <p className="font-mono text-xs uppercase tracking-widest text-accent">The workspace</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Chat. Generate. <span className="text-gradient">Fix.</span> Ship.
+            Chat. Generate. <span className="text-accent">Fix.</span> Ship.
           </h2>
           <p className="mt-4 max-w-md text-muted-foreground">
             You talk to Botforge like a teammate. It writes the files, explains its reasoning,
@@ -41,7 +43,7 @@ export function Showcase() {
 
         {/* Chat / auto-fix mock */}
         <div className="relative">
-          <div className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-accent/15 via-violet-400/10 to-transparent blur-2xl" />
+          <div className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] bg-accent/10 blur-2xl" />
           <div className="overflow-hidden rounded-2xl border border-ink-800 bg-ink-950 shadow-lift">
             <div className="flex items-center gap-2 border-b border-ink-800 px-4 py-2.5">
               <span className="grid h-5 w-5 place-items-center rounded bg-accent text-[11px] text-white">B</span>
@@ -58,7 +60,7 @@ export function Showcase() {
               {/* reasoning */}
               <div className="rounded-xl border border-ink-800 bg-ink-900/70 p-3">
                 <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-neutral-500">
-                  <span className="text-amber-300">✦</span> Reasoning
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent" /> Reasoning
                 </div>
                 <p className="mt-1.5 text-neutral-400">
                   I&apos;ll add a <span className="font-mono text-neutral-300">JobQueue</span> in{" "}
@@ -69,7 +71,7 @@ export function Showcase() {
 
               {/* file written */}
               <div className="flex items-center gap-2 rounded-lg bg-ink-900 px-3 py-2 text-neutral-300">
-                <span className="text-emerald-400">＋</span>
+                <Plus className="h-3.5 w-3.5 text-emerald-400" />
                 <span className="font-mono text-xs">jobs.py</span>
                 <span className="ml-auto text-[11px] text-emerald-400">+38 lines</span>
               </div>
@@ -77,11 +79,11 @@ export function Showcase() {
               {/* error + auto-fix */}
               <div className="rounded-xl border border-rose-500/25 bg-rose-500/5 p-3">
                 <div className="flex items-center gap-2 text-rose-300">
-                  <span>⚠</span>
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" />
                   <span className="text-xs">Process exited with an error — <span className="font-mono">TypeError in poll</span></span>
                 </div>
                 <button className="mt-3 inline-flex items-center gap-2 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white shadow-soft">
-                  <span>✨</span> Fix automatically
+                  Fix automatically
                 </button>
               </div>
 

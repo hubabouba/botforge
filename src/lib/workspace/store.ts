@@ -45,22 +45,58 @@ export function getProject(id: string): StoredProject | null {
   return readAll().find((p) => p.id === id) ?? null;
 }
 
-/** Create a project from a template (files are deep-copied so edits are isolated). */
-export function createProjectFromTemplate(template: Template, name?: string): StoredProject {
+/** Blueprint for a new project (from the wizard scaffolder or a template). */
+export interface ProjectSpec {
+  name: string;
+  platform: Project["platform"];
+  language: Project["language"];
+  description: string;
+  entry: string;
+  files: ProjectFile[];
+}
+
+/** Create a project from an explicit spec (files are deep-copied). */
+export function createProject(spec: ProjectSpec): StoredProject {
   const now = Date.now();
   const project: StoredProject = {
     id: uid(),
-    name: name?.trim() || template.name,
-    platform: template.platform,
-    language: template.language,
-    description: template.description,
-    entry: template.entry,
-    files: template.files.map((f) => ({ ...f })),
+    name: spec.name.trim() || "my-bot",
+    platform: spec.platform,
+    language: spec.language,
+    description: spec.description,
+    entry: spec.entry,
+    files: spec.files.map((f) => ({ ...f })),
     createdAt: now,
     updatedAt: now,
   };
   writeAll([project, ...readAll()]);
   return project;
+}
+
+/** Create a project from a template. */
+export function createProjectFromTemplate(template: Template, name?: string): StoredProject {
+  return createProject({
+    name: name?.trim() || template.name,
+    platform: template.platform,
+    language: template.language,
+    description: template.description,
+    entry: template.entry,
+    files: template.files,
+  });
+}
+
+/** Duplicate an existing project (deep copy, "(copy)" suffix). */
+export function duplicateProject(id: string): StoredProject | null {
+  const src = getProject(id);
+  if (!src) return null;
+  return createProject({
+    name: `${src.name} (copy)`,
+    platform: src.platform,
+    language: src.language,
+    description: src.description,
+    entry: src.entry,
+    files: src.files,
+  });
 }
 
 function mutate(id: string, fn: (p: StoredProject) => void): StoredProject | null {

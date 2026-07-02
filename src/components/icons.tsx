@@ -189,3 +189,45 @@ export const Bot = (p: IconProps) => (
     <path d="M2 12v3M22 12v3" />
   </Base>
 );
+
+export const Chat = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z" />
+  </Base>
+);
+
+export const Bell = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+  </Base>
+);
+
+export const Shield = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" />
+    <path d="m9 12 2 2 4-4" />
+  </Base>
+);
+
+export const ShoppingBag = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M6 2 4 6v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6l-2-4z" />
+    <path d="M4 6h16" />
+    <path d="M16 10a4 4 0 0 1-8 0" />
+  </Base>
+);
+
+export const Wrench = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L3 18l3 3 6.5-6.5a4 4 0 0 0 5.2-5.2l-2.5 2.5-2.5-.5-.5-2.5z" />
+  </Base>
+);
+
+export const MoreVertical = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="5" r="1" />
+    <circle cx="12" cy="12" r="1" />
+    <circle cx="12" cy="19" r="1" />
+  </Base>
+);

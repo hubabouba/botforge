@@ -2,15 +2,29 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { templates, blankTemplate, type Template } from "@/lib/workspace/templates";
+import { templates, type Template } from "@/lib/workspace/templates";
 import {
   createProjectFromTemplate,
   deleteProject,
+  duplicateProject,
   listProjects,
   renameProject,
   type StoredProject,
 } from "@/lib/workspace/store";
-import { Telegram, Discord, Plus, Trash, Pencil, ArrowRight } from "@/components/icons";
+import { downloadZip } from "@/lib/workspace/zip";
+import { CreateProjectModal } from "./CreateProjectModal";
+import {
+  Telegram,
+  Discord,
+  Plus,
+  Trash,
+  Pencil,
+  Download,
+  Copy,
+  MoreVertical,
+  Bot,
+  ArrowRight,
+} from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 function PlatformTag({ platform }: { platform: Template["platform"] }) {
@@ -43,6 +57,7 @@ export function DashboardHome({ name }: { name: string }) {
   const router = useRouter();
   const [projects, setProjects] = useState<StoredProject[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const reload = useCallback(() => setProjects(listProjects()), []);
 
@@ -53,90 +68,97 @@ export function DashboardHome({ name }: { name: string }) {
     return () => window.removeEventListener("bf:projects-changed", reload);
   }, [reload]);
 
-  function use(template: Template) {
+  function useTemplate(template: Template) {
     const project = createProjectFromTemplate(template);
     router.push(`/workspace/${project.id}`);
   }
 
   return (
     <div className="space-y-12">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Start from a template, edit the code, and download a ready-to-run bot.
-        </p>
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {name}</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Build a Telegram or Discord bot — start in a few clicks.</p>
+        </div>
+        <button
+          onClick={() => setCreating(true)}
+          className="inline-flex items-center gap-2 self-start rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground shadow-soft transition-colors hover:bg-accent-hover sm:self-auto"
+        >
+          <Plus className="h-4 w-4" /> New project
+        </button>
       </div>
 
-      {/* Your projects (only when there are some) */}
-      {loaded && projects.length > 0 && (
+      {/* Your projects / empty state */}
+      {loaded && projects.length > 0 ? (
         <section>
-          <h2 className="text-sm font-semibold">Your projects</h2>
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold">Your projects</h2>
+            <span className="text-xs text-muted-foreground">
+              {projects.length} project{projects.length === 1 ? "" : "s"}
+            </span>
+          </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((p) => (
               <ProjectCard key={p.id} project={p} onChange={reload} />
             ))}
           </div>
         </section>
-      )}
+      ) : loaded ? (
+        <section className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-14 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent-soft text-accent">
+            <Bot className="h-6 w-6" />
+          </div>
+          <h2 className="mt-4 font-medium">No projects yet</h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+            Create your first bot with a short setup, or pick a ready-made template below.
+          </p>
+          <button
+            onClick={() => setCreating(true)}
+            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
+          >
+            <Plus className="h-4 w-4" /> New project
+          </button>
+        </section>
+      ) : null}
 
-      {/* Templates */}
+      {/* Quick start templates */}
       <section>
-        <h2 className="text-sm font-semibold">{projects.length > 0 ? "Start something new" : "Start from a template"}</h2>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <h2 className="text-sm font-semibold">Quick start from a template</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Skip the setup — open a ready-made starter and edit the code.</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {templates.map((t) => (
             <button
               key={t.slug}
-              onClick={() => use(t)}
-              className="card-hover group flex flex-col rounded-2xl border border-border bg-background p-5 text-left shadow-soft"
+              onClick={() => useTemplate(t)}
+              className="card-hover group flex items-center gap-3 rounded-xl border border-border bg-background p-4 text-left shadow-soft"
             >
-              <div className="flex items-center justify-between">
-                <PlatformTag platform={t.platform} />
-                <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                  {t.language === "python" ? "Python" : "Node.js"}
-                </span>
-              </div>
-              <h3 className="mt-3 font-medium">{t.name}</h3>
-              <p className="mt-1 text-sm text-muted-foreground">{t.description}</p>
-              <ul className="mt-3 flex flex-wrap gap-1.5">
-                {t.highlights.map((h) => (
-                  <li key={h} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-                    {h}
-                  </li>
-                ))}
-              </ul>
-              <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent">
-                Use template
-                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+                {t.platform === "telegram" ? <Telegram className="h-4 w-4" /> : <Discord className="h-4 w-4" />}
               </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{t.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">{t.description}</span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
             </button>
           ))}
-
-          {/* Blank */}
-          <button
-            onClick={() => use(blankTemplate)}
-            className="card-hover flex min-h-[176px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-background/50 p-5 text-center text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
-          >
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
-              <Plus className="h-5 w-5" />
-            </span>
-            <span className="text-sm font-medium">Blank project</span>
-            <span className="text-xs">Start from an empty file</span>
-          </button>
         </div>
       </section>
+
+      {creating && <CreateProjectModal onClose={() => setCreating(false)} />}
     </div>
   );
 }
 
 function ProjectCard({ project, onChange }: { project: StoredProject; onChange: () => void }) {
   const router = useRouter();
+  const [menu, setMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(project.name);
-  const [confirmDel, setConfirmDel] = useState(false);
 
-  function open() {
-    router.push(`/workspace/${project.id}`);
-  }
+  const open = () => router.push(`/workspace/${project.id}`);
+
   function commitRename() {
     renameProject(project.id, draft);
     setRenaming(false);
@@ -144,12 +166,21 @@ function ProjectCard({ project, onChange }: { project: StoredProject; onChange: 
   }
 
   return (
-    <div className="group relative flex flex-col rounded-2xl border border-border bg-background p-5 shadow-soft transition-colors hover:border-border">
+    <div className="group relative flex flex-col rounded-2xl border border-border bg-background p-5 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-lift">
       <div className="flex items-center justify-between">
         <PlatformTag platform={project.platform} />
-        <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-          {project.language === "python" ? "Python" : "Node.js"}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+            {project.language === "python" ? "Python" : "Node.js"}
+          </span>
+          <button
+            aria-label="More"
+            onClick={() => setMenu((v) => !v)}
+            className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {renaming ? (
@@ -174,42 +205,84 @@ function ProjectCard({ project, onChange }: { project: StoredProject; onChange: 
 
       <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
         <span>
-          {project.files.length} files · {timeAgo(project.updatedAt)}
+          {project.files.length} file{project.files.length === 1 ? "" : "s"} · {timeAgo(project.updatedAt)}
         </span>
-        <div className="flex items-center gap-1">
-          <button
-            aria-label="Rename"
-            onClick={() => {
-              setDraft(project.name);
-              setRenaming(true);
-            }}
-            className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
-          {confirmDel ? (
-            <button
+        <button onClick={open} className="font-medium text-accent hover:underline">
+          Open
+        </button>
+      </div>
+
+      {/* Dropdown menu */}
+      {menu && (
+        <>
+          <button className="fixed inset-0 z-10 cursor-default" aria-hidden onClick={() => setMenu(false)} />
+          <div className="absolute right-4 top-12 z-20 w-44 overflow-hidden rounded-xl border border-border bg-background py-1 shadow-lift">
+            <MenuItem icon={<ArrowRight className="h-3.5 w-3.5" />} label="Open" onClick={open} />
+            <MenuItem
+              icon={<Pencil className="h-3.5 w-3.5" />}
+              label="Rename"
               onClick={() => {
-                deleteProject(project.id);
+                setDraft(project.name);
+                setRenaming(true);
+                setMenu(false);
+              }}
+            />
+            <MenuItem
+              icon={<Copy className="h-3.5 w-3.5" />}
+              label="Duplicate"
+              onClick={() => {
+                duplicateProject(project.id);
+                setMenu(false);
                 onChange();
               }}
-              onBlur={() => setConfirmDel(false)}
-              autoFocus
-              className="rounded bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-medium text-rose-500"
-            >
-              Delete?
-            </button>
-          ) : (
-            <button
-              aria-label="Delete"
-              onClick={() => setConfirmDel(true)}
-              className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-rose-500"
-            >
-              <Trash className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
+            />
+            <MenuItem
+              icon={<Download className="h-3.5 w-3.5" />}
+              label="Download ZIP"
+              onClick={() => {
+                downloadZip(project.name, project.files);
+                setMenu(false);
+              }}
+            />
+            <div className="my-1 h-px bg-border" />
+            <MenuItem
+              icon={<Trash className="h-3.5 w-3.5" />}
+              label="Delete"
+              danger
+              onClick={() => {
+                deleteProject(project.id);
+                setMenu(false);
+                onChange();
+              }}
+            />
+          </div>
+        </>
+      )}
     </div>
+  );
+}
+
+function MenuItem({
+  icon,
+  label,
+  onClick,
+  danger,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted",
+        danger ? "text-rose-500" : "text-foreground",
+      )}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

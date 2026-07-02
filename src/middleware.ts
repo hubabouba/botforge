@@ -6,7 +6,7 @@ const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 /**
  * Refreshes the Supabase auth session on every request and guards routes:
- *  - unauthenticated users are bounced from /dashboard to /login
+ *  - unauthenticated users are bounced from /dashboard and /workspace to /login
  *  - authenticated users are sent from /login|/signup to /dashboard
  * If Supabase isn't configured, it becomes a no-op passthrough.
  */
@@ -37,7 +37,7 @@ export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAuthPage = path === "/login" || path === "/signup";
 
-  if (!user && path.startsWith("/dashboard")) {
+  if (!user && (path.startsWith("/dashboard") || path.startsWith("/workspace"))) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);

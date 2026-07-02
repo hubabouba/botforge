@@ -3,6 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { brand } from "@/lib/brand";
 import { Logo } from "@/components/marketing/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { DashboardHome } from "@/components/dashboard/DashboardHome";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -27,6 +29,7 @@ export default async function DashboardPage() {
             {brand.name}
           </Link>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
             <form action="/auth/signout" method="post">
               <button className="rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-muted">
@@ -37,32 +40,8 @@ export default async function DashboardPage() {
         </div>
       </header>
 
-      <main className="container-x py-12">
-        <div className="flex items-end justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Welcome, {name} 👋</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Your bots live here. Build your first one.</p>
-          </div>
-          <button
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground shadow-soft hover:bg-accent-hover"
-            title="Coming in the next update"
-          >
-            + New bot
-          </button>
-        </div>
-
-        {/* Empty state — the real builder lands in the next phase. */}
-        <div className="mt-10 grid place-items-center rounded-2xl border border-dashed border-border bg-background py-20 text-center">
-          <div className="max-w-sm">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent-soft text-accent">
-              <Logo className="h-6 w-6" />
-            </div>
-            <h2 className="mt-4 font-medium">No bots yet</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              The AI builder is being wired up next. Soon you’ll describe a bot here and watch it come to life.
-            </p>
-          </div>
-        </div>
+      <main className="container-x py-10 sm:py-12">
+        <DashboardHome name={name} />
       </main>
     </div>
   );

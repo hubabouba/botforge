@@ -1,17 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 const KEY = "bf-dev-banner-dismissed";
 
-/** Slim, dismissible "early development" notice shown site-wide. */
+/** Slim, dismissible "early development" notice shown site-wide (except the IDE). */
 export function DevBanner() {
   const [show, setShow] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     setShow(localStorage.getItem(KEY) !== "1");
   }, []);
 
+  // The workspace is a full-screen app — no room for a marketing bar.
+  if (pathname?.startsWith("/workspace")) return null;
   if (!show) return null;
 
   return (

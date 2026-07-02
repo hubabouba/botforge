@@ -2,23 +2,23 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { Workspace } from "@/components/workspace/Workspace";
-import { sampleProject, sampleChat } from "@/lib/workspace/sample";
 
 export const metadata: Metadata = { title: "Workspace" };
 
-// UI phase: every project id serves the sample project. Real projects load from
-// the DB (and the AI writes their files) in the next sub-step.
+// Auth is enforced on the server; the project itself is loaded client-side from
+// the store (localStorage) by id. Swaps to a DB fetch when persistence moves to
+// Supabase alongside the AI generator.
 export default async function WorkspacePage({
   params,
 }: {
   params: Promise<{ projectId: string }>;
 }) {
-  await params; // reserved: will select the project by id once persisted
+  const { projectId } = await params;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  return <Workspace project={sampleProject} seedChat={sampleChat} />;
+  return <Workspace projectId={projectId} />;
 }

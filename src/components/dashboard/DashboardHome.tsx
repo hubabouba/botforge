@@ -1,174 +1,213 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import type { Language, Platform } from "@/lib/workspace/types";
-import { sampleProject } from "@/lib/workspace/sample";
+import { templates, blankTemplate, type Template } from "@/lib/workspace/templates";
+import {
+  createProjectFromTemplate,
+  deleteProject,
+  listProjects,
+  renameProject,
+  type StoredProject,
+} from "@/lib/workspace/store";
+import { Telegram, Discord, Plus, Trash, Pencil, ArrowRight } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
-const uid = () => Math.random().toString(36).slice(2, 10);
-
-const EXAMPLES = [
-  "A Telegram bot that answers FAQs about my shop",
-  "A Discord moderation bot with a warn system",
-  "A bot that sends me the weather every morning",
-];
-
-function Seg<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { id: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="inline-flex rounded-lg border border-border bg-muted/50 p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => onChange(o.id)}
-          className={cn(
-            "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-            value === o.id ? "bg-background text-foreground shadow-soft" : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function PlatformDot({ platform }: { platform: Platform }) {
+function PlatformTag({ platform }: { platform: Template["platform"] }) {
+  const telegram = platform === "telegram";
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px]",
-        platform === "telegram" ? "bg-[#2aabee]/10 text-[#2aabee]" : "bg-[#5865f2]/10 text-[#5865f2]",
+        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium",
+        telegram ? "bg-[#2aabee]/10 text-[#2aabee]" : "bg-[#5865f2]/10 text-[#5865f2]",
       )}
     >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {platform === "telegram" ? "Telegram" : "Discord"}
+      {telegram ? <Telegram className="h-3 w-3" /> : <Discord className="h-3 w-3" />}
+      {telegram ? "Telegram" : "Discord"}
     </span>
   );
 }
 
+function timeAgo(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return "just now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  return d === 1 ? "yesterday" : `${d}d ago`;
+}
+
 export function DashboardHome({ name }: { name: string }) {
   const router = useRouter();
-  const [prompt, setPrompt] = useState("");
-  const [platform, setPlatform] = useState<Platform>("telegram");
-  const [language, setLanguage] = useState<Language>("python");
-  const [creating, setCreating] = useState(false);
+  const [projects, setProjects] = useState<StoredProject[]>([]);
+  const [loaded, setLoaded] = useState(false);
 
-  function create() {
-    if (creating) return;
-    setCreating(true);
-    const id = uid();
-    const q = new URLSearchParams({ platform, lang: language });
-    if (prompt.trim()) q.set("prompt", prompt.trim());
-    router.push(`/workspace/${id}?${q.toString()}`);
+  const reload = useCallback(() => setProjects(listProjects()), []);
+
+  useEffect(() => {
+    reload();
+    setLoaded(true);
+    window.addEventListener("bf:projects-changed", reload);
+    return () => window.removeEventListener("bf:projects-changed", reload);
+  }, [reload]);
+
+  function use(template: Template) {
+    const project = createProjectFromTemplate(template);
+    router.push(`/workspace/${project.id}`);
   }
 
   return (
-    <div className="space-y-10">
-      {/* Greeting */}
+    <div className="space-y-12">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {name} 👋</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Describe a bot and the AI writes the code. Your projects live below.</p>
+        <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {name}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Start from a template, edit the code, and download a ready-to-run bot.
+        </p>
       </div>
 
-      {/* Composer */}
-      <div className="relative overflow-hidden rounded-2xl border border-border bg-background p-5 shadow-soft sm:p-6">
-        <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-accent/10 blur-3xl" />
-        <label className="text-sm font-medium">What should we build?</label>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") create();
-          }}
-          rows={3}
-          placeholder="e.g. A Telegram bot that tracks crypto prices and sends a daily report at 9:00…"
-          className="mt-3 w-full resize-none rounded-xl border border-border bg-muted/40 px-3.5 py-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/25"
-        />
+      {/* Your projects (only when there are some) */}
+      {loaded && projects.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold">Your projects</h2>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((p) => (
+              <ProjectCard key={p.id} project={p} onChange={reload} />
+            ))}
+          </div>
+        </section>
+      )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Seg
-            options={[
-              { id: "telegram", label: "Telegram" },
-              { id: "discord", label: "Discord" },
-            ]}
-            value={platform}
-            onChange={setPlatform}
-          />
-          <Seg
-            options={[
-              { id: "python", label: "Python" },
-              { id: "node", label: "Node.js" },
-            ]}
-            value={language}
-            onChange={setLanguage}
-          />
-          <button
-            onClick={create}
-            disabled={creating}
-            className="shine ml-auto inline-flex items-center gap-2 rounded-lg bg-gradient-to-b from-accent to-accent-hover px-4 py-2 text-sm font-medium text-accent-foreground shadow-glow transition-all hover:-translate-y-0.5 hover:shadow-glow-lg disabled:opacity-60"
-          >
-            <span className="relative z-[2]">{creating ? "Opening…" : "Build bot →"}</span>
-          </button>
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {EXAMPLES.map((ex) => (
+      {/* Templates */}
+      <section>
+        <h2 className="text-sm font-semibold">{projects.length > 0 ? "Start something new" : "Start from a template"}</h2>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {templates.map((t) => (
             <button
-              key={ex}
-              onClick={() => setPrompt(ex)}
-              className="rounded-full border border-border bg-muted/40 px-2.5 py-1 text-[12px] text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
+              key={t.slug}
+              onClick={() => use(t)}
+              className="card-hover group flex flex-col rounded-2xl border border-border bg-background p-5 text-left shadow-soft"
             >
-              {ex}
+              <div className="flex items-center justify-between">
+                <PlatformTag platform={t.platform} />
+                <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                  {t.language === "python" ? "Python" : "Node.js"}
+                </span>
+              </div>
+              <h3 className="mt-3 font-medium">{t.name}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">{t.description}</p>
+              <ul className="mt-3 flex flex-wrap gap-1.5">
+                {t.highlights.map((h) => (
+                  <li key={h} className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                    {h}
+                  </li>
+                ))}
+              </ul>
+              <span className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-accent">
+                Use template
+                <ArrowRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+              </span>
             </button>
           ))}
+
+          {/* Blank */}
+          <button
+            onClick={() => use(blankTemplate)}
+            className="card-hover flex min-h-[176px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-background/50 p-5 text-center text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">
+              <Plus className="h-5 w-5" />
+            </span>
+            <span className="text-sm font-medium">Blank project</span>
+            <span className="text-xs">Start from an empty file</span>
+          </button>
         </div>
+      </section>
+    </div>
+  );
+}
+
+function ProjectCard({ project, onChange }: { project: StoredProject; onChange: () => void }) {
+  const router = useRouter();
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(project.name);
+  const [confirmDel, setConfirmDel] = useState(false);
+
+  function open() {
+    router.push(`/workspace/${project.id}`);
+  }
+  function commitRename() {
+    renameProject(project.id, draft);
+    setRenaming(false);
+    onChange();
+  }
+
+  return (
+    <div className="group relative flex flex-col rounded-2xl border border-border bg-background p-5 shadow-soft transition-colors hover:border-border">
+      <div className="flex items-center justify-between">
+        <PlatformTag platform={project.platform} />
+        <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+          {project.language === "python" ? "Python" : "Node.js"}
+        </span>
       </div>
 
-      {/* Projects */}
-      <div>
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Your projects</h2>
-          <span className="text-xs text-muted-foreground">1 sample</span>
-        </div>
+      {renaming ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitRename}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") commitRename();
+            if (e.key === "Escape") setRenaming(false);
+          }}
+          className="mt-3 w-full rounded-md border border-accent/50 bg-background px-2 py-1 text-sm outline-none"
+        />
+      ) : (
+        <button onClick={open} className="mt-3 text-left font-medium hover:text-accent">
+          {project.name}
+        </button>
+      )}
 
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {/* Sample project card */}
-          <Link
-            href="/workspace/demo"
-            className="card-hover group flex flex-col rounded-2xl border border-border bg-background p-5 shadow-soft"
-          >
-            <div className="flex items-center justify-between">
-              <PlatformDot platform={sampleProject.platform} />
-              <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">Python</span>
-            </div>
-            <h3 className="mt-3 font-medium">{sampleProject.name}</h3>
-            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{sampleProject.description}</p>
-            <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
-              <span>{sampleProject.files.length} files</span>
-              <span className="font-medium text-accent transition-transform group-hover:translate-x-0.5">Open →</span>
-            </div>
-          </Link>
+      <p className="mt-1 line-clamp-2 flex-1 text-sm text-muted-foreground">{project.description}</p>
 
-          {/* New (blank) */}
+      <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+        <span>
+          {project.files.length} files · {timeAgo(project.updatedAt)}
+        </span>
+        <div className="flex items-center gap-1">
           <button
-            onClick={create}
-            className="card-hover flex min-h-[168px] flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-background/50 p-5 text-center text-muted-foreground transition-colors hover:border-accent/40 hover:text-foreground"
+            aria-label="Rename"
+            onClick={() => {
+              setDraft(project.name);
+              setRenaming(true);
+            }}
+            className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
           >
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent">＋</span>
-            <span className="text-sm font-medium">New project</span>
-            <span className="text-xs">Start from a description</span>
+            <Pencil className="h-3.5 w-3.5" />
           </button>
+          {confirmDel ? (
+            <button
+              onClick={() => {
+                deleteProject(project.id);
+                onChange();
+              }}
+              onBlur={() => setConfirmDel(false)}
+              autoFocus
+              className="rounded bg-rose-500/10 px-1.5 py-0.5 text-[11px] font-medium text-rose-500"
+            >
+              Delete?
+            </button>
+          ) : (
+            <button
+              aria-label="Delete"
+              onClick={() => setConfirmDel(true)}
+              className="grid h-6 w-6 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-rose-500"
+            >
+              <Trash className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       </div>
     </div>

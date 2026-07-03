@@ -1,5 +1,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { botGraphSchema, type BotGraph } from "@/lib/schema/types";
+import {
+  buildSystemPrompt,
+  defaultReply,
+  type AssistantEdit,
+  type AssistantParams,
+  type AssistantResult,
+} from "./types";
+
+export type { AssistantEdit, AssistantResult } from "./types";
 
 /** Model used to generate/edit bot graphs (good structured-output quality). */
 const GEN_MODEL = "claude-sonnet-5";
@@ -70,6 +79,59 @@ export async function generateGraph(description: string): Promise<BotGraph> {
   if (second) return second;
 
   throw new Error("AI did not return a valid bot graph.");
+}
+
+/** Model powering the in-workspace coding assistant (paid plans). */
+const ASSISTANT_MODEL = "claude-sonnet-5";
+
+const WRITE_FILE_TOOL = {
+  name: "write_file",
+  description:
+    "Create a new file or overwrite an existing one with its full new content. Always provide the complete file, never a diff.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      path: { type: "string", description: "POSIX path relative to the project root, e.g. bot/handlers.py" },
+      content: { type: "string", description: "The complete new content of the file" },
+    },
+    required: ["path", "content"],
+  },
+};
+
+/**
+ * The workspace assistant (Claude): answers questions about the bot project and
+ * proposes concrete file edits via the write_file tool. Runs a single turn —
+ * proposed edits are returned to the client to apply, since files live in the browser.
+ */
+export async function assistantChat(params: AssistantParams): Promise<AssistantResult> {
+  const anthropic = getClient();
+  const system = buildSystemPrompt(params);
+
+  const msg = await anthropic.messages.create({
+    model: ASSISTANT_MODEL,
+    max_tokens: 4096,
+    system,
+    tools: [WRITE_FILE_TOOL],
+    messages: params.messages.map((m) => ({ role: m.role, content: m.content })),
+  });
+
+  const reply = msg.content
+    .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
+    .map((b) => b.text)
+    .join("\n")
+    .trim();
+
+  const edits: AssistantEdit[] = [];
+  for (const block of msg.content) {
+    if (block.type === "tool_use" && block.name === "write_file") {
+      const input = block.input as { path?: string; content?: string };
+      if (input.path && typeof input.content === "string") {
+        edits.push({ path: input.path, content: input.content });
+      }
+    }
+  }
+
+  return { reply: reply || defaultReply(edits), edits };
 }
 
 /** Runtime helper for the ai_reply node: generate a single reply to the user. */

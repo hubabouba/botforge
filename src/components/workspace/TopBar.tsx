@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/marketing/Logo";
-import { ArrowLeft, Download, Play, Telegram, Discord } from "@/components/icons";
+import { ArrowLeft, Download, Play, Telegram, Discord, Bot } from "@/components/icons";
 import type { Project } from "@/lib/workspace/types";
 import { cn } from "@/lib/utils";
 
@@ -28,12 +28,16 @@ function PlatformBadge({ platform }: { platform: Project["platform"] }) {
 export function TopBar({
   project,
   status,
+  chatOpen,
+  onToggleChat,
   onRename,
   onDownload,
   onRun,
 }: {
   project: Project;
   status: SaveStatus;
+  chatOpen: boolean;
+  onToggleChat: () => void;
   onRename: (name: string) => void;
   onDownload: () => void;
   onRun: () => void;
@@ -98,6 +102,19 @@ export function TopBar({
       </span>
 
       <div className="flex items-center gap-2">
+        <button
+          onClick={onToggleChat}
+          title={chatOpen ? "Hide assistant" : "Show assistant"}
+          className={cn(
+            "hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors lg:inline-flex",
+            chatOpen
+              ? "border-accent/40 bg-accent/10 text-accent"
+              : "border-ink-700 text-neutral-300 hover:bg-white/[0.05]",
+          )}
+        >
+          <Bot className="h-3.5 w-3.5" />
+          Assistant
+        </button>
         <button
           onClick={onDownload}
           className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-2.5 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-white/[0.05]"

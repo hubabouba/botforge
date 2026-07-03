@@ -18,6 +18,7 @@ import { TopBar, type SaveStatus } from "./TopBar";
 import { FileTree } from "./FileTree";
 import { CodeEditor } from "./CodeEditor";
 import { RunGuideModal } from "./RunGuideModal";
+import { WorkspaceChat } from "./WorkspaceChat";
 import { cn } from "@/lib/utils";
 
 type LoadState = "loading" | "ready" | "missing";
@@ -29,6 +30,9 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [activePath, setActivePath] = useState("");
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [runOpen, setRunOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
+  // Bumped when the assistant applies an edit, to remount the editor with fresh content.
+  const [editorNonce, setEditorNonce] = useState(0);
   const savingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Load the project from the store on mount (client-only).
@@ -126,6 +130,21 @@ export function Workspace({ projectId }: { projectId: string }) {
     [project, refresh],
   );
 
+  // Apply an edit proposed by the AI assistant: write (or create) the file,
+  // open it, and remount the editor so the new content shows immediately.
+  const onApplyEdit = useCallback(
+    (path: string, content: string) => {
+      if (!project) return;
+      const exists = project.files.some((f) => f.path === path);
+      const updated = exists ? writeFile(project.id, path, content) : addFile(project.id, path, content);
+      refresh(updated);
+      openFile(path);
+      setEditorNonce((n) => n + 1);
+      pingSaving();
+    },
+    [project, refresh, openFile, pingSaving],
+  );
+
   // ---- Render states ----
   if (load === "loading") {
     return (
@@ -164,6 +183,8 @@ export function Workspace({ projectId }: { projectId: string }) {
       <TopBar
         project={project}
         status={status}
+        chatOpen={chatOpen}
+        onToggleChat={() => setChatOpen((v) => !v)}
         onRename={onRenameProject}
         onDownload={() => downloadZip(project.name, project.files)}
         onRun={() => setRunOpen(true)}
@@ -211,12 +232,28 @@ export function Workspace({ projectId }: { projectId: string }) {
 
           <div className="min-h-0 flex-1">
             {activeFile ? (
-              <CodeEditor key={activeFile.path} file={activeFile} onChange={onEditorChange} />
+              <CodeEditor
+                key={`${activeFile.path}#${editorNonce}`}
+                file={activeFile}
+                onChange={onEditorChange}
+                onSave={pingSaving}
+              />
             ) : (
               <div className="grid h-full place-items-center text-sm text-neutral-600">No file open</div>
             )}
           </div>
         </div>
+
+        {chatOpen && (
+          <aside className="hidden w-[340px] shrink-0 border-l border-ink-800 lg:block xl:w-[380px]">
+            <WorkspaceChat
+              project={project}
+              files={project.files}
+              onApplyEdit={onApplyEdit}
+              onCollapse={() => setChatOpen(false)}
+            />
+          </aside>
+        )}
       </div>
 
       {runOpen && <RunGuideModal project={project} onClose={() => setRunOpen(false)} />}

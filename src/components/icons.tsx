@@ -71,6 +71,20 @@ export const CodeIcon = (p: IconProps) => (
   </Base>
 );
 
+export const User = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21a8 8 0 0 1 16 0" />
+  </Base>
+);
+
+export const LogOut = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <path d="M16 17l5-5-5-5M21 12H9" />
+  </Base>
+);
+
 export const Lock = (p: IconProps) => (
   <Base {...p}>
     <rect x="4" y="10" width="16" height="11" rx="2" />

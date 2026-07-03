@@ -5,6 +5,7 @@ import { brand } from "@/lib/brand";
 import { Logo } from "@/components/marketing/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { DashboardHome } from "@/components/dashboard/DashboardHome";
+import { AccountMenu } from "@/components/dashboard/AccountMenu";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -30,12 +31,7 @@ export default async function DashboardPage() {
           </Link>
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <span className="hidden text-sm text-muted-foreground sm:inline">{user.email}</span>
-            <form action="/auth/signout" method="post">
-              <button className="rounded-lg border border-border px-3 py-1.5 text-sm transition-colors hover:bg-muted">
-                Sign out
-              </button>
-            </form>
+            <AccountMenu email={user.email ?? ""} name={name} />
           </div>
         </div>
       </header>

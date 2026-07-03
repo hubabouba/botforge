@@ -6,10 +6,26 @@ import { brand, navLinks } from "@/lib/brand";
 import { ButtonLink } from "@/components/ui/Button";
 import { Logo } from "@/components/marketing/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuthUser } from "@/hooks/useAuthUser";
 import { cn } from "@/lib/utils";
+
+function AvatarLink({ email }: { email: string }) {
+  const initials = email.slice(0, 2).toUpperCase();
+  return (
+    <Link
+      href="/dashboard"
+      aria-label="Dashboard"
+      title={email}
+      className="grid h-9 w-9 place-items-center rounded-full bg-accent text-[12px] font-semibold text-accent-foreground transition-transform hover:scale-105"
+    >
+      {initials}
+    </Link>
+  );
+}
 
 export function Navbar() {
   const [open, setOpen] = useState(false);
+  const { email, signedIn, loading } = useAuthUser();
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/60 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
@@ -33,12 +49,25 @@ export function Navbar() {
 
         <div className="hidden items-center gap-2 md:flex">
           <ThemeToggle />
-          <ButtonLink href="/login" variant="ghost" size="sm">
-            Log in
-          </ButtonLink>
-          <ButtonLink href="/signup" size="sm">
-            Get started
-          </ButtonLink>
+          {loading ? (
+            <span className="h-9 w-9" />
+          ) : signedIn ? (
+            <>
+              <ButtonLink href="/dashboard" size="sm">
+                Dashboard
+              </ButtonLink>
+              <AvatarLink email={email!} />
+            </>
+          ) : (
+            <>
+              <ButtonLink href="/login" variant="ghost" size="sm">
+                Log in
+              </ButtonLink>
+              <ButtonLink href="/signup" size="sm">
+                Get started
+              </ButtonLink>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-2 md:hidden">
@@ -66,12 +95,20 @@ export function Navbar() {
             </a>
           ))}
           <div className="mt-2 flex gap-2">
-            <ButtonLink href="/login" variant="ghost" size="sm" className="flex-1">
-              Log in
-            </ButtonLink>
-            <ButtonLink href="/signup" size="sm" className="flex-1">
-              Get started
-            </ButtonLink>
+            {loading ? null : signedIn ? (
+              <ButtonLink href="/dashboard" size="sm" className="flex-1" onClick={() => setOpen(false)}>
+                Go to dashboard
+              </ButtonLink>
+            ) : (
+              <>
+                <ButtonLink href="/login" variant="ghost" size="sm" className="flex-1">
+                  Log in
+                </ButtonLink>
+                <ButtonLink href="/signup" size="sm" className="flex-1">
+                  Get started
+                </ButtonLink>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
-import { ButtonLink } from "@/components/ui/Button";
 import { WorkspacePreview } from "@/components/marketing/WorkspacePreview";
+import { HeroCta } from "@/components/marketing/HeroCta";
 
 export function Hero() {
   return (
@@ -35,15 +35,7 @@ export function Hero() {
             Edit it in your browser, run it in one click, and download the source.
           </p>
 
-          <div className="animate-fade-up mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <ButtonLink href="/signup" size="lg" className="w-full sm:w-auto">
-              Build a bot for free
-            </ButtonLink>
-            <ButtonLink href="#how" variant="ghost" size="lg" className="w-full sm:w-auto">
-              See how it works
-            </ButtonLink>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">No credit card · first project free</p>
+          <HeroCta />
         </div>
 
         <div className="animate-fade-up mx-auto mt-16 max-w-4xl [animation-delay:120ms]">

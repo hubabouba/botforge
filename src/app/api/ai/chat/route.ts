@@ -21,6 +21,14 @@ const bodySchema = z.object({
     .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(8000) }))
     .min(1)
     .max(30),
+  preferences: z
+    .object({
+      language: z.string().max(40).optional(),
+      style: z.enum(["concise", "balanced", "detailed"]).optional(),
+      persona: z.string().max(400).optional(),
+      custom: z.string().max(1000).optional(),
+    })
+    .optional(),
 });
 
 // POST /api/ai/chat — the in-workspace coding assistant.

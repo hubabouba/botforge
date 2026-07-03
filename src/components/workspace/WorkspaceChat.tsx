@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Project, ProjectFile } from "@/lib/workspace/types";
-import { Bot, Check, FileIcon, Close } from "@/components/icons";
+import { Bot, Check, FileIcon, Close, Settings } from "@/components/icons";
+import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { cn } from "@/lib/utils";
 
 interface Edit {
@@ -35,7 +36,22 @@ export function WorkspaceChat({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Load saved persona preferences once on mount (localStorage is client-only).
+  useEffect(() => {
+    setPrefs(loadPrefs());
+  }, []);
+
+  function updatePrefs(patch: Partial<AssistantPreferences>) {
+    setPrefs((prev) => {
+      const next = { ...prev, ...patch };
+      savePrefs(next);
+      return next;
+    });
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -58,6 +74,7 @@ export function WorkspaceChat({
           project: { name: project.name, platform: project.platform, language: project.language },
           files,
           messages: history.map((m) => ({ role: m.role, content: m.text })),
+          preferences: prefs,
         }),
       });
       const data = await res.json();
@@ -94,13 +111,36 @@ export function WorkspaceChat({
         </span>
         <span className="text-sm font-medium text-neutral-200">Assistant</span>
         <button
+          onClick={() => setSettingsOpen((v) => !v)}
+          aria-label="Assistant settings"
+          aria-pressed={settingsOpen}
+          className={cn(
+            "ml-auto grid h-6 w-6 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200",
+            settingsOpen && "bg-white/10 text-neutral-200",
+          )}
+        >
+          <Settings className="h-4 w-4" />
+        </button>
+        <button
           onClick={onCollapse}
           aria-label="Hide assistant"
-          className="ml-auto grid h-6 w-6 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200"
+          className="grid h-6 w-6 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200"
         >
           <Close className="h-4 w-4" />
         </button>
       </div>
+
+      {settingsOpen && (
+        <AssistantSettings
+          prefs={prefs}
+          onChange={updatePrefs}
+          onReset={() => {
+            savePrefs(DEFAULT_PREFERENCES);
+            setPrefs(DEFAULT_PREFERENCES);
+          }}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-3.5 overflow-y-auto p-4">
@@ -207,6 +247,106 @@ export function WorkspaceChat({
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+const LANGUAGES = ["", "English", "Русский", "Español", "Deutsch", "Français"];
+const LANG_LABEL: Record<string, string> = { "": "Match me" };
+const STYLES: { value: NonNullable<AssistantPreferences["style"]>; label: string }[] = [
+  { value: "concise", label: "Concise" },
+  { value: "balanced", label: "Balanced" },
+  { value: "detailed", label: "Detailed" },
+];
+
+function AssistantSettings({
+  prefs,
+  onChange,
+  onReset,
+  onClose,
+}: {
+  prefs: AssistantPreferences;
+  onChange: (patch: Partial<AssistantPreferences>) => void;
+  onReset: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="border-b border-ink-800 bg-ink-900/60 px-4 py-3.5 text-[13px]">
+      <div className="mb-3 flex items-center">
+        <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">Assistant persona</span>
+        <button
+          onClick={onClose}
+          className="ml-auto text-[11px] text-neutral-500 hover:text-neutral-300"
+        >
+          Done
+        </button>
+      </div>
+
+      {/* Reply language */}
+      <label className="mb-1 block text-[12px] text-neutral-400">Reply language</label>
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {LANGUAGES.map((lang) => (
+          <button
+            key={lang || "auto"}
+            onClick={() => onChange({ language: lang })}
+            className={cn(
+              "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
+              (prefs.language ?? "") === lang
+                ? "border-accent/60 bg-accent/15 text-neutral-100"
+                : "border-ink-800 bg-ink-900 text-neutral-400 hover:text-neutral-200",
+            )}
+          >
+            {LANG_LABEL[lang] ?? lang}
+          </button>
+        ))}
+      </div>
+
+      {/* Verbosity */}
+      <label className="mb-1 block text-[12px] text-neutral-400">Style</label>
+      <div className="mb-3 flex gap-1.5">
+        {STYLES.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => onChange({ style: s.value })}
+            className={cn(
+              "flex-1 rounded-lg border px-2 py-1.5 text-[12px] transition-colors",
+              prefs.style === s.value
+                ? "border-accent/60 bg-accent/15 text-neutral-100"
+                : "border-ink-800 bg-ink-900 text-neutral-400 hover:text-neutral-200",
+            )}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Persona / character */}
+      <label className="mb-1 block text-[12px] text-neutral-400">Character</label>
+      <input
+        value={prefs.persona ?? ""}
+        onChange={(e) => onChange({ persona: e.target.value })}
+        maxLength={400}
+        placeholder="e.g. a friendly mentor · a blunt senior engineer"
+        className="mb-3 w-full rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-[12px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-accent/50"
+      />
+
+      {/* Custom instructions */}
+      <label className="mb-1 block text-[12px] text-neutral-400">Custom instructions</label>
+      <textarea
+        value={prefs.custom ?? ""}
+        onChange={(e) => onChange({ custom: e.target.value })}
+        maxLength={1000}
+        rows={2}
+        placeholder="Anything else the assistant should always do…"
+        className="w-full resize-none rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-[12px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-accent/50"
+      />
+
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-[11px] text-neutral-600">Saved for all your projects</span>
+        <button onClick={onReset} className="text-[11px] text-neutral-500 hover:text-neutral-300">
+          Reset
+        </button>
       </div>
     </div>
   );

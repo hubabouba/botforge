@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { PLANS, PLAN_RANK, planMeta, type Plan } from "@/lib/plan";
 import { Close, Check, Lock } from "@/components/icons";
 import { cn } from "@/lib/utils";
@@ -141,11 +142,16 @@ export function UpgradeModal({
         </div>
 
         <div className="border-t border-border px-5 py-3 text-center text-[11px] text-muted-foreground">
-          {STRIPE_ENABLED ? (
-            <>Secure payment via Stripe · Cancel anytime</>
-          ) : (
-            <>Payments launch soon via Stripe. By subscribing you’ll agree to our Terms and Privacy Policy.</>
-          )}
+          {STRIPE_ENABLED ? "Secure payment via Stripe · Cancel anytime · " : "Payments launch soon via Stripe · "}
+          By subscribing you agree to our{" "}
+          <Link href="/terms" target="_blank" className="underline hover:text-foreground">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" target="_blank" className="underline hover:text-foreground">
+            Privacy Policy
+          </Link>
+          .
         </div>
       </div>
     </div>

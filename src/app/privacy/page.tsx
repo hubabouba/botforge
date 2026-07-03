@@ -6,10 +6,11 @@ export const metadata: Metadata = { title: "Privacy Policy" };
 
 export default function PrivacyPage() {
   return (
-    <LegalShell title="Privacy Policy" updated="July 1, 2026">
+    <LegalShell title="Privacy Policy" updated="July 3, 2026">
       <p>
-        This policy describes what data {brand.name} (“we”) collects and how we use it.
-        This document is a draft and should be reviewed by a lawyer before launch.
+        This policy describes what data {brand.name} (“{brand.operator}”, “we”), operating from{" "}
+        {brand.jurisdiction}, collects and how we use it. This document is a draft and should be
+        reviewed by a lawyer before launch.
       </p>
 
       <h2>What we collect</h2>
@@ -29,13 +30,14 @@ export default function PrivacyPage() {
       <h2>Data processors</h2>
       <p>
         We use: Supabase (database and auth), Stripe (payments), Vercel (hosting),
-        Sentry (errors), PostHog (analytics), and Anthropic (code generation).
+        Sentry (errors), PostHog (analytics), and Anthropic and Google (AI code generation).
+        Some of these providers may process data outside your country under appropriate safeguards.
       </p>
 
       <h2>Your rights</h2>
       <p>
         You can request access to, correction of, or deletion of your data by emailing{" "}
-        <a href={`mailto:privacy@${brand.domain}`}>privacy@{brand.domain}</a>.
+        <a href={`mailto:${brand.email}`}>{brand.email}</a>.
       </p>
 
       <h2>Cookies</h2>
@@ -45,7 +47,7 @@ export default function PrivacyPage() {
 
       <h2>Contact</h2>
       <p>
-        For privacy questions: <a href={`mailto:privacy@${brand.domain}`}>privacy@{brand.domain}</a>.
+        For privacy questions: <a href={`mailto:${brand.email}`}>{brand.email}</a>.
       </p>
     </LegalShell>
   );

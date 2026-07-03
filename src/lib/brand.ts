@@ -5,6 +5,11 @@
 export const brand = {
   name: "Botforge",
   domain: "botforge.dev",
+  /** Public contact for support, billing, and legal questions. */
+  email: "maskazajca.yt@gmail.com",
+  /** Operator + governing law shown in the legal pages. */
+  operator: "Botforge",
+  jurisdiction: "Poland",
   tagline: "Bots built for you — by voice. AI writes the code, you ship it.",
   description:
     "Botforge is an AI lab where you describe a bot in plain words and AI writes real, working code for Telegram and Discord. Edit, run, and download — all in your browser.",
@@ -48,7 +53,7 @@ export const pricingTiers: PricingTier[] = [
   {
     id: "pro",
     name: "Pro",
-    price: 29,
+    price: 19,
     tagline: "For people who build bots seriously.",
     features: [
       "Unlimited projects",

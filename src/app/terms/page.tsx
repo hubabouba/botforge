@@ -47,11 +47,25 @@ export default function TermsPage() {
 
       <h2>Cancellation and refunds</h2>
       <p>
-        You can cancel anytime from your account; access continues until the end of the paid period,
-        and you are not charged again. Payments are otherwise non-refundable, except where a refund
-        is required by applicable consumer law. If you are a consumer in the EU, you keep any
-        mandatory statutory rights; by starting a subscription and using paid features immediately,
-        you agree the service begins before any withdrawal period ends.
+        You can cancel anytime from your account. When you cancel, your plan stays active until the
+        end of the current paid period and then does not renew — you are not charged again.
+      </p>
+      <p>
+        <strong>Just after purchase.</strong> If you cancel within 14 days of a payment and have made
+        little or no use of paid features, contact us and we will normally refund that payment.
+      </p>
+      <p>
+        <strong>Partway through a period.</strong> If you cancel after using the service during a paid
+        period, that period is non-refundable, but your access continues until it ends.
+      </p>
+      <p>
+        <strong>Accidental or mistaken charges.</strong> If you were charged in error, or forgot to
+        turn off auto-renewal, contact support — we review these case by case and refund where fair.
+      </p>
+      <p>
+        None of this limits mandatory consumer-protection rights you may have in the EU or where you
+        live. By starting a subscription and using paid features immediately, you agree the service
+        begins before any statutory withdrawal period ends.
       </p>
 
       <h2>Disclaimer</h2>

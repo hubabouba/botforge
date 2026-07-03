@@ -53,6 +53,7 @@ export interface ProjectSpec {
   description: string;
   entry: string;
   files: ProjectFile[];
+  folders?: string[];
 }
 
 /** Create a project from an explicit spec (files are deep-copied). */
@@ -66,6 +67,7 @@ export function createProject(spec: ProjectSpec): StoredProject {
     description: spec.description,
     entry: spec.entry,
     files: spec.files.map((f) => ({ ...f })),
+    folders: spec.folders ? [...spec.folders] : [],
     createdAt: now,
     updatedAt: now,
   };
@@ -96,6 +98,7 @@ export function duplicateProject(id: string): StoredProject | null {
     description: src.description,
     entry: src.entry,
     files: src.files,
+    folders: src.folders,
   });
 }
 
@@ -135,6 +138,31 @@ export function addFile(id: string, path: string, content = ""): StoredProject |
     if (!p.files.some((f) => f.path === clean)) {
       p.files.push({ path: clean, content });
     }
+  });
+}
+
+/** Create an (initially empty) folder that persists in the tree. */
+export function addFolder(id: string, path: string): StoredProject | null {
+  const clean = normalizePath(path).replace(/\/+$/, "");
+  if (!clean) return getProject(id);
+  return mutate(id, (p) => {
+    p.folders ??= [];
+    if (!p.folders.includes(clean)) p.folders.push(clean);
+  });
+}
+
+/** Delete a folder and everything under it (files and nested folders). */
+export function deleteFolder(id: string, path: string): StoredProject | null {
+  const clean = normalizePath(path).replace(/\/+$/, "");
+  if (!clean) return getProject(id);
+  const prefix = `${clean}/`;
+  return mutate(id, (p) => {
+    const survivors = p.files.filter((f) => f.path !== clean && !f.path.startsWith(prefix));
+    if (survivors.length >= 1) {
+      p.files = survivors;
+      if (p.entry && !p.files.some((f) => f.path === p.entry)) p.entry = p.files[0]?.path ?? "";
+    }
+    p.folders = (p.folders ?? []).filter((f) => f !== clean && !f.startsWith(prefix));
   });
 }
 

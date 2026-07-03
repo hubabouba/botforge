@@ -28,6 +28,8 @@ export interface Project {
   files: ProjectFile[];
   /** Path of the file to open first. */
   entry: string;
+  /** Explicit folders, including empty ones the tree can't derive from files. */
+  folders?: string[];
 }
 
 // ---- Chat ----
@@ -60,25 +62,41 @@ export interface TreeNode {
   children?: TreeNode[];
 }
 
-/** Build a nested folder tree from a flat list of files. Folders sort first. */
-export function buildTree(files: ProjectFile[]): TreeNode[] {
+/** Build a nested folder tree from a flat list of files plus explicit folders. */
+export function buildTree(files: ProjectFile[], folders: string[] = []): TreeNode[] {
   const root: TreeNode = { name: "", path: "", type: "dir", children: [] };
 
-  for (const file of files) {
-    const parts = file.path.split("/");
+  // Walk/create the dir chain for a "a/b/c" path and return the deepest node.
+  const ensureDir = (path: string): TreeNode => {
     let node = root;
     let acc = "";
-    parts.forEach((part, i) => {
+    for (const part of path.split("/").filter(Boolean)) {
       acc = acc ? `${acc}/${part}` : part;
-      const isFile = i === parts.length - 1;
       node.children ??= [];
-      let child = node.children.find((c) => c.name === part);
+      let child = node.children.find((c) => c.name === part && c.type === "dir");
       if (!child) {
-        child = { name: part, path: acc, type: isFile ? "file" : "dir", children: isFile ? undefined : [] };
+        child = { name: part, path: acc, type: "dir", children: [] };
         node.children.push(child);
       }
       node = child;
-    });
+    }
+    return node;
+  };
+
+  // Seed explicit folders first so empty ones still appear.
+  for (const f of folders) {
+    const clean = f.replace(/^\/+|\/+$/g, "");
+    if (clean) ensureDir(clean);
+  }
+
+  for (const file of files) {
+    const parts = file.path.split("/");
+    const fileName = parts[parts.length - 1];
+    const parent = parts.length > 1 ? ensureDir(parts.slice(0, -1).join("/")) : root;
+    parent.children ??= [];
+    if (!parent.children.find((c) => c.name === fileName && c.type === "file")) {
+      parent.children.push({ name: fileName, path: file.path, type: "file" });
+    }
   }
 
   const sort = (nodes: TreeNode[]): TreeNode[] => {

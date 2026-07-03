@@ -6,7 +6,9 @@ import { Logo } from "@/components/marketing/Logo";
 import { Close } from "@/components/icons";
 import {
   addFile,
+  addFolder,
   deleteFile,
+  deleteFolder,
   getProject,
   renameFile,
   renameProject,
@@ -96,6 +98,29 @@ export function Workspace({ projectId }: { projectId: string }) {
       if (created) openFile(created.path);
     },
     [project, refresh, openFile],
+  );
+
+  const onAddFolder = useCallback(
+    (path: string) => {
+      if (!project) return;
+      refresh(addFolder(project.id, path));
+    },
+    [project, refresh],
+  );
+
+  const onDeleteFolder = useCallback(
+    (path: string) => {
+      if (!project) return;
+      const updated = deleteFolder(project.id, path);
+      refresh(updated);
+      const prefix = `${path}/`;
+      setOpenPaths((prev) => {
+        const next = prev.filter((p) => p !== path && !p.startsWith(prefix));
+        if (!next.includes(activePath)) setActivePath(next[next.length - 1] ?? updated?.entry ?? "");
+        return next;
+      });
+    },
+    [project, activePath, refresh],
   );
 
   const onRenameFile = useCallback(
@@ -194,11 +219,14 @@ export function Workspace({ projectId }: { projectId: string }) {
         <aside className="hidden w-60 shrink-0 border-r border-ink-800 bg-ink-950 md:block">
           <FileTree
             files={project.files}
+            folders={project.folders ?? []}
             activePath={activePath}
             onOpen={openFile}
             onAddFile={onAddFile}
+            onAddFolder={onAddFolder}
             onRename={onRenameFile}
             onDelete={onDeleteFile}
+            onDeleteFolder={onDeleteFolder}
             name={project.name}
           />
         </aside>
@@ -210,22 +238,29 @@ export function Workspace({ projectId }: { projectId: string }) {
               const name = path.split("/").pop();
               const active = path === activePath;
               return (
-                <button
+                <div
                   key={path}
                   onClick={() => setActivePath(path)}
+                  onMouseDown={(e) => {
+                    if (e.button === 1) closeTab(path, e); // middle-click closes
+                  }}
                   className={cn(
-                    "group/tab flex h-7 shrink-0 items-center gap-2 rounded-md px-2.5 text-[12px] transition-colors",
+                    "group/tab flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2.5 pr-1.5 text-[12px] transition-colors",
                     active ? "bg-ink-800 text-neutral-100" : "text-neutral-500 hover:bg-white/[0.04]",
                   )}
                 >
                   <span className="font-mono">{name}</span>
-                  <span
+                  <button
+                    aria-label={`Close ${name}`}
                     onClick={(e) => closeTab(path, e)}
-                    className="grid h-4 w-4 place-items-center rounded text-neutral-600 opacity-0 transition-opacity hover:bg-white/10 hover:text-neutral-300 group-hover/tab:opacity-100"
+                    className={cn(
+                      "grid h-4 w-4 place-items-center rounded transition-colors hover:bg-white/10 hover:text-neutral-200",
+                      active ? "text-neutral-400" : "text-neutral-600 opacity-60 group-hover/tab:opacity-100",
+                    )}
                   >
                     <Close className="h-3 w-3" />
-                  </span>
-                </button>
+                  </button>
+                </div>
               );
             })}
           </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { buildTree, langOf, type ProjectFile, type TreeNode } from "@/lib/workspace/types";
-import { ChevronRight, Plus, Pencil, Trash } from "@/components/icons";
+import { ChevronRight, Plus, Pencil, Trash, FolderIcon } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
 /** A small colored square keyed to the file's language — quiet visual anchor. */
@@ -35,6 +35,7 @@ interface NodeHandlers {
   onOpen: (path: string) => void;
   onRename: (oldPath: string, newPath: string) => void;
   onDelete: (path: string) => void;
+  onDeleteFolder: (path: string) => void;
 }
 
 function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandlers }) {
@@ -46,14 +47,22 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
   if (node.type === "dir") {
     return (
       <div>
-        <button
-          onClick={() => setOpen((v) => !v)}
+        <div
           style={pad}
-          className="flex w-full items-center gap-1.5 py-1 pr-2 text-left text-[13px] text-neutral-300 transition-colors hover:bg-white/[0.04]"
+          className="group/dir flex items-center gap-1.5 py-1 pr-1.5 text-[13px] text-neutral-300 transition-colors hover:bg-white/[0.04]"
         >
-          <ChevronRight className={cn("h-3.5 w-3.5 text-neutral-500 transition-transform", open && "rotate-90")} />
-          <span className="truncate font-medium">{node.name}</span>
-        </button>
+          <button onClick={() => setOpen((v) => !v)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+            <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-neutral-500 transition-transform", open && "rotate-90")} />
+            <span className="truncate font-medium">{node.name}</span>
+          </button>
+          <button
+            aria-label="Delete folder"
+            onClick={() => h.onDeleteFolder(node.path)}
+            className="grid h-5 w-5 shrink-0 place-items-center rounded text-neutral-500 opacity-0 transition-opacity hover:bg-white/10 hover:text-rose-300 group-hover/dir:opacity-100"
+          >
+            <Trash className="h-3 w-3" />
+          </button>
+        </div>
         {open && node.children?.map((c) => <Node key={c.path} node={c} depth={depth + 1} h={h} />)}
       </div>
     );
@@ -125,43 +134,66 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
 
 export function FileTree({
   files,
+  folders,
   activePath,
   onOpen,
   onAddFile,
+  onAddFolder,
   onRename,
   onDelete,
+  onDeleteFolder,
   name,
 }: {
   files: ProjectFile[];
+  folders: string[];
   activePath: string;
   onOpen: (path: string) => void;
   onAddFile: (path: string) => void;
+  onAddFolder: (path: string) => void;
   onRename: (oldPath: string, newPath: string) => void;
   onDelete: (path: string) => void;
+  onDeleteFolder: (path: string) => void;
   name: string;
 }) {
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState<null | "file" | "folder">(null);
   const [draft, setDraft] = useState("");
-  const tree = buildTree(files);
+  const tree = buildTree(files, folders);
 
   function commitAdd() {
     const path = draft.trim();
-    if (path) onAddFile(path);
+    if (path) (adding === "folder" ? onAddFolder : onAddFile)(path);
     setDraft("");
-    setAdding(false);
+    setAdding(null);
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2.5">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Explorer</span>
-        <button
-          aria-label="New file"
-          onClick={() => setAdding(true)}
-          className="grid h-5 w-5 place-items-center rounded text-neutral-500 transition-colors hover:bg-white/10 hover:text-neutral-200"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            aria-label="New file"
+            title="New file"
+            onClick={() => {
+              setDraft("");
+              setAdding("file");
+            }}
+            className="grid h-5 w-5 place-items-center rounded text-neutral-500 transition-colors hover:bg-white/10 hover:text-neutral-200"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+          <button
+            aria-label="New folder"
+            title="New folder"
+            onClick={() => {
+              setDraft("");
+              setAdding("folder");
+            }}
+            className="grid h-5 w-5 place-items-center rounded text-neutral-500 transition-colors hover:bg-white/10 hover:text-neutral-200"
+          >
+            <FolderIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       <div className="mb-1 flex items-center gap-1.5 px-3 text-[11px] font-medium uppercase tracking-wide text-neutral-500">
@@ -180,10 +212,10 @@ export function FileTree({
               if (e.key === "Enter") commitAdd();
               if (e.key === "Escape") {
                 setDraft("");
-                setAdding(false);
+                setAdding(null);
               }
             }}
-            placeholder="path/to/file.py"
+            placeholder={adding === "folder" ? "folder-name" : "path/to/file.py"}
             className="w-full rounded border border-accent/50 bg-ink-900 px-1.5 py-0.5 text-[13px] text-neutral-100 outline-none placeholder:text-neutral-600"
           />
         </div>
@@ -195,7 +227,7 @@ export function FileTree({
             key={node.path}
             node={node}
             depth={0}
-            h={{ activePath, onOpen, onRename, onDelete }}
+            h={{ activePath, onOpen, onRename, onDelete, onDeleteFolder }}
           />
         ))}
       </div>

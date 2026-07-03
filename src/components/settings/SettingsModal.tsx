@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useTheme } from "next-themes";
 import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { planMeta, type Plan } from "@/lib/plan";
@@ -51,8 +52,8 @@ export function SettingsModal({
 
   const initials = (name || email).slice(0, 2).toUpperCase();
 
-  return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
+  const content = (
+    <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lift"
@@ -175,6 +176,8 @@ export function SettingsModal({
       </div>
     </div>
   );
+
+  return mounted ? createPortal(content, document.body) : null;
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {

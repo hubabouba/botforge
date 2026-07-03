@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { PLANS, PLAN_RANK, planMeta, type Plan } from "@/lib/plan";
 import { Close, Check, Lock } from "@/components/icons";
@@ -23,8 +24,10 @@ export function UpgradeModal({
 }) {
   const [busy, setBusy] = useState<Plan | null>(null);
   const [error, setError] = useState("");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onEsc);
     return () => window.removeEventListener("keydown", onEsc);
@@ -68,8 +71,8 @@ export function UpgradeModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+  const content = (
+    <div className="fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lift"
@@ -195,6 +198,8 @@ export function UpgradeModal({
       </div>
     </div>
   );
+
+  return mounted ? createPortal(content, document.body) : null;
 }
 
 /** Small helper so callers don't need to import Plan just to name a tier. */

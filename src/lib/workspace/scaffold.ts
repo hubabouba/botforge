@@ -19,6 +19,21 @@ export interface CreateAnswers {
   type: BotType;
   audience: Audience;
   purpose: string;
+  /** The bot's character/tone, e.g. "friendly and concise". Optional. */
+  personality: string;
+}
+
+export const PERSONALITY_PRESETS = [
+  "Friendly and warm",
+  "Professional and concise",
+  "Playful and witty",
+  "Calm and reassuring",
+  "Direct, no fluff",
+];
+
+// A single-line, escaped persona string ready to drop into source as a constant.
+function personaText(personality: string): string {
+  return personality.trim().replace(/\s+/g, " ").replace(/["\\]/g, "").slice(0, 200);
 }
 
 export interface BotTypeMeta {
@@ -502,12 +517,17 @@ function buildReadme(a: CreateAnswers): string {
       ? "\n## Deployment\nRun it on any host (a small VM or a container). Keep the token in an environment\nvariable, never in the code, and add logging/monitoring before going live.\n"
       : "";
 
+  const persona = personaText(a.personality);
+  const personaSection = persona
+    ? `\n## Personality\nThis bot's character: **${persona}**. It lives in the \`PERSONA\` constant in the\ncode — the source of truth for its tone. Ask the Botforge assistant to rewrite\nreplies in this voice, or use \`PERSONA\` as the system prompt when you add an AI model.\n`
+    : "";
+
   return `# ${a.name}
 
 ${a.purpose.trim() || meta.blurb}
 
 Built for ${a.audience} use · ${a.platform === "telegram" ? "Telegram" : "Discord"} · ${a.language === "python" ? "Python" : "Node.js"}
-
+${personaSection}
 ## Commands
 ${meta.commands.map((c) => `- ${c}`).join("\n")}
 
@@ -527,6 +547,18 @@ function envExample(a: CreateAnswers): string {
   return `# Copy to .env and add your token from ${from}\n${key}=\n${log}`;
 }
 
+// Prepend a PERSONA constant to the entry file so the bot's declared character
+// is the single source of truth in code (system-prompt ready).
+function withPersona(files: ProjectFile[], entry: string, language: Language, personality: string): ProjectFile[] {
+  const persona = personaText(personality);
+  if (!persona) return files;
+  const line =
+    language === "python"
+      ? `# PERSONA is this bot's character/tone — used as the system prompt when you\n# connect an AI model, and honored by the Botforge assistant on request.\nPERSONA = "${persona}"\n\n`
+      : `// PERSONA is this bot's character/tone — used as the system prompt when you\n// connect an AI model, and honored by the Botforge assistant on request.\nconst PERSONA = "${persona}";\n\n`;
+  return files.map((f) => (f.path === entry ? { ...f, content: line + f.content } : f));
+}
+
 /** Turn wizard answers into a ready-to-run project spec. */
 export function scaffoldProject(answers: CreateAnswers): ProjectSpec {
   // Discord starters use discord.js (Node); force it for a valid project.
@@ -541,7 +573,7 @@ export function scaffoldProject(answers: CreateAnswers): ProjectSpec {
         : pyTelegram(a.type, a.name);
 
   const files: ProjectFile[] = [
-    ...core.files,
+    ...withPersona(core.files, core.entry, language, a.personality),
     { path: ".env.example", content: envExample(a) },
     { path: "README.md", content: buildReadme(a) },
   ];

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   BOT_TYPES,
   AUDIENCES,
+  PERSONALITY_PRESETS,
   scaffoldProject,
   type BotType,
   type Audience,
@@ -62,6 +63,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
   const [language, setLanguage] = useState<Language>("python");
   const [audience, setAudience] = useState<Audience>("personal");
   const [purpose, setPurpose] = useState("");
+  const [personality, setPersonality] = useState("");
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -83,7 +85,7 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
   }
 
   function create() {
-    const project = createProject(scaffoldProject({ name, platform, language, type, audience, purpose }));
+    const project = createProject(scaffoldProject({ name, platform, language, type, audience, purpose, personality }));
     router.push(`/workspace/${project.id}`);
   }
 
@@ -210,6 +212,38 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
                 />
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
                   Goes into the README now; guides the AI generator later.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">
+                  Personality <span className="font-normal text-muted-foreground">(optional)</span>
+                </label>
+                <input
+                  value={personality}
+                  onChange={(e) => setPersonality(e.target.value)}
+                  placeholder="e.g. Friendly and concise"
+                  className="mt-2 w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/25"
+                />
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {PERSONALITY_PRESETS.map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPersonality(p)}
+                      className={cn(
+                        "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                        personality === p
+                          ? "border-accent bg-accent-soft/60 text-foreground"
+                          : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground",
+                      )}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">
+                  Baked into the code as a <code className="font-mono">PERSONA</code> constant — the assistant can rewrite replies in this voice.
                 </p>
               </div>
             </div>

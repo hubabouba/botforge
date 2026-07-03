@@ -22,6 +22,7 @@ export function UpgradeModal({
   onClose: () => void;
 }) {
   const [busy, setBusy] = useState<Plan | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -30,16 +31,23 @@ export function UpgradeModal({
   }, [onClose]);
 
   async function subscribe(plan: Plan) {
-    if (!STRIPE_ENABLED) return; // stub: CTA renders as "coming soon"
+    if (!STRIPE_ENABLED) {
+      setError("Payments aren't switched on yet (NEXT_PUBLIC_STRIPE_ENABLED).");
+      return;
+    }
     setBusy(plan);
+    setError("");
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.url) window.location.href = data.url;
+      else setError(data.error || `Checkout failed (HTTP ${res.status}).`);
+    } catch {
+      setError("Network error — please try again.");
     } finally {
       setBusy(null);
     }
@@ -47,10 +55,14 @@ export function UpgradeModal({
 
   async function manage() {
     setBusy(current);
+    setError("");
     try {
       const res = await fetch("/api/billing-portal", { method: "POST" });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (data.url) window.location.href = data.url;
+      else setError(data.error || `Portal failed (HTTP ${res.status}).`);
+    } catch {
+      setError("Network error — please try again.");
     } finally {
       setBusy(null);
     }
@@ -77,6 +89,12 @@ export function UpgradeModal({
             <Close className="h-4 w-4" />
           </button>
         </div>
+
+        {error && (
+          <div className="mx-5 mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-300">
+            {error}
+          </div>
+        )}
 
         <div className="grid gap-3 overflow-y-auto p-5 sm:grid-cols-3">
           {PLANS.map((p) => {

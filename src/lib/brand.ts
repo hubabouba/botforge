@@ -32,8 +32,8 @@ export const pricingTiers: PricingTier[] = [
     id: "free",
     name: "Free",
     price: 0,
-    tagline: "Try it and build your first bot.",
-    features: ["1 project", "Basic AI model", "Run in sandbox", "Download code (ZIP)"],
+    tagline: "Try it and build your first bots.",
+    features: ["3 projects", "Basic AI model", "Run in sandbox", "Download code (ZIP)"],
     cta: "Start free",
   },
   {
@@ -42,7 +42,7 @@ export const pricingTiers: PricingTier[] = [
     price: 9,
     tagline: "For personal bots and small projects.",
     features: [
-      "Up to 5 projects",
+      "Up to 15 projects",
       "Standard AI model",
       "Automatic error fixing",
       "Chat & version history",

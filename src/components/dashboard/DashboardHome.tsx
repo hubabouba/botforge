@@ -13,6 +13,9 @@ import {
 } from "@/lib/workspace/store";
 import { downloadZip } from "@/lib/workspace/zip";
 import { CreateProjectModal } from "./CreateProjectModal";
+import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
+import { usePlan } from "@/hooks/usePlan";
+import { projectLimit, nextPlanUp, planMeta } from "@/lib/plan";
 import {
   Telegram,
   Discord,
@@ -55,9 +58,11 @@ function timeAgo(ts: number): string {
 
 export function DashboardHome({ name }: { name: string }) {
   const router = useRouter();
+  const { plan } = usePlan();
   const [projects, setProjects] = useState<StoredProject[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [upgrade, setUpgrade] = useState(false);
 
   const reload = useCallback(() => setProjects(listProjects()), []);
 
@@ -68,9 +73,24 @@ export function DashboardHome({ name }: { name: string }) {
     return () => window.removeEventListener("bf:projects-changed", reload);
   }, [reload]);
 
+  const limit = projectLimit(plan);
+  const atLimit = projects.length >= limit;
+
+  /** Run a create action, or prompt to upgrade if the plan's project cap is hit. */
+  function guardedCreate(fn: () => void) {
+    if (atLimit) setUpgrade(true);
+    else fn();
+  }
+
+  function startNewProject() {
+    guardedCreate(() => setCreating(true));
+  }
+
   function useTemplate(template: Template) {
-    const project = createProjectFromTemplate(template);
-    router.push(`/workspace/${project.id}`);
+    guardedCreate(() => {
+      const project = createProjectFromTemplate(template);
+      router.push(`/workspace/${project.id}`);
+    });
   }
 
   return (
@@ -82,7 +102,7 @@ export function DashboardHome({ name }: { name: string }) {
           <p className="mt-1 text-sm text-muted-foreground">Build a Telegram or Discord bot — start in a few clicks.</p>
         </div>
         <button
-          onClick={() => setCreating(true)}
+          onClick={startNewProject}
           className="inline-flex items-center gap-2 self-start rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground shadow-soft transition-colors hover:bg-accent-hover sm:self-auto"
         >
           <Plus className="h-4 w-4" /> New project
@@ -95,12 +115,34 @@ export function DashboardHome({ name }: { name: string }) {
           <div className="flex items-baseline justify-between">
             <h2 className="text-sm font-semibold">Your projects</h2>
             <span className="text-xs text-muted-foreground">
-              {projects.length} project{projects.length === 1 ? "" : "s"}
+              {Number.isFinite(limit) ? (
+                <>
+                  {projects.length} / {limit} projects
+                  {atLimit && (
+                    <>
+                      {" · "}
+                      <button onClick={() => setUpgrade(true)} className="font-medium text-accent hover:underline">
+                        Upgrade
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  {projects.length} project{projects.length === 1 ? "" : "s"}
+                </>
+              )}
             </span>
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((p) => (
-              <ProjectCard key={p.id} project={p} onChange={reload} />
+              <ProjectCard
+                key={p.id}
+                project={p}
+                onChange={reload}
+                canDuplicate={!atLimit}
+                onRequireUpgrade={() => setUpgrade(true)}
+              />
             ))}
           </div>
         </section>
@@ -114,7 +156,7 @@ export function DashboardHome({ name }: { name: string }) {
             Create your first bot with a short setup, or pick a ready-made template below.
           </p>
           <button
-            onClick={() => setCreating(true)}
+            onClick={startNewProject}
             className="mt-5 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
           >
             <Plus className="h-4 w-4" /> New project
@@ -147,11 +189,30 @@ export function DashboardHome({ name }: { name: string }) {
       </section>
 
       {creating && <CreateProjectModal onClose={() => setCreating(false)} />}
+
+      {upgrade && (
+        <UpgradeModal
+          current={plan}
+          highlight={nextPlanUp(plan)}
+          reason={`You've reached your ${planMeta(plan).name} limit of ${limit} projects. Upgrade for more.`}
+          onClose={() => setUpgrade(false)}
+        />
+      )}
     </div>
   );
 }
 
-function ProjectCard({ project, onChange }: { project: StoredProject; onChange: () => void }) {
+function ProjectCard({
+  project,
+  onChange,
+  canDuplicate,
+  onRequireUpgrade,
+}: {
+  project: StoredProject;
+  onChange: () => void;
+  canDuplicate: boolean;
+  onRequireUpgrade: () => void;
+}) {
   const router = useRouter();
   const [menu, setMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -231,8 +292,12 @@ function ProjectCard({ project, onChange }: { project: StoredProject; onChange: 
               icon={<Copy className="h-3.5 w-3.5" />}
               label="Duplicate"
               onClick={() => {
-                duplicateProject(project.id);
                 setMenu(false);
+                if (!canDuplicate) {
+                  onRequireUpgrade();
+                  return;
+                }
+                duplicateProject(project.id);
                 onChange();
               }}
             />

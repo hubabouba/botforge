@@ -14,6 +14,18 @@ export type Provider = "gemini" | "claude";
 
 export const PLAN_RANK: Record<Plan, number> = { free: 0, basic: 1, pro: 2 };
 
+/** Max number of projects per plan (Infinity = unlimited). */
+export const PROJECT_LIMIT: Record<Plan, number> = { free: 3, basic: 15, pro: Infinity };
+
+export function projectLimit(plan: Plan): number {
+  return PROJECT_LIMIT[plan];
+}
+
+/** The next plan up that raises the project limit (for upgrade prompts). */
+export function nextPlanUp(plan: Plan): Plan {
+  return plan === "free" ? "basic" : "pro";
+}
+
 /** Gated features. Each maps to the minimum plan that unlocks it. */
 export type Capability =
   | "assistant.claude" // smarter model (Claude) instead of the limited free assistant

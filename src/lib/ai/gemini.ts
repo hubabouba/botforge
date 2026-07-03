@@ -14,7 +14,9 @@ import {
   type AssistantResult,
 } from "./types";
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+// gemini-2.5-flash has a real free-tier quota; gemini-2.0-flash is capped at 0
+// free requests for many accounts/regions (returns 429 immediately).
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 
 interface GeminiPart {
   text?: string;
@@ -63,6 +65,11 @@ export async function assistantChatGemini(params: AssistantParams): Promise<Assi
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+    if (res.status === 429) {
+      throw new Error(
+        "The free assistant hit its rate limit for the moment. Wait about a minute and try again.",
+      );
+    }
     throw new Error(`Gemini error ${res.status}: ${text.slice(0, 200)}`);
   }
 

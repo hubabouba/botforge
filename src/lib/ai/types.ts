@@ -42,6 +42,8 @@ export interface AssistantParams {
   files: { path: string; content: string }[];
   messages: { role: "user" | "assistant"; content: string }[];
   preferences?: AssistantPreferences;
+  /** "chat" edits files; "plan" returns a build plan and never edits. */
+  intent?: "chat" | "plan";
 }
 
 /** Turns the user's persona settings into extra system-prompt lines. */
@@ -72,6 +74,13 @@ export function buildSystemPrompt(params: AssistantParams): string {
     .map((f) => `--- ${f.path} ---\n${f.content.slice(0, 8000)}`)
     .join("\n\n");
 
+  const planning =
+    params.intent === "plan"
+      ? `
+
+PLANNING MODE: Do NOT modify files or call write_file. Produce a concise, practical build plan for this project as a numbered list. For each step name the feature, what to do, and which file(s) to create or change. Keep it specific and buildable — no fluff.`
+      : "";
+
   return `You are Botforge's coding assistant. You help the user build a ${params.project.platform} bot written in ${params.project.language}. The project is called "${params.project.name}".
 
 Rules:
@@ -79,7 +88,7 @@ Rules:
 - When you add or change code, call the write_file tool with the COMPLETE new file content (never a diff or a fragment).
 - Make focused, minimal changes and briefly explain what you did in plain language.
 - Never hardcode secrets or tokens — read them from environment variables.
-- If the request is just a question, answer it without editing files.${preferenceLines(params.preferences)}
+- If the request is just a question, answer it without editing files.${planning}${preferenceLines(params.preferences)}
 
 Current project files:
 ${fileDump}`;

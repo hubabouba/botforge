@@ -21,7 +21,25 @@ import { FileTree } from "./FileTree";
 import { CodeEditor } from "./CodeEditor";
 import { RunGuideModal } from "./RunGuideModal";
 import { WorkspaceChat } from "./WorkspaceChat";
+import { ViewSwitcher, LogsPanel, PlanningPanel, MetricsPanel, type WorkView } from "./panels";
+import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
+import { usePlan } from "@/hooks/usePlan";
+import { planMeta, requiredPlan, type Capability, type Plan } from "@/lib/plan";
 import { cn } from "@/lib/utils";
+
+// Which capability each non-code view requires.
+const CAP_FOR_VIEW: Record<Exclude<WorkView, "code">, Capability> = {
+  logs: "panel.logs",
+  planning: "panel.planning",
+  metrics: "panel.metrics",
+};
+
+const VIEW_LABEL: Record<WorkView, string> = {
+  code: "Code",
+  logs: "Logs",
+  planning: "AI Planning",
+  metrics: "Metrics",
+};
 
 type LoadState = "loading" | "ready" | "missing";
 
@@ -33,6 +51,9 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [status, setStatus] = useState<SaveStatus>("saved");
   const [runOpen, setRunOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
+  const [view, setView] = useState<WorkView>("code");
+  const [upgrade, setUpgrade] = useState<{ highlight: Plan; reason: string } | null>(null);
+  const { plan, allows } = usePlan();
   // Bumped when the assistant applies an edit, to remount the editor with fresh content.
   const [editorNonce, setEditorNonce] = useState(0);
   const savingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -170,6 +191,20 @@ export function Workspace({ projectId }: { projectId: string }) {
     [project, refresh, openFile, pingSaving],
   );
 
+  const isLocked = (v: WorkView) => v !== "code" && !allows(CAP_FOR_VIEW[v as Exclude<WorkView, "code">]);
+
+  const selectView = (v: WorkView) => {
+    if (!isLocked(v)) {
+      setView(v);
+      return;
+    }
+    const need = requiredPlan(CAP_FOR_VIEW[v as Exclude<WorkView, "code">]);
+    setUpgrade({
+      highlight: need,
+      reason: `${VIEW_LABEL[v]} is part of the ${planMeta(need).name} plan.`,
+    });
+  };
+
   // ---- Render states ----
   if (load === "loading") {
     return (
@@ -232,6 +267,20 @@ export function Workspace({ projectId }: { projectId: string }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
+          <ViewSwitcher view={view} onSelect={selectView} isLocked={isLocked} />
+
+          {view !== "code" ? (
+            <div className="min-h-0 flex-1">
+              {view === "logs" ? (
+                <LogsPanel onRun={() => setRunOpen(true)} />
+              ) : view === "planning" ? (
+                <PlanningPanel project={project} files={project.files} />
+              ) : (
+                <MetricsPanel />
+              )}
+            </div>
+          ) : (
+            <>
           {/* Open-file tabs */}
           <div className="flex h-9 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-ink-800 bg-ink-950 px-1.5">
             {openPaths.map((path) => {
@@ -277,6 +326,8 @@ export function Workspace({ projectId }: { projectId: string }) {
               <div className="grid h-full place-items-center text-sm text-neutral-600">No file open</div>
             )}
           </div>
+            </>
+          )}
         </div>
 
         {chatOpen && (
@@ -292,6 +343,15 @@ export function Workspace({ projectId }: { projectId: string }) {
       </div>
 
       {runOpen && <RunGuideModal project={project} onClose={() => setRunOpen(false)} />}
+
+      {upgrade && (
+        <UpgradeModal
+          current={plan}
+          highlight={upgrade.highlight}
+          reason={upgrade.reason}
+          onClose={() => setUpgrade(null)}
+        />
+      )}
     </div>
   );
 }

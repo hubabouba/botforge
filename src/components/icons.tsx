@@ -50,6 +50,27 @@ export const ChevronDown = (p: IconProps) => (
   </Base>
 );
 
+export const Chart = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M3 3v18h18" />
+    <path d="M7 15v-4M12 15V7M17 15v-6" />
+  </Base>
+);
+
+export const ListChecks = (p: IconProps) => (
+  <Base {...p}>
+    <path d="m3 6 1.5 1.5L7 5" />
+    <path d="m3 14 1.5 1.5L7 13" />
+    <path d="M11 6h10M11 14h10" />
+  </Base>
+);
+
+export const CodeIcon = (p: IconProps) => (
+  <Base {...p}>
+    <path d="m8 8-4 4 4 4M16 8l4 4-4 4" />
+  </Base>
+);
+
 export const Lock = (p: IconProps) => (
   <Base {...p}>
     <rect x="4" y="10" width="16" height="11" rx="2" />

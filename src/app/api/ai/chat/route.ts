@@ -29,6 +29,7 @@ const bodySchema = z.object({
       custom: z.string().max(1000).optional(),
     })
     .optional(),
+  intent: z.enum(["chat", "plan"]).optional(),
 });
 
 // POST /api/ai/chat — the in-workspace coding assistant.

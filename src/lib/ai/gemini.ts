@@ -32,8 +32,18 @@ export async function assistantChatGemini(params: AssistantParams): Promise<Assi
     parts: [{ text: m.content }],
   }));
 
+  // Free-tier limits: this is the deliberately-capped assistant. Keep it useful
+  // for simple bots but nudge bigger work toward a paid plan (Claude).
+  const freeTierNote = `
+
+You are the free-tier assistant. Constraints for this tier:
+- Change at most ONE file per reply. If the task needs several files, do the most important one and say the rest is available on a paid plan.
+- Keep explanations to 1-2 short sentences.
+- For advanced multi-file features, refactors, or debugging from logs, briefly note these work best on Basic/Pro.`;
+
   const body = {
-    system_instruction: { parts: [{ text: buildSystemPrompt(params) }] },
+    system_instruction: { parts: [{ text: buildSystemPrompt(params) + freeTierNote }] },
+    generationConfig: { maxOutputTokens: 1200, temperature: 0.7 },
     contents,
     tools: [
       {

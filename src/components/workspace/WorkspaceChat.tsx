@@ -2,8 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Project, ProjectFile } from "@/lib/workspace/types";
-import { Bot, Check, FileIcon, Close, Settings } from "@/components/icons";
+import { Bot, Check, FileIcon, Close, Settings, Lock } from "@/components/icons";
 import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
+import { usePlan } from "@/hooks/usePlan";
+import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
+import { planMeta } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
 interface Edit {
@@ -37,7 +40,9 @@ export function WorkspaceChat({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
+  const { plan } = usePlan();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Load saved persona preferences once on mount (localStorage is client-only).
@@ -110,12 +115,25 @@ export function WorkspaceChat({
           <Bot className="h-3.5 w-3.5" />
         </span>
         <span className="text-sm font-medium text-neutral-200">Assistant</span>
+        {plan === "pro" ? (
+          <span className="ml-auto rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
+            Pro
+          </span>
+        ) : (
+          <button
+            onClick={() => setUpgradeOpen(true)}
+            className="ml-auto inline-flex items-center gap-1 rounded-full border border-ink-700 px-2 py-0.5 text-[10px] font-medium text-neutral-400 transition-colors hover:border-accent/50 hover:text-neutral-200"
+          >
+            <Lock className="h-3 w-3" />
+            {plan === "basic" ? "Basic · Upgrade" : "Free · Upgrade"}
+          </button>
+        )}
         <button
           onClick={() => setSettingsOpen((v) => !v)}
           aria-label="Assistant settings"
           aria-pressed={settingsOpen}
           className={cn(
-            "ml-auto grid h-6 w-6 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200",
+            "grid h-6 w-6 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200",
             settingsOpen && "bg-white/10 text-neutral-200",
           )}
         >
@@ -248,6 +266,15 @@ export function WorkspaceChat({
           </div>
         </div>
       </div>
+
+      {upgradeOpen && (
+        <UpgradeModal
+          current={plan}
+          highlight={plan === "basic" ? "pro" : "basic"}
+          reason={`You're on ${planMeta(plan).name}. Upgrade for a smarter assistant and more.`}
+          onClose={() => setUpgradeOpen(false)}
+        />
+      )}
     </div>
   );
 }

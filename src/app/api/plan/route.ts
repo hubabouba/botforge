@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getPlan } from "@/lib/plan";
+import { getUserPlan } from "@/lib/subscription";
 
 export const runtime = "nodejs";
 
@@ -12,5 +12,5 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ plan: "free", signedIn: false });
-  return NextResponse.json({ plan: getPlan(user.email), signedIn: true });
+  return NextResponse.json({ plan: await getUserPlan(supabase, user), signedIn: true });
 }

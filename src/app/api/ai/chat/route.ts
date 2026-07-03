@@ -3,7 +3,8 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { assistantChat } from "@/lib/ai/claude";
 import { assistantChatGemini } from "@/lib/ai/gemini";
-import { getPlan, providerForPlan } from "@/lib/plan";
+import { providerForPlan } from "@/lib/plan";
+import { getUserPlan } from "@/lib/subscription";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const provider = providerForPlan(getPlan(user.email));
+  const provider = providerForPlan(await getUserPlan(supabase, user));
 
   // Guard: the chosen provider must be configured.
   if (provider === "claude" && !process.env.ANTHROPIC_API_KEY) {

@@ -45,6 +45,17 @@ export function UpgradeModal({
     }
   }
 
+  async function manage() {
+    setBusy(current);
+    try {
+      const res = await fetch("/api/billing-portal", { method: "POST" });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
@@ -108,12 +119,22 @@ export function UpgradeModal({
                 </ul>
                 <div className="mt-4 pt-1">
                   {isCurrent ? (
-                    <button
-                      disabled
-                      className="w-full rounded-lg border border-border py-2 text-xs font-medium text-muted-foreground"
-                    >
-                      Your plan
-                    </button>
+                    STRIPE_ENABLED && p.id !== "free" ? (
+                      <button
+                        onClick={manage}
+                        disabled={busy === p.id}
+                        className="w-full rounded-lg border border-border py-2 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
+                      >
+                        {busy === p.id ? "Opening…" : "Manage"}
+                      </button>
+                    ) : (
+                      <button
+                        disabled
+                        className="w-full rounded-lg border border-border py-2 text-xs font-medium text-muted-foreground"
+                      >
+                        Your plan
+                      </button>
+                    )
                   ) : p.id === "free" || isDowngrade ? (
                     <button
                       disabled

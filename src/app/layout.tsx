@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { brand } from "@/lib/brand";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { DevBanner } from "@/components/DevBanner";
 import "./globals.css";
 
@@ -36,10 +37,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${inter.variable} ${mono.variable}`} suppressHydrationWarning>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <PostHogProvider>
-            <DevBanner />
-            {children}
-          </PostHogProvider>
+          <I18nProvider>
+            <PostHogProvider>
+              <DevBanner />
+              {children}
+            </PostHogProvider>
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>

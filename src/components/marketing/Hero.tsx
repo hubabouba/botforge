@@ -1,7 +1,11 @@
+"use client";
+
 import { WorkspacePreview } from "@/components/marketing/WorkspacePreview";
 import { HeroCta } from "@/components/marketing/HeroCta";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 export function Hero() {
+  const { t } = useI18n();
   return (
     <section className="relative overflow-hidden">
       {/* Dotted grid backdrop, faded at edges */}
@@ -20,19 +24,18 @@ export function Hero() {
               </span>
               New
             </span>
-            From idea to a working bot in minutes
+            {t("hero.badge")}
             <span className="transition-transform group-hover:translate-x-0.5">→</span>
           </a>
 
           <h1 className="animate-fade-up mt-6 text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-            Bots written by <span className="text-accent">AI</span>.
+            {t("hero.titleBefore")} <span className="text-accent">{t("hero.titleAI")}</span>.
             <br />
-            <span className="text-muted-foreground">Code that belongs to you.</span>
+            <span className="text-muted-foreground">{t("hero.title2")}</span>
           </h1>
 
           <p className="animate-fade-up mx-auto mt-6 max-w-xl text-balance text-lg text-muted-foreground">
-            Describe a bot in plain words — Botforge writes real code for Telegram and Discord.
-            Edit it in your browser, run it in one click, and download the source.
+            {t("hero.subtitle")}
           </p>
 
           <HeroCta />

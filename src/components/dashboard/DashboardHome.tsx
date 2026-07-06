@@ -58,7 +58,7 @@ function timeAgo(ts: number): string {
 
 export function DashboardHome({ name }: { name: string }) {
   const router = useRouter();
-  const { plan } = usePlan();
+  const { plan, loading: planLoading } = usePlan();
   const [projects, setProjects] = useState<StoredProject[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -74,7 +74,8 @@ export function DashboardHome({ name }: { name: string }) {
   }, [reload]);
 
   const limit = projectLimit(plan);
-  const atLimit = projects.length >= limit;
+  // Don't gate until the plan is known, or a paid user briefly sees the free cap.
+  const atLimit = !planLoading && projects.length >= limit;
 
   /** Run a create action, or prompt to upgrade if the plan's project cap is hit. */
   function guardedCreate(fn: () => void) {
@@ -115,7 +116,7 @@ export function DashboardHome({ name }: { name: string }) {
           <div className="flex items-baseline justify-between">
             <h2 className="text-sm font-semibold">Your projects</h2>
             <span className="text-xs text-muted-foreground">
-              {Number.isFinite(limit) ? (
+              {!planLoading && Number.isFinite(limit) ? (
                 <>
                   {projects.length} / {limit} projects
                   {atLimit && (

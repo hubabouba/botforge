@@ -78,6 +78,16 @@ export function CodeEditor({
     // Tab / Shift+Tab
     if (k === "Tab") {
       e.preventDefault();
+
+      // Multi-line selection: indent/dedent every touched line (never delete it).
+      if (s !== en && value.slice(s, en).includes("\n")) {
+        const blockStart = value.lastIndexOf("\n", s - 1) + 1;
+        const block = value.slice(blockStart, en);
+        const next = e.shiftKey ? block.replace(/^ {1,2}/gm, "") : block.replace(/^(?!$)/gm, "  ");
+        commit(value.slice(0, blockStart) + next + value.slice(en), blockStart, blockStart + next.length);
+        return;
+      }
+
       if (e.shiftKey) {
         const lineStart = value.lastIndexOf("\n", s - 1) + 1;
         const lead = value.slice(lineStart).match(/^ {1,2}/);

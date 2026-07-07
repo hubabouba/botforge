@@ -8,8 +8,6 @@
 import type { Project, ProjectFile } from "./types";
 import type { Template } from "./templates";
 
-const KEY = "bf:projects";
-
 export interface StoredProject extends Project {
   createdAt: number;
   updatedAt: number;
@@ -18,10 +16,57 @@ export interface StoredProject extends Project {
 const uid = () => Math.random().toString(36).slice(2, 10);
 const hasWindow = () => typeof window !== "undefined";
 
+// localStorage is shared per-browser, so scope each user's projects under their
+// own key — otherwise switching accounts would show the previous user's projects.
+const LEGACY_KEY = "bf:projects";
+const NS = "bf:projects:v2:";
+const ACTIVE_UID_KEY = "bf:active-uid";
+
+let activeUserId: string | null = null;
+
+function resolveUid(): string {
+  if (activeUserId) return activeUserId;
+  if (hasWindow()) {
+    const stored = window.localStorage.getItem(ACTIVE_UID_KEY);
+    if (stored) return stored;
+  }
+  return "anon";
+}
+
+function projectsKey(): string {
+  return NS + resolveUid();
+}
+
+/**
+ * Bind the store to the signed-in user. Call as early as possible on authed
+ * pages (dashboard/workspace) so reads/writes hit that user's own bucket.
+ */
+export function setStoreUser(userId: string | null): void {
+  activeUserId = userId;
+  if (!hasWindow() || !userId) return;
+  window.localStorage.setItem(ACTIVE_UID_KEY, userId);
+  migrateLegacy(userId);
+}
+
+// One-time: the first account to open the app on this device adopts any
+// pre-namespace projects; the legacy bucket is then removed so other accounts
+// start clean (fixes cross-account project leakage).
+function migrateLegacy(userId: string): void {
+  try {
+    const legacy = window.localStorage.getItem(LEGACY_KEY);
+    if (!legacy) return;
+    const key = NS + userId;
+    if (!window.localStorage.getItem(key)) window.localStorage.setItem(key, legacy);
+    window.localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
 function readAll(): StoredProject[] {
   if (!hasWindow()) return [];
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(projectsKey());
     const list = raw ? (JSON.parse(raw) as StoredProject[]) : [];
     return Array.isArray(list) ? list : [];
   } catch {
@@ -31,7 +76,7 @@ function readAll(): StoredProject[] {
 
 function writeAll(list: StoredProject[]): void {
   if (!hasWindow()) return;
-  window.localStorage.setItem(KEY, JSON.stringify(list));
+  window.localStorage.setItem(projectsKey(), JSON.stringify(list));
   // Let other open tabs / listeners refresh.
   window.dispatchEvent(new Event("bf:projects-changed"));
 }

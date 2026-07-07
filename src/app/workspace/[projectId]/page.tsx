@@ -20,5 +20,5 @@ export default async function WorkspacePage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  return <Workspace projectId={projectId} />;
+  return <Workspace projectId={projectId} userId={user.id} />;
 }

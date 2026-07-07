@@ -43,7 +43,7 @@ export default async function DashboardPage() {
       </header>
 
       <main className="container-x py-10 sm:py-12">
-        <DashboardHome name={name} />
+        <DashboardHome name={name} userId={user.id} />
       </main>
     </div>
   );

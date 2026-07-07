@@ -9,6 +9,7 @@ import {
   duplicateProject,
   listProjects,
   renameProject,
+  setStoreUser,
   type StoredProject,
 } from "@/lib/workspace/store";
 import { downloadZip } from "@/lib/workspace/zip";
@@ -72,7 +73,7 @@ function PrimaryButton({ onClick, children }: { onClick: () => void; children: R
   );
 }
 
-export function DashboardHome({ name }: { name: string }) {
+export function DashboardHome({ name, userId }: { name: string; userId: string }) {
   const router = useRouter();
   const { plan, loading: planLoading } = usePlan();
   const [projects, setProjects] = useState<StoredProject[]>([]);
@@ -83,11 +84,12 @@ export function DashboardHome({ name }: { name: string }) {
   const reload = useCallback(() => setProjects(listProjects()), []);
 
   useEffect(() => {
+    setStoreUser(userId); // scope projects to this account before reading
     reload();
     setLoaded(true);
     window.addEventListener("bf:projects-changed", reload);
     return () => window.removeEventListener("bf:projects-changed", reload);
-  }, [reload]);
+  }, [reload, userId]);
 
   const limit = projectLimit(plan);
   // Don't gate until the plan is known, or a paid user briefly sees the free cap.

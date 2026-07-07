@@ -12,6 +12,7 @@ import {
   getProject,
   renameFile,
   renameProject,
+  setStoreUser,
   writeFile,
   type StoredProject,
 } from "@/lib/workspace/store";
@@ -43,7 +44,7 @@ const VIEW_LABEL: Record<WorkView, string> = {
 
 type LoadState = "loading" | "ready" | "missing";
 
-export function Workspace({ projectId }: { projectId: string }) {
+export function Workspace({ projectId, userId }: { projectId: string; userId: string }) {
   const [project, setProject] = useState<StoredProject | null>(null);
   const [load, setLoad] = useState<LoadState>("loading");
   const [openPaths, setOpenPaths] = useState<string[]>([]);
@@ -60,6 +61,7 @@ export function Workspace({ projectId }: { projectId: string }) {
 
   // Load the project from the store on mount (client-only).
   useEffect(() => {
+    setStoreUser(userId); // scope projects to this account before reading
     const p = getProject(projectId);
     if (!p) {
       setLoad("missing");
@@ -69,7 +71,7 @@ export function Workspace({ projectId }: { projectId: string }) {
     setOpenPaths([p.entry]);
     setActivePath(p.entry);
     setLoad("ready");
-  }, [projectId]);
+  }, [projectId, userId]);
 
   const refresh = useCallback(
     (next: StoredProject | null) => {

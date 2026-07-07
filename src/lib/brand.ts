@@ -33,7 +33,7 @@ export const pricingTiers: PricingTier[] = [
     name: "Free",
     price: 0,
     tagline: "Try it and build your first bots.",
-    features: ["3 projects", "Basic AI model", "Run in sandbox", "Download code (ZIP)"],
+    features: ["3 projects", "Basic AI model", "5 AI messages/day", "Run in sandbox", "Download code (ZIP)"],
     cta: "Start free",
   },
   {
@@ -44,6 +44,7 @@ export const pricingTiers: PricingTier[] = [
     features: [
       "Up to 15 projects",
       "Standard AI model",
+      "10 AI messages/day",
       "Automatic error fixing",
       "Chat & version history",
       "Email support",
@@ -58,6 +59,7 @@ export const pricingTiers: PricingTier[] = [
     features: [
       "Unlimited projects",
       "Advanced AI model",
+      "40 AI messages/day",
       "Priority generation",
       "Analytics & logs",
       "Priority support",

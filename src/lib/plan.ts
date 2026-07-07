@@ -21,6 +21,27 @@ export function projectLimit(plan: Plan): number {
   return PROJECT_LIMIT[plan];
 }
 
+/** Daily AI-assistant message cap per plan (enforced in /api/ai/chat). */
+export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 5, basic: 10, pro: 40 };
+
+export function aiDailyLimit(plan: Plan): number {
+  return AI_DAILY_MESSAGES[plan];
+}
+
+/** Parses a comma-separated email list from an env var (server-side only). */
+function envEmailList(name: string): string[] {
+  return (process.env[name] ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+/** Emails exempt from the daily AI cap (owner/testing) — BOTFORGE_UNLIMITED_AI_EMAILS. */
+export function isAiLimitExempt(email?: string | null): boolean {
+  const e = email?.toLowerCase();
+  return !!e && envEmailList("BOTFORGE_UNLIMITED_AI_EMAILS").includes(e);
+}
+
 /** The next plan up that raises the project limit (for upgrade prompts). */
 export function nextPlanUp(plan: Plan): Plan {
   return plan === "free" ? "basic" : "pro";
@@ -57,21 +78,21 @@ export const PLANS: PlanMeta[] = [
     name: "Free",
     price: 0,
     tagline: "Try it out and ship a simple bot.",
-    highlights: ["Basic AI assistant (Gemini)", "Unlimited projects", "Download & run locally"],
+    highlights: ["Basic AI assistant (Gemini)", "5 assistant messages/day", "3 projects", "Download & run locally"],
   },
   {
     id: "basic",
     name: "Basic",
     price: 9,
     tagline: "A serious assistant for real bots.",
-    highlights: ["Smart assistant (Claude)", "Logs & AI planning panels", "Priority responses"],
+    highlights: ["Smart assistant (Claude)", "10 assistant messages/day", "Logs & AI planning panels", "15 projects"],
   },
   {
     id: "pro",
     name: "Pro",
     price: 19,
     tagline: "Everything, including insight into your bot.",
-    highlights: ["Everything in Basic", "Metrics panel", "Assistant inspects your logs"],
+    highlights: ["Everything in Basic", "40 assistant messages/day", "Metrics panel", "Assistant inspects your logs"],
   },
 ];
 
@@ -80,14 +101,9 @@ export function planMeta(plan: Plan): PlanMeta {
 }
 
 export function getPlan(email?: string | null): Plan {
-  const list = (name: string) =>
-    (process.env[name] ?? "")
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
   const e = email?.toLowerCase();
-  if (e && list("BOTFORGE_PRO_EMAILS").includes(e)) return "pro";
-  if (e && list("BOTFORGE_BASIC_EMAILS").includes(e)) return "basic";
+  if (e && envEmailList("BOTFORGE_PRO_EMAILS").includes(e)) return "pro";
+  if (e && envEmailList("BOTFORGE_BASIC_EMAILS").includes(e)) return "basic";
   return "free";
 }
 

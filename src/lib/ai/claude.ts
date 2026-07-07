@@ -107,12 +107,25 @@ export async function assistantChat(params: AssistantParams): Promise<AssistantR
   const anthropic = getClient();
   const system = buildSystemPrompt(params);
 
+  // Prompt caching (~0.1x input price on cache hits). Two breakpoints:
+  //  1. the system prompt (contains the whole file dump; also covers tools,
+  //     which render before system) — reused across turns until files change;
+  //  2. the last message — so next turn the entire prior conversation is a
+  //     cache read instead of full-price input.
+  const last = params.messages.length - 1;
   const msg = await anthropic.messages.create({
     model: ASSISTANT_MODEL,
     max_tokens: 4096,
-    system,
+    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     tools: [WRITE_FILE_TOOL],
-    messages: params.messages.map((m) => ({ role: m.role, content: m.content })),
+    messages: params.messages.map((m, i) =>
+      i === last
+        ? {
+            role: m.role,
+            content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const } }],
+          }
+        : { role: m.role, content: m.content },
+    ),
   });
 
   const reply = msg.content

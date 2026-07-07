@@ -41,6 +41,7 @@ export function WorkspaceChat({
   const [busy, setBusy] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [quota, setQuota] = useState<{ used: number; limit: number } | null>(null);
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
   const { plan } = usePlan();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -71,6 +72,13 @@ export function WorkspaceChat({
     setInput("");
     setBusy(true);
 
+    // The API accepts at most 30 messages — send a sliding window of the most
+    // recent ones so long conversations keep working. Trim any leading
+    // assistant turns so the window still starts with a user message.
+    const recent = history.slice(-30);
+    const firstUser = recent.findIndex((m) => m.role === "user");
+    const payload = firstUser > 0 ? recent.slice(firstUser) : recent;
+
     try {
       const res = await fetch("/api/ai/chat", {
         method: "POST",
@@ -78,11 +86,12 @@ export function WorkspaceChat({
         body: JSON.stringify({
           project: { name: project.name, platform: project.platform, language: project.language },
           files,
-          messages: history.map((m) => ({ role: m.role, content: m.text })),
+          messages: payload.map((m) => ({ role: m.role, content: m.text })),
           preferences: prefs,
         }),
       });
       const data = await res.json();
+      if (data.usage && typeof data.usage.used === "number") setQuota(data.usage);
       if (!res.ok) {
         setMessages((p) => [...p, { id: uid(), role: "assistant", text: data.error || "Something went wrong.", error: true }]);
       } else {
@@ -255,7 +264,14 @@ export function WorkspaceChat({
             className="w-full resize-none bg-transparent px-1.5 py-1 text-[13px] text-neutral-200 outline-none placeholder:text-neutral-600"
           />
           <div className="flex items-center justify-between pl-1.5">
-            <span className="text-[11px] text-neutral-600">⏎ send · ⇧⏎ newline</span>
+            <span className="text-[11px] text-neutral-600">
+              ⏎ send · ⇧⏎ newline
+              {quota && (
+                <span className={cn("ml-1.5", quota.used >= quota.limit && "text-rose-400")}>
+                  · {quota.used}/{quota.limit} today
+                </span>
+              )}
+            </span>
             <button
               onClick={() => send(input)}
               disabled={!input.trim() || busy}

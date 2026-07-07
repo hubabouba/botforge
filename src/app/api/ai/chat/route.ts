@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { assistantChat } from "@/lib/ai/claude";
 import { assistantChatGemini } from "@/lib/ai/gemini";
-import { providerForPlan } from "@/lib/plan";
+import { aiDailyLimit, isAiLimitExempt, providerForPlan } from "@/lib/plan";
 import { getUserPlan } from "@/lib/subscription";
 
 export const runtime = "nodejs";
@@ -48,7 +48,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const provider = providerForPlan(await getUserPlan(supabase, user));
+  const plan = await getUserPlan(supabase, user);
+  const provider = providerForPlan(plan);
 
   // Guard: the chosen provider must be configured.
   if (provider === "claude" && !process.env.ANTHROPIC_API_KEY) {
@@ -64,12 +65,44 @@ export async function POST(req: Request) {
     );
   }
 
+  // Daily per-user message cap — atomic check-and-increment in Postgres
+  // (supabase/ai_usage.sql). Fails open if the migration hasn't run yet,
+  // so a missing table never takes the assistant down.
+  const limit = aiDailyLimit(plan);
+  let used: number | null = null;
+  if (!isAiLimitExempt(user.email)) {
+    const { data: count, error: usageError } = await supabase.rpc("increment_ai_usage", {
+      p_limit: limit,
+    });
+    if (usageError) {
+      console.warn("[ai/chat] usage counter unavailable, skipping rate limit:", usageError.message);
+    } else if (count === -1) {
+      const hint =
+        plan === "pro"
+          ? "It resets at midnight UTC."
+          : "It resets at midnight UTC — or upgrade your plan for a higher limit.";
+      return NextResponse.json(
+        {
+          error: `Daily assistant limit reached (${limit} messages/day on the ${plan} plan). ${hint}`,
+          usage: { used: limit, limit },
+        },
+        { status: 429 },
+      );
+    } else if (typeof count === "number") {
+      used = count;
+    }
+  }
+
   try {
     const result =
       provider === "claude"
         ? await assistantChat(parsed.data)
         : await assistantChatGemini(parsed.data);
-    return NextResponse.json({ ...result, provider });
+    return NextResponse.json({
+      ...result,
+      provider,
+      ...(used !== null ? { usage: { used, limit } } : {}),
+    });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message || "The assistant failed." }, { status: 500 });
   }

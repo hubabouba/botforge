@@ -14,6 +14,7 @@ import {
 import { downloadZip } from "@/lib/workspace/zip";
 import { CreateProjectModal } from "./CreateProjectModal";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
+import { Magnetic } from "@/components/marketing/Magnetic";
 import { usePlan } from "@/hooks/usePlan";
 import { projectLimit, nextPlanUp, planMeta } from "@/lib/plan";
 import {
@@ -35,8 +36,10 @@ function PlatformTag({ platform }: { platform: Template["platform"] }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium",
-        telegram ? "bg-[#2aabee]/10 text-[#2aabee]" : "bg-[#5865f2]/10 text-[#5865f2]",
+        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px] font-medium ring-1",
+        telegram
+          ? "bg-[#2aabee]/10 text-[#2aabee] ring-[#2aabee]/20"
+          : "bg-[#5865f2]/10 text-[#7d88ff] ring-[#5865f2]/20",
       )}
     >
       {telegram ? <Telegram className="h-3 w-3" /> : <Discord className="h-3 w-3" />}
@@ -54,6 +57,19 @@ function timeAgo(ts: number): string {
   if (h < 24) return `${h}h ago`;
   const d = Math.floor(h / 24);
   return d === 1 ? "yesterday" : `${d}d ago`;
+}
+
+/** Gradient primary button with a shimmer sweep. */
+function PrimaryButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group relative inline-flex items-center gap-2 self-start overflow-hidden rounded-xl bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-4 py-2.5 text-sm font-medium text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.9)] transition-transform hover:-translate-y-0.5 sm:self-auto"
+    >
+      <span className="relative z-10 inline-flex items-center gap-2">{children}</span>
+      <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+    </button>
+  );
 }
 
 export function DashboardHome({ name }: { name: string }) {
@@ -98,31 +114,37 @@ export function DashboardHome({ name }: { name: string }) {
     <div className="space-y-12">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Welcome back, {name}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Build a Telegram or Discord bot — start in a few clicks.</p>
+        <div className="animate-fade-up">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-white">
+            Welcome back, <span className="forge-gradient-text">{name}</span>
+          </h1>
+          <p className="mt-1 text-sm text-white/50">
+            Build a Telegram or Discord bot — start in a few clicks.
+          </p>
         </div>
-        <button
-          onClick={startNewProject}
-          className="inline-flex items-center gap-2 self-start rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground shadow-soft transition-colors hover:bg-accent-hover sm:self-auto"
-        >
-          <Plus className="h-4 w-4" /> New project
-        </button>
+        <Magnetic className="self-start sm:self-auto">
+          <PrimaryButton onClick={startNewProject}>
+            <Plus className="h-4 w-4" /> New project
+          </PrimaryButton>
+        </Magnetic>
       </div>
 
       {/* Your projects / empty state */}
       {loaded && projects.length > 0 ? (
         <section>
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold">Your projects</h2>
-            <span className="text-xs text-muted-foreground">
+            <h2 className="text-sm font-semibold text-white">Your projects</h2>
+            <span className="text-xs text-white/45">
               {!planLoading && Number.isFinite(limit) ? (
                 <>
                   {projects.length} / {limit} projects
                   {atLimit && (
                     <>
                       {" · "}
-                      <button onClick={() => setUpgrade(true)} className="font-medium text-accent hover:underline">
+                      <button
+                        onClick={() => setUpgrade(true)}
+                        className="font-medium text-[#818CF8] hover:underline"
+                      >
                         Upgrade
                       </button>
                     </>
@@ -136,10 +158,11 @@ export function DashboardHome({ name }: { name: string }) {
             </span>
           </div>
           <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((p) => (
+            {projects.map((p, i) => (
               <ProjectCard
                 key={p.id}
                 project={p}
+                index={i}
                 onChange={reload}
                 canDuplicate={!atLimit}
                 onRequireUpgrade={() => setUpgrade(true)}
@@ -148,42 +171,44 @@ export function DashboardHome({ name }: { name: string }) {
           </div>
         </section>
       ) : loaded ? (
-        <section className="rounded-2xl border border-dashed border-border bg-muted/20 px-6 py-14 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent-soft text-accent">
+        <section className="animate-fade-up rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-6 py-14 text-center">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#6366F1]/30 to-[#22D3EE]/15 text-[#a5b4fc] ring-1 ring-white/10">
             <Bot className="h-6 w-6" />
           </div>
-          <h2 className="mt-4 font-medium">No projects yet</h2>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
+          <h2 className="mt-4 font-display font-semibold text-white">No projects yet</h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-white/50">
             Create your first bot with a short setup, or pick a ready-made template below.
           </p>
-          <button
-            onClick={startNewProject}
-            className="mt-5 inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
-          >
-            <Plus className="h-4 w-4" /> New project
-          </button>
+          <div className="mt-5 flex justify-center">
+            <PrimaryButton onClick={startNewProject}>
+              <Plus className="h-4 w-4" /> New project
+            </PrimaryButton>
+          </div>
         </section>
       ) : null}
 
       {/* Quick start templates */}
       <section>
-        <h2 className="text-sm font-semibold">Quick start from a template</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Skip the setup — open a ready-made starter and edit the code.</p>
+        <h2 className="text-sm font-semibold text-white">Quick start from a template</h2>
+        <p className="mt-1 text-sm text-white/50">
+          Skip the setup — open a ready-made starter and edit the code.
+        </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {templates.map((t) => (
+          {templates.map((t, i) => (
             <button
               key={t.slug}
               onClick={() => useTemplate(t)}
-              className="card-hover group flex items-center gap-3 rounded-xl border border-border bg-background p-4 text-left shadow-soft"
+              style={{ animationDelay: `${i * 45}ms` }}
+              className="group flex animate-fade-up items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-[#6366F1]/40 hover:bg-white/[0.04]"
             >
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#6366F1]/25 to-[#22D3EE]/12 text-[#a5b4fc] ring-1 ring-white/10">
                 {t.platform === "telegram" ? <Telegram className="h-4 w-4" /> : <Discord className="h-4 w-4" />}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{t.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{t.description}</span>
+                <span className="block truncate text-sm font-medium text-white">{t.name}</span>
+                <span className="block truncate text-xs text-white/45">{t.description}</span>
               </span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              <ArrowRight className="h-4 w-4 shrink-0 text-white/30 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-[#818CF8]" />
             </button>
           ))}
         </div>
@@ -205,11 +230,13 @@ export function DashboardHome({ name }: { name: string }) {
 
 function ProjectCard({
   project,
+  index,
   onChange,
   canDuplicate,
   onRequireUpgrade,
 }: {
   project: StoredProject;
+  index: number;
   onChange: () => void;
   canDuplicate: boolean;
   onRequireUpgrade: () => void;
@@ -228,17 +255,20 @@ function ProjectCard({
   }
 
   return (
-    <div className="group relative flex flex-col rounded-2xl border border-border bg-background p-5 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-lift">
+    <div
+      style={{ animationDelay: `${index * 55}ms` }}
+      className="group relative flex animate-fade-up flex-col rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#6366F1]/40 hover:shadow-[0_0_0_1px_rgba(99,102,241,0.12),0_24px_60px_-24px_rgba(99,102,241,0.45)]"
+    >
       <div className="flex items-center justify-between">
         <PlatformTag platform={project.platform} />
         <div className="flex items-center gap-2">
-          <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+          <span className="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-white/55">
             {project.language === "python" ? "Python" : "Node.js"}
           </span>
           <button
             aria-label="More"
             onClick={() => setMenu((v) => !v)}
-            className="grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="grid h-7 w-7 place-items-center rounded-lg text-white/50 transition-colors hover:bg-white/[0.06] hover:text-white"
           >
             <MoreVertical className="h-4 w-4" />
           </button>
@@ -255,21 +285,24 @@ function ProjectCard({
             if (e.key === "Enter") commitRename();
             if (e.key === "Escape") setRenaming(false);
           }}
-          className="mt-3 w-full rounded-md border border-accent/50 bg-background px-2 py-1 text-sm outline-none"
+          className="mt-3 w-full rounded-md border border-[#6366F1]/50 bg-white/[0.04] px-2 py-1 text-sm text-white outline-none"
         />
       ) : (
-        <button onClick={open} className="mt-3 text-left font-medium hover:text-accent">
+        <button
+          onClick={open}
+          className="mt-3 text-left font-medium text-white transition-colors hover:text-[#a5b4fc]"
+        >
           {project.name}
         </button>
       )}
 
-      <p className="mt-1 line-clamp-2 flex-1 text-sm text-muted-foreground">{project.description}</p>
+      <p className="mt-1 line-clamp-2 flex-1 text-sm text-white/45">{project.description}</p>
 
-      <div className="mt-4 flex items-center justify-between border-t border-border pt-3 text-xs text-muted-foreground">
+      <div className="mt-4 flex items-center justify-between border-t border-white/[0.08] pt-3 text-xs text-white/45">
         <span>
           {project.files.length} file{project.files.length === 1 ? "" : "s"} · {timeAgo(project.updatedAt)}
         </span>
-        <button onClick={open} className="font-medium text-accent hover:underline">
+        <button onClick={open} className="font-medium text-[#818CF8] hover:underline">
           Open
         </button>
       </div>
@@ -278,7 +311,7 @@ function ProjectCard({
       {menu && (
         <>
           <button className="fixed inset-0 z-10 cursor-default" aria-hidden onClick={() => setMenu(false)} />
-          <div className="absolute right-4 top-12 z-20 w-44 overflow-hidden rounded-xl border border-border bg-background py-1 shadow-lift">
+          <div className="absolute right-4 top-12 z-20 w-44 overflow-hidden rounded-xl border border-white/10 bg-[#0B0D13]/95 py-1 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-xl">
             <MenuItem icon={<ArrowRight className="h-3.5 w-3.5" />} label="Open" onClick={open} />
             <MenuItem
               icon={<Pencil className="h-3.5 w-3.5" />}
@@ -310,7 +343,7 @@ function ProjectCard({
                 setMenu(false);
               }}
             />
-            <div className="my-1 h-px bg-border" />
+            <div className="my-1 h-px bg-white/10" />
             <MenuItem
               icon={<Trash className="h-3.5 w-3.5" />}
               label="Delete"
@@ -343,8 +376,8 @@ function MenuItem({
     <button
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition-colors hover:bg-muted",
-        danger ? "text-rose-500" : "text-foreground",
+        "flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm transition-colors hover:bg-white/[0.06]",
+        danger ? "text-rose-400" : "text-white/80",
       )}
     >
       {icon}

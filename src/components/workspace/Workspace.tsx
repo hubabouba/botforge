@@ -208,7 +208,7 @@ export function Workspace({ projectId }: { projectId: string }) {
   // ---- Render states ----
   if (load === "loading") {
     return (
-      <div className="grid h-screen place-items-center bg-ink-950 text-neutral-500">
+      <div className="forge dark grid h-screen place-items-center bg-[#0A0B0F] text-white/50">
         <div className="flex items-center gap-2 text-sm">
           <Logo className="h-5 w-5 animate-pulse" /> Loading workspace…
         </div>
@@ -218,16 +218,16 @@ export function Workspace({ projectId }: { projectId: string }) {
 
   if (load === "missing" || !project) {
     return (
-      <div className="grid h-screen place-items-center bg-ink-950 px-6 text-center">
+      <div className="forge dark grid h-screen place-items-center bg-[#0A0B0F] px-6 text-center">
         <div className="max-w-sm">
           <Logo className="mx-auto h-8 w-8 opacity-70" />
-          <h1 className="mt-4 text-lg font-medium text-neutral-100">Project not found</h1>
-          <p className="mt-1 text-sm text-neutral-500">
+          <h1 className="mt-4 font-display text-lg font-semibold text-white">Project not found</h1>
+          <p className="mt-1 text-sm text-white/50">
             It may have been created on another device. Pick a template to start a new one.
           </p>
           <Link
             href="/dashboard"
-            className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+            className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-4 py-2 text-sm font-medium text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.9)] transition-transform hover:-translate-y-0.5"
           >
             Back to dashboard
           </Link>
@@ -239,7 +239,11 @@ export function Workspace({ projectId }: { projectId: string }) {
   const activeFile = project.files.find((f) => f.path === activePath) ?? project.files[0];
 
   return (
-    <div className="flex h-screen flex-col bg-ink-950 text-neutral-200">
+    <div className="forge dark relative flex h-screen flex-col overflow-hidden bg-[#0A0B0F] text-neutral-200">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 -z-[1] h-64 bg-[radial-gradient(60%_100%_at_50%_0%,rgba(99,102,241,0.14),transparent_70%)]"
+      />
       <TopBar
         project={project}
         status={status}
@@ -251,7 +255,7 @@ export function Workspace({ projectId }: { projectId: string }) {
       />
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-60 shrink-0 border-r border-ink-800 bg-ink-950 md:block">
+        <aside className="hidden w-60 shrink-0 border-r border-white/[0.06] bg-[#0A0B0F]/70 backdrop-blur-sm md:block">
           <FileTree
             files={project.files}
             folders={project.folders ?? []}
@@ -282,7 +286,7 @@ export function Workspace({ projectId }: { projectId: string }) {
           ) : (
             <>
           {/* Open-file tabs */}
-          <div className="flex h-9 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-ink-800 bg-ink-950 px-1.5">
+          <div className="flex h-9 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-white/[0.06] bg-[#0A0B0F]/70 px-1.5">
             {openPaths.map((path) => {
               const name = path.split("/").pop();
               const active = path === activePath;
@@ -294,8 +298,10 @@ export function Workspace({ projectId }: { projectId: string }) {
                     if (e.button === 1) closeTab(path, e); // middle-click closes
                   }}
                   className={cn(
-                    "group/tab flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2.5 pr-1.5 text-[12px] transition-colors",
-                    active ? "bg-ink-800 text-neutral-100" : "text-neutral-500 hover:bg-white/[0.04]",
+                    "group/tab relative flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2.5 pr-1.5 text-[12px] transition-colors",
+                    active
+                      ? "bg-white/[0.06] text-white"
+                      : "text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300",
                   )}
                 >
                   <span className="font-mono">{name}</span>
@@ -309,6 +315,9 @@ export function Workspace({ projectId }: { projectId: string }) {
                   >
                     <Close className="h-3 w-3" />
                   </button>
+                  {active && (
+                    <span className="pointer-events-none absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-[#6366F1] to-[#22D3EE]" />
+                  )}
                 </div>
               );
             })}
@@ -331,7 +340,7 @@ export function Workspace({ projectId }: { projectId: string }) {
         </div>
 
         {chatOpen && (
-          <aside className="hidden w-[340px] shrink-0 border-l border-ink-800 lg:block xl:w-[380px]">
+          <aside className="hidden w-[340px] shrink-0 border-l border-white/[0.06] bg-[#0A0B0F]/50 lg:block xl:w-[380px]">
             <WorkspaceChat
               project={project}
               files={project.files}

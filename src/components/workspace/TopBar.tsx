@@ -14,9 +14,8 @@ function PlatformBadge({ platform }: { platform: Project["platform"] }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[11px]",
-        telegram ? "text-[#2aabee]" : "text-[#5865f2]",
-        "bg-white/[0.04]",
+        "inline-flex items-center gap-1.5 rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px]",
+        telegram ? "text-[#2aabee]" : "text-[#7d88ff]",
       )}
     >
       {telegram ? <Telegram className="h-3 w-3" /> : <Discord className="h-3 w-3" />}
@@ -52,10 +51,10 @@ export function TopBar({
   }
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-ink-800 bg-ink-950 px-3">
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-white/[0.06] bg-[#0B0D13]/70 px-3 backdrop-blur-xl">
       <Link
         href="/dashboard"
-        className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-neutral-400 transition-colors hover:bg-white/[0.05] hover:text-neutral-200"
+        className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-white/60 transition-colors hover:bg-white/[0.06] hover:text-white"
         title="Back to dashboard"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -76,7 +75,7 @@ export function TopBar({
                 setEditing(false);
               }
             }}
-            className="w-48 rounded border border-accent/50 bg-ink-900 px-2 py-0.5 text-sm text-neutral-100 outline-none"
+            className="w-48 rounded border border-[#6366F1]/50 bg-white/[0.04] px-2 py-0.5 text-sm text-white outline-none"
           />
         ) : (
           <button
@@ -84,7 +83,7 @@ export function TopBar({
               setDraft(project.name);
               setEditing(true);
             }}
-            className="truncate rounded px-1 text-sm font-medium text-neutral-100 hover:bg-white/[0.05]"
+            className="truncate rounded px-1 text-sm font-medium text-white transition-colors hover:bg-white/[0.06]"
             title="Rename project"
           >
             {project.name}
@@ -92,12 +91,17 @@ export function TopBar({
         )}
         <div className="hidden items-center gap-2 sm:flex">
           <PlatformBadge platform={project.platform} />
-          <span className="rounded-md bg-white/[0.04] px-2 py-0.5 text-[11px] text-neutral-400">{langLabel}</span>
+          <span className="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-white/55">{langLabel}</span>
         </div>
       </div>
 
-      <span className="ml-auto hidden items-center gap-1.5 text-[11px] text-neutral-500 sm:flex">
-        <span className={cn("h-1.5 w-1.5 rounded-full", status === "saving" ? "bg-amber-400" : "bg-emerald-500")} />
+      <span className="ml-auto hidden items-center gap-1.5 text-[11px] text-white/50 sm:flex">
+        <span
+          className={cn(
+            "h-1.5 w-1.5 rounded-full",
+            status === "saving" ? "animate-pulse bg-amber-400" : "bg-emerald-400",
+          )}
+        />
         {status === "saving" ? "Saving…" : "All changes saved"}
       </span>
 
@@ -106,10 +110,10 @@ export function TopBar({
           onClick={onToggleChat}
           title={chatOpen ? "Hide assistant" : "Show assistant"}
           className={cn(
-            "hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-colors lg:inline-flex",
+            "hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all lg:inline-flex",
             chatOpen
-              ? "border-accent/40 bg-accent/10 text-accent"
-              : "border-ink-700 text-neutral-300 hover:bg-white/[0.05]",
+              ? "border-[#6366F1]/40 bg-gradient-to-r from-[#6366F1]/20 to-[#22D3EE]/10 text-[#a5b4fc]"
+              : "border-white/10 text-white/70 hover:bg-white/[0.06] hover:text-white",
           )}
         >
           <Bot className="h-3.5 w-3.5" />
@@ -117,14 +121,14 @@ export function TopBar({
         </button>
         <button
           onClick={onDownload}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-2.5 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-white/[0.05]"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/70 transition-colors hover:bg-white/[0.06] hover:text-white"
         >
           <Download className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Download ZIP</span>
         </button>
         <button
           onClick={onRun}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-medium text-white shadow-[0_8px_24px_-8px_rgba(16,185,129,0.75)] transition-transform hover:-translate-y-px"
         >
           <Play className="h-3.5 w-3.5" />
           Run locally

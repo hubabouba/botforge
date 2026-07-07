@@ -23,24 +23,31 @@ const faqs = [
 
 export function FAQ() {
   return (
-    <section id="faq" className="scroll-mt-20 py-24">
+    <section id="faq" className="relative scroll-mt-24 py-24">
       <div className="container-x grid gap-12 md:grid-cols-[1fr_1.4fr]">
         <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-accent">FAQ</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Frequently asked questions</h2>
-          <p className="mt-4 text-sm text-muted-foreground">
+          <p className="text-xs uppercase tracking-[0.22em] text-[#818CF8]">FAQ</p>
+          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            Frequently asked questions
+          </h2>
+          <p className="mt-4 text-sm text-white/50">
             Didn’t find an answer? Write to us — we reply within a day.
           </p>
         </div>
 
-        <div className="divide-y divide-border border-t border-border">
+        <div className="flex flex-col gap-3">
           {faqs.map((f) => (
-            <details key={f.q} className="group py-4">
-              <summary className="flex cursor-pointer list-none items-center justify-between font-medium">
+            <details
+              key={f.q}
+              className="group rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 transition-colors open:border-[#6366F1]/30 open:bg-white/[0.03] hover:border-white/15"
+            >
+              <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-white">
                 {f.q}
-                <span className="ml-4 text-muted-foreground transition-transform group-open:rotate-45">+</span>
+                <span className="ml-4 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/10 text-white/60 transition-transform duration-300 group-open:rotate-45">
+                  +
+                </span>
               </summary>
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{f.a}</p>
+              <p className="mt-3 text-sm leading-relaxed text-white/55">{f.a}</p>
             </details>
           ))}
         </div>

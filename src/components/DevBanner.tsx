@@ -17,6 +17,9 @@ export function DevBanner() {
 
   // The workspace is a full-screen app — no room for a marketing bar.
   if (pathname?.startsWith("/workspace")) return null;
+  // The landing has its own floating navbar + committed dark theme; a light
+  // system-themed bar would clash and overlap it.
+  if (pathname === "/") return null;
   if (!show) return null;
 
   return (

@@ -68,8 +68,8 @@ export const pricingTiers: PricingTier[] = [
 ];
 
 export const navLinks = [
-  { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how" },
+  { label: "Services", href: "#services" },
   { label: "Pricing", href: "#pricing" },
+  { label: "Case studies", href: "#cases" },
   { label: "FAQ", href: "#faq" },
 ];

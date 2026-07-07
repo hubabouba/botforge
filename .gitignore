@@ -21,3 +21,6 @@ next-env.d.ts
 # Secrets & personal files — never commit
 Passwords.txt
 *.tsbuildinfo
+
+# MCP config — contains a Supabase access token, never commit
+.mcp.json

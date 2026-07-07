@@ -1,31 +1,38 @@
+"use client";
+
+import { useI18n } from "@/lib/i18n/I18nProvider";
+
 /**
- * Honest "works with / built on" strip — no fake customer logos. A quiet marquee
- * of the real platforms and tech the product speaks, for credibility.
+ * "Integrates with" marquee — real platforms and tools the product speaks to
+ * (honest: these are integrations/tech, not customer logos).
  */
 const items = [
   "Telegram",
   "Discord",
+  "Stripe",
+  "OpenAI",
+  "Claude",
   "Python",
   "TypeScript",
-  "grammY",
-  "discord.js",
-  "Claude",
-  "One-click deploy",
+  "Vercel",
+  "Supabase",
+  "AWS",
 ];
 
 export function LogosStrip() {
+  const { t } = useI18n();
   return (
-    <section className="border-y border-border bg-muted/30 py-8">
+    <section className="relative py-12">
       <div className="container-x">
-        <p className="text-center text-xs font-medium uppercase tracking-widest text-muted-foreground">
-          Speaks the platforms and tools you already know
+        <p className="text-center text-xs uppercase tracking-[0.22em] text-white/40">
+          {t("trusted.label")}
         </p>
-        <div className="relative mt-6 overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_12%,#000_88%,transparent)]">
-          <div className="flex w-max animate-marquee gap-10">
+        <div className="relative mt-8 overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_12%,#000_88%,transparent)]">
+          <div className="flex w-max animate-marquee gap-12">
             {[...items, ...items].map((item, i) => (
               <span
                 key={i}
-                className="whitespace-nowrap font-mono text-sm text-muted-foreground/80"
+                className="whitespace-nowrap font-display text-lg font-semibold text-white/35 transition-colors hover:text-white/70"
               >
                 {item}
               </span>

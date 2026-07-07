@@ -1,11 +1,11 @@
 import { Navbar } from "@/components/marketing/Navbar";
 import { Hero } from "@/components/marketing/Hero";
+import { SiteBackground } from "@/components/marketing/SiteBackground";
 import { LogosStrip } from "@/components/marketing/LogosStrip";
-import { Showcase } from "@/components/marketing/Showcase";
-import { HowItWorks } from "@/components/marketing/HowItWorks";
-import { Features } from "@/components/marketing/Features";
+import { Services } from "@/components/marketing/Services";
 import { Stats } from "@/components/marketing/Stats";
-import { UseCases } from "@/components/marketing/UseCases";
+import { Infrastructure } from "@/components/marketing/Infrastructure";
+import { CaseStudies } from "@/components/marketing/CaseStudies";
 import { Pricing } from "@/components/marketing/Pricing";
 import { FAQ } from "@/components/marketing/FAQ";
 import { CTA } from "@/components/marketing/CTA";
@@ -14,21 +14,21 @@ import { Reveal } from "@/components/marketing/Reveal";
 
 export default function LandingPage() {
   return (
-    <>
+    <div className="forge dark relative min-h-screen overflow-x-clip text-white">
+      <SiteBackground />
       <Navbar />
-      <main>
+      <main className="relative">
         <Hero />
         <Reveal><LogosStrip /></Reveal>
-        <Reveal><Showcase /></Reveal>
-        <Reveal><HowItWorks /></Reveal>
-        <Reveal><Features /></Reveal>
+        <Reveal><Services /></Reveal>
         <Reveal><Stats /></Reveal>
-        <Reveal><UseCases /></Reveal>
+        <Reveal><Infrastructure /></Reveal>
+        <Reveal><CaseStudies /></Reveal>
         <Reveal><Pricing /></Reveal>
         <Reveal><FAQ /></Reveal>
         <Reveal><CTA /></Reveal>
       </main>
       <Footer />
-    </>
+    </div>
   );
 }

@@ -1,51 +1,62 @@
 "use client";
 
-import { WorkspacePreview } from "@/components/marketing/WorkspacePreview";
-import { HeroCta } from "@/components/marketing/HeroCta";
+import Link from "next/link";
+import { DashboardMock } from "@/components/marketing/DashboardMock";
+import { Magnetic } from "@/components/marketing/Magnetic";
+import { useAuthUser } from "@/hooks/useAuthUser";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
 export function Hero() {
   const { t } = useI18n();
+  const { signedIn } = useAuthUser();
+  const primaryHref = signedIn ? "/dashboard" : "/signup";
+
   return (
-    <section className="relative overflow-hidden">
-      {/* Dotted grid backdrop, faded at edges */}
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-dot-grid mask-fade" />
+    <section className="relative pb-20 pt-36 sm:pt-40">
+      <div className="container-x grid items-center gap-12 lg:grid-cols-2 lg:gap-10">
+        {/* Left — copy + CTAs */}
+        <div className="text-center lg:text-left">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-white/70 backdrop-blur">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#22D3EE] shadow-[0_0_8px_2px_rgba(34,211,238,0.6)]" />
+            {t("hero.kicker")}
+          </div>
 
-      <div className="container-x pt-20 pb-16 sm:pt-28">
-        <div className="mx-auto max-w-3xl text-center">
-          <a
-            href="#how"
-            className="animate-fade-up group inline-flex items-center gap-2 rounded-full border border-border bg-background/70 py-1 pl-1 pr-3 text-xs font-medium text-muted-foreground shadow-soft backdrop-blur"
-          >
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft px-2 py-0.5 text-accent">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-60" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
-              </span>
-              New
-            </span>
-            {t("hero.badge")}
-            <span className="transition-transform group-hover:translate-x-0.5">→</span>
-          </a>
-
-          <h1 className="animate-fade-up mt-6 text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-            {t("hero.titleBefore")} <span className="text-accent">{t("hero.titleAI")}</span>.
-            <br />
-            <span className="text-muted-foreground">{t("hero.title2")}</span>
+          <h1 className="mt-6 font-display text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl">
+            <span className="block text-white">{t("hero.l1")}</span>
+            <span className="forge-gradient-text block">{t("hero.l2")}</span>
+            <span className="forge-gradient-text block">{t("hero.l3")}</span>
           </h1>
 
-          <p className="animate-fade-up mx-auto mt-6 max-w-xl text-balance text-lg text-muted-foreground">
-            {t("hero.subtitle")}
-          </p>
+          <p className="mx-auto mt-6 max-w-md text-lg text-white/60 lg:mx-0">{t("hero.sub2")}</p>
 
-          <HeroCta />
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
+            <Magnetic className="w-full sm:w-auto">
+              <Link
+                href={primaryHref}
+                className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-6 font-medium text-white shadow-[0_10px_40px_-10px_rgba(99,102,241,0.9)] sm:w-auto"
+              >
+                <span className="relative z-10">
+                  {signedIn ? t("hero.ctaOpenDashboard") : t("hero.getStarted")}
+                </span>
+                <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+              </Link>
+            </Magnetic>
+            <a
+              href="#services"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-6 font-medium text-white/90 backdrop-blur transition-colors hover:bg-white/[0.07] sm:w-auto"
+            >
+              {t("hero.viewDemo")}
+            </a>
+          </div>
+
+          <div className="mt-6 text-xs text-white/40">{t("hero.trust")}</div>
         </div>
 
-        <div className="animate-fade-up mx-auto mt-16 max-w-4xl [animation-delay:120ms]">
-          <div className="relative">
-            {/* Glow under the product mock */}
-            <div className="pointer-events-none absolute -inset-x-8 -bottom-8 top-8 -z-10 rounded-[2rem] bg-gradient-to-b from-accent/10 to-transparent blur-2xl" />
-            <WorkspacePreview />
+        {/* Right — product dashboard */}
+        <div className="relative">
+          <div className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-[#6366F1]/20 via-transparent to-[#22D3EE]/10 blur-2xl" />
+          <div className="animate-fade-up [animation-delay:150ms]">
+            <DashboardMock />
           </div>
         </div>
       </div>

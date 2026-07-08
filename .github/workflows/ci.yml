@@ -25,7 +25,4 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          # Integrations are env-gated, so the build needs no real secrets.
-          # A placeholder DB URL keeps Prisma generate happy in CI.
-          DATABASE_URL: "file:./ci.db"
+        # Integrations are env-gated, so the build needs no real secrets.

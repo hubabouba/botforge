@@ -33,7 +33,6 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["grammy", "discord.js", "@prisma/client"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

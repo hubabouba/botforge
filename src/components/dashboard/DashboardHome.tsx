@@ -8,8 +8,8 @@ import {
   deleteProject,
   duplicateProject,
   listProjects,
+  migrateLocalProjects,
   renameProject,
-  setStoreUser,
   type StoredProject,
 } from "@/lib/workspace/store";
 import { downloadZip } from "@/lib/workspace/zip";
@@ -81,15 +81,25 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
   const [creating, setCreating] = useState(false);
   const [upgrade, setUpgrade] = useState(false);
 
-  const reload = useCallback(() => setProjects(listProjects()), []);
+  const reload = useCallback(async () => setProjects(await listProjects()), []);
 
   useEffect(() => {
-    setStoreUser(userId); // scope projects to this account before reading
-    reload();
-    setLoaded(true);
-    window.addEventListener("bf:projects-changed", reload);
-    return () => window.removeEventListener("bf:projects-changed", reload);
-  }, [reload, userId]);
+    let cancelled = false;
+    (async () => {
+      let list = await listProjects();
+      // One-time: adopt any projects left in this browser's localStorage.
+      if (list.length === 0) {
+        const imported = await migrateLocalProjects(userId);
+        if (imported > 0) list = await listProjects();
+      }
+      if (cancelled) return;
+      setProjects(list);
+      setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const limit = projectLimit(plan);
   // Don't gate until the plan is known, or a paid user briefly sees the free cap.
@@ -106,9 +116,10 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
   }
 
   function useTemplate(template: Template) {
-    guardedCreate(() => {
-      const project = createProjectFromTemplate(template);
-      router.push(`/workspace/${project.id}`);
+    guardedCreate(async () => {
+      const result = await createProjectFromTemplate(template);
+      if (result.ok) router.push(`/workspace/${result.project.id}`);
+      else if (result.error === "limit") setUpgrade(true);
     });
   }
 
@@ -172,7 +183,13 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
             ))}
           </div>
         </section>
-      ) : loaded ? (
+      ) : !loaded ? (
+        <section className="grid place-items-center rounded-2xl border border-white/[0.06] bg-white/[0.02] px-6 py-16 text-sm text-white/40">
+          <span className="inline-flex items-center gap-2">
+            <Bot className="h-4 w-4 animate-pulse" /> Loading your projects…
+          </span>
+        </section>
+      ) : (
         <section className="animate-fade-up rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-6 py-14 text-center">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#6366F1]/30 to-[#22D3EE]/15 text-[#a5b4fc] ring-1 ring-white/10">
             <Bot className="h-6 w-6" />
@@ -187,7 +204,7 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
             </PrimaryButton>
           </div>
         </section>
-      ) : null}
+      )}
 
       {/* Quick start templates */}
       <section>
@@ -216,7 +233,15 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
         </div>
       </section>
 
-      {creating && <CreateProjectModal onClose={() => setCreating(false)} />}
+      {creating && (
+        <CreateProjectModal
+          onClose={() => setCreating(false)}
+          onLimit={() => {
+            setCreating(false);
+            setUpgrade(true);
+          }}
+        />
+      )}
 
       {upgrade && (
         <UpgradeModal
@@ -250,8 +275,8 @@ function ProjectCard({
 
   const open = () => router.push(`/workspace/${project.id}`);
 
-  function commitRename() {
-    renameProject(project.id, draft);
+  async function commitRename() {
+    await renameProject(project.id, draft);
     setRenaming(false);
     onChange();
   }
@@ -327,14 +352,15 @@ function ProjectCard({
             <MenuItem
               icon={<Copy className="h-3.5 w-3.5" />}
               label="Duplicate"
-              onClick={() => {
+              onClick={async () => {
                 setMenu(false);
                 if (!canDuplicate) {
                   onRequireUpgrade();
                   return;
                 }
-                duplicateProject(project.id);
-                onChange();
+                const result = await duplicateProject(project.id);
+                if (!result.ok && result.error === "limit") onRequireUpgrade();
+                else onChange();
               }}
             />
             <MenuItem
@@ -350,9 +376,9 @@ function ProjectCard({
               icon={<Trash className="h-3.5 w-3.5" />}
               label="Delete"
               danger
-              onClick={() => {
-                deleteProject(project.id);
+              onClick={async () => {
                 setMenu(false);
+                await deleteProject(project.id);
                 onChange();
               }}
             />

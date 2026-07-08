@@ -1,9 +1,10 @@
 /**
  * Project store — the single place the workspace/dashboard read & write projects.
  *
- * Backed by localStorage for now: everything works instantly with zero setup.
- * Every function is intentionally small and side-effect-local so this module can
- * be reimplemented against Supabase later without touching any component.
+ * Backed by Supabase (per-user rows behind RLS) via the /api/projects routes.
+ * Every function returns a promise; structural mutations resolve to the refreshed
+ * project so callers can re-render. Auth is the Supabase session cookie — there's
+ * no client-side user scoping anymore (RLS does it), so `setStoreUser` is gone.
  */
 import type { Project, ProjectFile } from "./types";
 import type { Template } from "./templates";
@@ -11,83 +12,6 @@ import type { Template } from "./templates";
 export interface StoredProject extends Project {
   createdAt: number;
   updatedAt: number;
-}
-
-const uid = () => Math.random().toString(36).slice(2, 10);
-const hasWindow = () => typeof window !== "undefined";
-
-// localStorage is shared per-browser, so scope each user's projects under their
-// own key — otherwise switching accounts would show the previous user's projects.
-const LEGACY_KEY = "bf:projects";
-const NS = "bf:projects:v2:";
-const ACTIVE_UID_KEY = "bf:active-uid";
-
-let activeUserId: string | null = null;
-
-function resolveUid(): string {
-  if (activeUserId) return activeUserId;
-  if (hasWindow()) {
-    const stored = window.localStorage.getItem(ACTIVE_UID_KEY);
-    if (stored) return stored;
-  }
-  return "anon";
-}
-
-function projectsKey(): string {
-  return NS + resolveUid();
-}
-
-/**
- * Bind the store to the signed-in user. Call as early as possible on authed
- * pages (dashboard/workspace) so reads/writes hit that user's own bucket.
- */
-export function setStoreUser(userId: string | null): void {
-  activeUserId = userId;
-  if (!hasWindow() || !userId) return;
-  window.localStorage.setItem(ACTIVE_UID_KEY, userId);
-  migrateLegacy(userId);
-}
-
-// One-time: the first account to open the app on this device adopts any
-// pre-namespace projects; the legacy bucket is then removed so other accounts
-// start clean (fixes cross-account project leakage).
-function migrateLegacy(userId: string): void {
-  try {
-    const legacy = window.localStorage.getItem(LEGACY_KEY);
-    if (!legacy) return;
-    const key = NS + userId;
-    if (!window.localStorage.getItem(key)) window.localStorage.setItem(key, legacy);
-    window.localStorage.removeItem(LEGACY_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
-function readAll(): StoredProject[] {
-  if (!hasWindow()) return [];
-  try {
-    const raw = window.localStorage.getItem(projectsKey());
-    const list = raw ? (JSON.parse(raw) as StoredProject[]) : [];
-    return Array.isArray(list) ? list : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeAll(list: StoredProject[]): void {
-  if (!hasWindow()) return;
-  window.localStorage.setItem(projectsKey(), JSON.stringify(list));
-  // Let other open tabs / listeners refresh.
-  window.dispatchEvent(new Event("bf:projects-changed"));
-}
-
-/** All projects, newest first. */
-export function listProjects(): StoredProject[] {
-  return readAll().sort((a, b) => b.updatedAt - a.updatedAt);
-}
-
-export function getProject(id: string): StoredProject | null {
-  return readAll().find((p) => p.id === id) ?? null;
 }
 
 /** Blueprint for a new project (from the wizard scaffolder or a template). */
@@ -101,27 +25,59 @@ export interface ProjectSpec {
   folders?: string[];
 }
 
-/** Create a project from an explicit spec (files are deep-copied). */
-export function createProject(spec: ProjectSpec): StoredProject {
-  const now = Date.now();
-  const project: StoredProject = {
-    id: uid(),
-    name: spec.name.trim() || "my-bot",
-    platform: spec.platform,
-    language: spec.language,
-    description: spec.description,
-    entry: spec.entry,
-    files: spec.files.map((f) => ({ ...f })),
-    folders: spec.folders ? [...spec.folders] : [],
-    createdAt: now,
-    updatedAt: now,
-  };
-  writeAll([project, ...readAll()]);
-  return project;
+/** Result of a create/duplicate: the project, or a reason it was refused. */
+export type CreateResult = { ok: true; project: StoredProject } | { ok: false; error: "limit" | "error" };
+
+const hasWindow = () => typeof window !== "undefined";
+
+interface ApiData {
+  projects?: StoredProject[];
+  project?: StoredProject;
+  error?: string;
+  ok?: boolean;
+}
+
+async function req(url: string, init?: RequestInit): Promise<{ res: Response; data: ApiData }> {
+  const res = await fetch(url, {
+    headers: init?.body ? { "Content-Type": "application/json" } : undefined,
+    ...init,
+  });
+  const data = (await res.json().catch(() => ({}))) as ApiData;
+  return { res, data };
+}
+
+const post = (url: string, body?: unknown) =>
+  req(url, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
+
+// ---- Reads ----
+
+/** All projects, newest first. */
+export async function listProjects(): Promise<StoredProject[]> {
+  const { res, data } = await req("/api/projects");
+  return res.ok && Array.isArray(data.projects) ? (data.projects as StoredProject[]) : [];
+}
+
+export async function getProject(id: string): Promise<StoredProject | null> {
+  const { res, data } = await req(`/api/projects/${id}`);
+  return res.ok ? ((data.project as StoredProject) ?? null) : null;
+}
+
+// ---- Create / duplicate ----
+
+function toCreateResult(res: Response, data: ApiData): CreateResult {
+  if (res.status === 403 && data?.error === "limit") return { ok: false, error: "limit" };
+  if (!res.ok || !data?.project) return { ok: false, error: "error" };
+  return { ok: true, project: data.project };
+}
+
+/** Create a project from an explicit spec. */
+export async function createProject(spec: ProjectSpec): Promise<CreateResult> {
+  const { res, data } = await post("/api/projects", spec);
+  return toCreateResult(res, data);
 }
 
 /** Create a project from a template. */
-export function createProjectFromTemplate(template: Template, name?: string): StoredProject {
+export async function createProjectFromTemplate(template: Template, name?: string): Promise<CreateResult> {
   return createProject({
     name: name?.trim() || template.name,
     platform: template.platform,
@@ -132,113 +88,142 @@ export function createProjectFromTemplate(template: Template, name?: string): St
   });
 }
 
-/** Duplicate an existing project (deep copy, "(copy)" suffix). */
-export function duplicateProject(id: string): StoredProject | null {
-  const src = getProject(id);
-  if (!src) return null;
-  return createProject({
-    name: `${src.name} (copy)`,
-    platform: src.platform,
-    language: src.language,
-    description: src.description,
-    entry: src.entry,
-    files: src.files,
-    folders: src.folders,
+/** Duplicate an existing project ("(copy)" suffix, applied server-side). */
+export async function duplicateProject(id: string): Promise<CreateResult> {
+  const { res, data } = await post(`/api/projects/${id}/duplicate`);
+  return toCreateResult(res, data);
+}
+
+// ---- Project mutations ----
+
+export async function renameProject(id: string, name: string): Promise<StoredProject | null> {
+  const { res, data } = await req(`/api/projects/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
   });
+  return res.ok ? ((data.project as StoredProject) ?? null) : null;
 }
 
-function mutate(id: string, fn: (p: StoredProject) => void): StoredProject | null {
-  const list = readAll();
-  const project = list.find((p) => p.id === id);
-  if (!project) return null;
-  fn(project);
-  project.updatedAt = Date.now();
-  writeAll(list);
-  return project;
-}
-
-export function renameProject(id: string, name: string): StoredProject | null {
-  return mutate(id, (p) => {
-    p.name = name.trim() || p.name;
-  });
-}
-
-export function deleteProject(id: string): void {
-  writeAll(readAll().filter((p) => p.id !== id));
+export async function deleteProject(id: string): Promise<void> {
+  await req(`/api/projects/${id}`, { method: "DELETE" });
 }
 
 // ---- File operations ----
 
-export function writeFile(id: string, path: string, content: string): StoredProject | null {
-  return mutate(id, (p) => {
-    const file = p.files.find((f) => f.path === path);
-    if (file) file.content = content;
-  });
+/** Overwrite an existing file's content (the autosave hot path — returns nothing). */
+export async function writeFile(id: string, path: string, content: string): Promise<void> {
+  await post(`/api/projects/${id}/files`, { action: "write", path, content });
 }
 
-export function addFile(id: string, path: string, content = ""): StoredProject | null {
+export async function addFile(id: string, path: string, content = ""): Promise<StoredProject | null> {
   const clean = normalizePath(path);
   if (!clean) return getProject(id);
-  return mutate(id, (p) => {
-    if (!p.files.some((f) => f.path === clean)) {
-      p.files.push({ path: clean, content });
-    }
-  });
+  const { res, data } = await post(`/api/projects/${id}/files`, { action: "add", path: clean, content });
+  return res.ok ? ((data.project as StoredProject) ?? null) : null;
 }
 
 /** Create an (initially empty) folder that persists in the tree. */
-export function addFolder(id: string, path: string): StoredProject | null {
+export async function addFolder(id: string, path: string): Promise<StoredProject | null> {
   const clean = normalizePath(path).replace(/\/+$/, "");
   if (!clean) return getProject(id);
-  return mutate(id, (p) => {
-    p.folders ??= [];
-    if (!p.folders.includes(clean)) p.folders.push(clean);
-  });
+  const { res, data } = await post(`/api/projects/${id}/folders`, { action: "add", path: clean });
+  return res.ok ? ((data.project as StoredProject) ?? null) : null;
 }
 
 /** Delete a folder and everything under it (files and nested folders). */
-export function deleteFolder(id: string, path: string): StoredProject | null {
+export async function deleteFolder(id: string, path: string): Promise<StoredProject | null> {
   const clean = normalizePath(path).replace(/\/+$/, "");
   if (!clean) return getProject(id);
-  const prefix = `${clean}/`;
-  return mutate(id, (p) => {
-    const survivors = p.files.filter((f) => f.path !== clean && !f.path.startsWith(prefix));
-    if (survivors.length >= 1) {
-      p.files = survivors;
-      if (p.entry && !p.files.some((f) => f.path === p.entry)) p.entry = p.files[0]?.path ?? "";
-    }
-    p.folders = (p.folders ?? []).filter((f) => f !== clean && !f.startsWith(prefix));
-  });
+  const { res, data } = await post(`/api/projects/${id}/folders`, { action: "delete", path: clean });
+  return res.ok ? ((data.project as StoredProject) ?? null) : null;
 }
 
-export function renameFile(id: string, oldPath: string, newPath: string): StoredProject | null {
+export async function renameFile(id: string, oldPath: string, newPath: string): Promise<StoredProject | null> {
   const clean = normalizePath(newPath);
   if (!clean) return getProject(id);
-  return mutate(id, (p) => {
-    const file = p.files.find((f) => f.path === oldPath);
-    if (file && !p.files.some((f) => f.path === clean)) {
-      file.path = clean;
-      if (p.entry === oldPath) p.entry = clean;
-    }
-  });
+  const { res, data } = await post(`/api/projects/${id}/files`, { action: "rename", oldPath, newPath: clean });
+  return res.ok ? ((data.project as StoredProject) ?? null) : null;
 }
 
-export function deleteFile(id: string, path: string): StoredProject | null {
-  return mutate(id, (p) => {
-    if (p.files.length <= 1) return; // keep at least one file
-    p.files = p.files.filter((f) => f.path !== path);
-    if (p.entry === path) p.entry = p.files[0]?.path ?? "";
-  });
+export async function deleteFile(id: string, path: string): Promise<StoredProject | null> {
+  const { res, data } = await post(`/api/projects/${id}/files`, { action: "delete", path });
+  return res.ok ? ((data.project as StoredProject) ?? null) : null;
 }
 
 /** Trim, strip leading slashes/dots, collapse spaces. Returns "" if invalid. */
 export function normalizePath(path: string): string {
-  const clean = path
+  return path
     .trim()
     .replace(/^[./\\]+/, "")
     .replace(/\\/g, "/")
     .replace(/\/{2,}/g, "/");
-  return clean;
+}
+
+// ---- One-time migration of pre-Supabase localStorage projects ----
+
+const LEGACY_KEY = "bf:projects";
+const NS = "bf:projects:v2:";
+const ACTIVE_UID_KEY = "bf:active-uid";
+
+/**
+ * Import any projects still sitting in this browser's localStorage (from before
+ * the Supabase migration) into the user's account, then clear those keys so it
+ * only ever runs once. Returns how many were imported. Best-effort: failures are
+ * swallowed and the local copy is left intact so nothing is lost.
+ */
+export async function migrateLocalProjects(userId: string): Promise<number> {
+  if (!hasWindow()) return 0;
+  let raw: string | null = null;
+  try {
+    raw = window.localStorage.getItem(NS + userId) ?? window.localStorage.getItem(LEGACY_KEY);
+  } catch {
+    return 0;
+  }
+  if (!raw) return 0;
+
+  let local: StoredProject[];
+  try {
+    const parsed = JSON.parse(raw);
+    local = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return 0;
+  }
+  if (local.length === 0) {
+    clearLegacyKeys(userId);
+    return 0;
+  }
+
+  let imported = 0;
+  let hadError = false;
+  for (const p of local) {
+    const result = await createProject({
+      name: p.name,
+      platform: p.platform,
+      language: p.language,
+      description: p.description ?? "",
+      entry: p.entry,
+      files: p.files ?? [],
+      folders: p.folders,
+    });
+    if (result.ok) imported++;
+    else hadError = true;
+  }
+
+  // Only drop the local copy once everything imported cleanly, so a transient
+  // failure doesn't lose projects — they'll be retried next load.
+  if (!hadError) clearLegacyKeys(userId);
+  return imported;
+}
+
+function clearLegacyKeys(userId: string): void {
+  try {
+    window.localStorage.removeItem(NS + userId);
+    window.localStorage.removeItem(LEGACY_KEY);
+    window.localStorage.removeItem(ACTIVE_UID_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 export type { Project, ProjectFile };

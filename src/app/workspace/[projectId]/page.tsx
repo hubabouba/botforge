@@ -5,9 +5,8 @@ import { Workspace } from "@/components/workspace/Workspace";
 
 export const metadata: Metadata = { title: "Workspace" };
 
-// Auth is enforced on the server; the project itself is loaded client-side from
-// the store (localStorage) by id. Swaps to a DB fetch when persistence moves to
-// Supabase alongside the AI generator.
+// Auth is enforced on the server; the project itself is fetched client-side from
+// Supabase (behind RLS) by id via the /api/projects routes.
 export default async function WorkspacePage({
   params,
 }: {
@@ -20,5 +19,5 @@ export default async function WorkspacePage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  return <Workspace projectId={projectId} userId={user.id} />;
+  return <Workspace projectId={projectId} />;
 }

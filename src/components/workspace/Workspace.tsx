@@ -10,9 +10,9 @@ import {
   deleteFile,
   deleteFolder,
   getProject,
+  normalizePath,
   renameFile,
   renameProject,
-  setStoreUser,
   writeFile,
   type StoredProject,
 } from "@/lib/workspace/store";
@@ -44,7 +44,7 @@ const VIEW_LABEL: Record<WorkView, string> = {
 
 type LoadState = "loading" | "ready" | "missing";
 
-export function Workspace({ projectId, userId }: { projectId: string; userId: string }) {
+export function Workspace({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<StoredProject | null>(null);
   const [load, setLoad] = useState<LoadState>("loading");
   const [openPaths, setOpenPaths] = useState<string[]>([]);
@@ -57,43 +57,63 @@ export function Workspace({ projectId, userId }: { projectId: string; userId: st
   const { plan, allows } = usePlan();
   // Bumped when the assistant applies an edit, to remount the editor with fresh content.
   const [editorNonce, setEditorNonce] = useState(0);
-  const savingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Debounced autosave: hold the latest unsaved edit and flush it after a pause
+  // (or immediately on Ctrl+S, file switch or unmount) so we don't POST per keystroke.
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pending = useRef<{ id: string; path: string; content: string } | null>(null);
 
-  // Load the project from the store on mount (client-only).
+  // Load the project from Supabase on mount.
   useEffect(() => {
-    setStoreUser(userId); // scope projects to this account before reading
-    const p = getProject(projectId);
-    if (!p) {
-      setLoad("missing");
-      return;
-    }
-    setProject(p);
-    setOpenPaths([p.entry]);
-    setActivePath(p.entry);
-    setLoad("ready");
-  }, [projectId, userId]);
+    let cancelled = false;
+    (async () => {
+      const p = await getProject(projectId);
+      if (cancelled) return;
+      if (!p) {
+        setLoad("missing");
+        return;
+      }
+      setProject(p);
+      setOpenPaths([p.entry]);
+      setActivePath(p.entry);
+      setLoad("ready");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
-  const refresh = useCallback(
-    (next: StoredProject | null) => {
-      if (next) setProject({ ...next });
-    },
-    [],
-  );
+  const refresh = useCallback((next: StoredProject | null) => {
+    if (next) setProject({ ...next });
+  }, []);
 
-  const pingSaving = useCallback(() => {
-    setStatus("saving");
-    clearTimeout(savingTimer.current);
-    savingTimer.current = setTimeout(() => setStatus("saved"), 500);
+  // Persist whatever edit is pending right now (if any). Fire-and-forget.
+  const flushSave = useCallback(() => {
+    clearTimeout(saveTimer.current);
+    const p = pending.current;
+    if (!p) return;
+    pending.current = null;
+    void writeFile(p.id, p.path, p.content).then(() => setStatus("saved"));
   }, []);
 
   const onEditorChange = useCallback(
     (content: string) => {
       if (!project) return;
-      refresh(writeFile(project.id, activePath, content));
-      pingSaving();
+      // If the pending write is for a different file, flush it first so no edit is lost.
+      if (pending.current && pending.current.path !== activePath) flushSave();
+      // Optimistic local update so chat / download / tab-switch see fresh content.
+      setProject((prev) =>
+        prev ? { ...prev, files: prev.files.map((f) => (f.path === activePath ? { ...f, content } : f)) } : prev,
+      );
+      pending.current = { id: project.id, path: activePath, content };
+      setStatus("saving");
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(flushSave, 700);
     },
-    [project, activePath, refresh, pingSaving],
+    [project, activePath, flushSave],
   );
+
+  // Flush any unsaved edit when leaving the workspace.
+  useEffect(() => () => flushSave(), [flushSave]);
 
   const openFile = useCallback((path: string) => {
     setActivePath(path);
@@ -113,28 +133,27 @@ export function Workspace({ projectId, userId }: { projectId: string; userId: st
   );
 
   const onAddFile = useCallback(
-    (path: string) => {
+    async (path: string) => {
       if (!project) return;
-      const updated = addFile(project.id, path);
-      refresh(updated);
-      const created = updated?.files[updated.files.length - 1];
-      if (created) openFile(created.path);
+      const clean = normalizePath(path);
+      refresh(await addFile(project.id, path));
+      if (clean) openFile(clean);
     },
     [project, refresh, openFile],
   );
 
   const onAddFolder = useCallback(
-    (path: string) => {
+    async (path: string) => {
       if (!project) return;
-      refresh(addFolder(project.id, path));
+      refresh(await addFolder(project.id, path));
     },
     [project, refresh],
   );
 
   const onDeleteFolder = useCallback(
-    (path: string) => {
+    async (path: string) => {
       if (!project) return;
-      const updated = deleteFolder(project.id, path);
+      const updated = await deleteFolder(project.id, path);
       refresh(updated);
       const prefix = `${path}/`;
       setOpenPaths((prev) => {
@@ -147,19 +166,20 @@ export function Workspace({ projectId, userId }: { projectId: string; userId: st
   );
 
   const onRenameFile = useCallback(
-    (oldPath: string, newPath: string) => {
+    async (oldPath: string, newPath: string) => {
       if (!project) return;
-      refresh(renameFile(project.id, oldPath, newPath));
-      setOpenPaths((prev) => prev.map((p) => (p === oldPath ? newPath : p)));
-      setActivePath((p) => (p === oldPath ? newPath : p));
+      const clean = normalizePath(newPath) || newPath;
+      refresh(await renameFile(project.id, oldPath, newPath));
+      setOpenPaths((prev) => prev.map((p) => (p === oldPath ? clean : p)));
+      setActivePath((p) => (p === oldPath ? clean : p));
     },
     [project, refresh],
   );
 
   const onDeleteFile = useCallback(
-    (path: string) => {
+    async (path: string) => {
       if (!project) return;
-      const updated = deleteFile(project.id, path);
+      const updated = await deleteFile(project.id, path);
       refresh(updated);
       setOpenPaths((prev) => {
         const next = prev.filter((p) => p !== path);
@@ -171,9 +191,9 @@ export function Workspace({ projectId, userId }: { projectId: string; userId: st
   );
 
   const onRenameProject = useCallback(
-    (name: string) => {
+    async (name: string) => {
       if (!project) return;
-      refresh(renameProject(project.id, name));
+      refresh(await renameProject(project.id, name));
     },
     [project, refresh],
   );
@@ -181,16 +201,22 @@ export function Workspace({ projectId, userId }: { projectId: string; userId: st
   // Apply an edit proposed by the AI assistant: write (or create) the file,
   // open it, and remount the editor so the new content shows immediately.
   const onApplyEdit = useCallback(
-    (path: string, content: string) => {
+    async (path: string, content: string) => {
       if (!project) return;
       const exists = project.files.some((f) => f.path === path);
-      const updated = exists ? writeFile(project.id, path, content) : addFile(project.id, path, content);
-      refresh(updated);
+      if (exists) {
+        setProject((prev) =>
+          prev ? { ...prev, files: prev.files.map((f) => (f.path === path ? { ...f, content } : f)) } : prev,
+        );
+        await writeFile(project.id, path, content);
+      } else {
+        refresh(await addFile(project.id, path, content));
+      }
       openFile(path);
       setEditorNonce((n) => n + 1);
-      pingSaving();
+      setStatus("saved");
     },
-    [project, refresh, openFile, pingSaving],
+    [project, refresh, openFile],
   );
 
   const isLocked = (v: WorkView) => v !== "code" && !allows(CAP_FOR_VIEW[v as Exclude<WorkView, "code">]);
@@ -331,7 +357,7 @@ export function Workspace({ projectId, userId }: { projectId: string; userId: st
                 key={`${activeFile.path}#${editorNonce}`}
                 file={activeFile}
                 onChange={onEditorChange}
-                onSave={pingSaving}
+                onSave={flushSave}
               />
             ) : (
               <div className="grid h-full place-items-center text-sm text-neutral-600">No file open</div>

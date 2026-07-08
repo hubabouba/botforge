@@ -54,7 +54,7 @@ function Seg<T extends string>({
   );
 }
 
-export function CreateProjectModal({ onClose }: { onClose: () => void }) {
+export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; onLimit?: () => void }) {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2>(1);
   const [type, setType] = useState<BotType>("assistant");
@@ -64,6 +64,8 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
   const [audience, setAudience] = useState<Audience>("personal");
   const [purpose, setPurpose] = useState("");
   const [personality, setPersonality] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -84,9 +86,24 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
     if (p === "discord") setLanguage("node"); // only discord.js starter
   }
 
-  function create() {
-    const project = createProject(scaffoldProject({ name, platform, language, type, audience, purpose, personality }));
-    router.push(`/workspace/${project.id}`);
+  async function create() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    const result = await createProject(
+      scaffoldProject({ name, platform, language, type, audience, purpose, personality }),
+    );
+    if (result.ok) {
+      router.push(`/workspace/${result.project.id}`);
+      return; // keep busy — we're navigating away
+    }
+    setBusy(false);
+    if (result.error === "limit") {
+      onLimit?.();
+      onClose();
+    } else {
+      setError("Couldn't create the project. Please try again.");
+    }
   }
 
   return (
@@ -270,12 +287,16 @@ export function CreateProjectModal({ onClose }: { onClose: () => void }) {
               Next <ArrowRight className="h-4 w-4" />
             </button>
           ) : (
-            <button
-              onClick={create}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
-            >
-              Create project <ArrowRight className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-3">
+              {error && <span className="text-xs text-rose-500">{error}</span>}
+              <button
+                onClick={create}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
+              >
+                {busy ? "Creating…" : "Create project"} <ArrowRight className="h-4 w-4" />
+              </button>
+            </div>
           )}
         </div>
       </div>

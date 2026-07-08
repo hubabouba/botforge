@@ -34,18 +34,18 @@ export function SiteBackground() {
   return (
     <div ref={ref} aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
       <div className="absolute inset-0 bg-[#080A0F]" />
-      <div className="forge-grid forge-grid-fade absolute inset-0 opacity-60" />
+      <div className="forge-grid forge-grid-fade absolute inset-0 opacity-45" />
 
-      {/* Aurora blobs */}
-      <div className="forge-aurora absolute -top-48 left-1/4 h-[44rem] w-[44rem] -translate-x-1/2 rounded-full bg-[#6366F1]/25" />
-      <div className="forge-aurora absolute -top-24 right-[12%] h-[34rem] w-[34rem] rounded-full bg-[#22D3EE]/15 [animation-delay:-7s]" />
-      <div className="forge-aurora absolute left-[58%] top-[38%] h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-[#818CF8]/14 [animation-delay:-12s]" />
+      {/* Aurora blobs — softened so the page reads considered, not busy. */}
+      <div className="forge-aurora absolute -top-48 left-1/4 h-[44rem] w-[44rem] -translate-x-1/2 rounded-full bg-[#6366F1]/18" />
+      <div className="forge-aurora absolute -top-24 right-[12%] h-[34rem] w-[34rem] rounded-full bg-[#22D3EE]/10 [animation-delay:-7s]" />
+      <div className="forge-aurora absolute left-[58%] top-[38%] h-[30rem] w-[30rem] -translate-x-1/2 rounded-full bg-[#818CF8]/10 [animation-delay:-12s]" />
 
-      {/* Floating particles */}
+      {/* Floating particles — fewer & dimmer for a calmer, premium feel. */}
       {PARTICLES.map((p, i) => (
         <span
           key={i}
-          className="absolute rounded-full bg-white/50"
+          className="absolute rounded-full bg-white/30"
           style={{
             left: p.left,
             top: p.top,
@@ -61,7 +61,7 @@ export function SiteBackground() {
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(600px circle at var(--mx) var(--my), rgba(99,102,241,0.10), transparent 60%)",
+            "radial-gradient(600px circle at var(--mx) var(--my), rgba(99,102,241,0.07), transparent 60%)",
         }}
       />
 
@@ -71,10 +71,10 @@ export function SiteBackground() {
   );
 }
 
-const PARTICLES = Array.from({ length: 26 }, (_, i) => ({
+const PARTICLES = Array.from({ length: 14 }, (_, i) => ({
   left: `${(i * 37) % 100}%`,
   top: `${(i * 61) % 100}%`,
-  size: `${(i % 3) + 1}px`,
-  dur: 9 + (i % 7),
-  delay: (i % 10) * 0.8,
+  size: `${(i % 2) + 1}px`,
+  dur: 11 + (i % 7),
+  delay: (i % 10) * 0.9,
 }));

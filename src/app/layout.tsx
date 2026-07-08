@@ -51,6 +51,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </PostHogProvider>
           </I18nProvider>
         </ThemeProvider>
+        {/* Cinematic film grain over the entire product (below modals). */}
+        <div aria-hidden className="grain-overlay" />
       </body>
     </html>
   );

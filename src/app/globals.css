@@ -104,15 +104,18 @@
 
   .reveal {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(18px);
+    filter: blur(7px);
     transition:
-      opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
-    will-change: opacity, transform;
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      filter 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity, transform, filter;
   }
   .reveal-visible {
     opacity: 1;
     transform: none;
+    filter: none;
   }
 
   @keyframes marquee {
@@ -172,9 +175,10 @@
     backdrop-filter: blur(16px);
   }
 
-  /* Neon gradient text (indigo → cyan) */
+  /* Refined display gradient — soft porcelain → indigo with a whisper of sky.
+     Tighter and classier than a full neon rainbow (reads brand, not template). */
   .forge-gradient-text {
-    background-image: linear-gradient(100deg, #a5b4fc 0%, #6366f1 34%, #38bdf8 72%, #22d3ee 100%);
+    background-image: linear-gradient(104deg, #eef1ff 0%, #b9c0ff 32%, #818cf8 62%, #6ea8fe 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -283,5 +287,84 @@
       top: 106%;
       opacity: 0;
     }
+  }
+}
+
+/* ============================================================
+   MOTION + TEXTURE — a small, cohesive polish layer applied
+   product-wide: film grain for depth, spring micro-interactions,
+   idle float, breathing accents and staggered reveals.
+   ============================================================ */
+@layer utilities {
+  /* Cinematic film grain over the whole app — subtle fixed noise texture that
+     gives large flat surfaces a hand-finished depth instead of a flat template
+     look. Sits below modals (z-50) so dialogs stay crisp. */
+  .grain-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* Spring-ish lift micro-interaction for cards / interactive tiles. */
+  .hover-lift {
+    transition:
+      transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 0.35s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-3px);
+  }
+
+  /* Gentle idle float for hero art / product mocks. */
+  @keyframes bf-float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  .animate-float {
+    animation: bf-float 7s ease-in-out infinite;
+  }
+
+  /* Slow breathing pulse for accent dots / status rings. */
+  @keyframes bf-breathe {
+    0%,
+    100% {
+      opacity: 0.5;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.18);
+    }
+  }
+  .animate-breathe {
+    animation: bf-breathe 3.4s ease-in-out infinite;
+  }
+
+  /* Staggered rise-in for grouped items — set style={{ '--i': n }} per child. */
+  @keyframes bf-rise {
+    from {
+      opacity: 0;
+      transform: translateY(15px);
+      filter: blur(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
+  .animate-rise {
+    animation: bf-rise 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 90ms);
   }
 }

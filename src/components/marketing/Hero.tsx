@@ -14,22 +14,39 @@ export function Hero() {
   return (
     <section className="relative pb-20 pt-36 sm:pt-40">
       <div className="container-x grid items-center gap-12 lg:grid-cols-2 lg:gap-10">
-        {/* Left — copy + CTAs */}
+        {/* Left — copy + CTAs (staggered rise-in) */}
         <div className="text-center lg:text-left">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-white/70 backdrop-blur">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#22D3EE] shadow-[0_0_8px_2px_rgba(34,211,238,0.6)]" />
+          <div
+            className="animate-rise inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-white/70 backdrop-blur"
+            style={{ "--i": 0 } as React.CSSProperties}
+          >
+            <span className="animate-breathe h-1.5 w-1.5 rounded-full bg-[#22D3EE] shadow-[0_0_8px_2px_rgba(34,211,238,0.6)]" />
             {t("hero.kicker")}
           </div>
 
           <h1 className="mt-6 font-display text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl">
-            <span className="block text-white">{t("hero.l1")}</span>
-            <span className="forge-gradient-text block">{t("hero.l2")}</span>
-            <span className="forge-gradient-text block">{t("hero.l3")}</span>
+            <span className="animate-rise block text-white" style={{ "--i": 1 } as React.CSSProperties}>
+              {t("hero.l1")}
+            </span>
+            <span className="animate-rise forge-gradient-text block" style={{ "--i": 2 } as React.CSSProperties}>
+              {t("hero.l2")}
+            </span>
+            <span className="animate-rise forge-gradient-text block" style={{ "--i": 3 } as React.CSSProperties}>
+              {t("hero.l3")}
+            </span>
           </h1>
 
-          <p className="mx-auto mt-6 max-w-md text-lg text-white/60 lg:mx-0">{t("hero.sub2")}</p>
+          <p
+            className="animate-rise mx-auto mt-6 max-w-md text-lg text-white/60 lg:mx-0"
+            style={{ "--i": 4 } as React.CSSProperties}
+          >
+            {t("hero.sub2")}
+          </p>
 
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start">
+          <div
+            className="animate-rise mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row lg:justify-start"
+            style={{ "--i": 5 } as React.CSSProperties}
+          >
             <Magnetic className="w-full sm:w-auto">
               <Link
                 href={primaryHref}
@@ -49,14 +66,21 @@ export function Hero() {
             </a>
           </div>
 
-          <div className="mt-6 text-xs text-white/40">{t("hero.trust")}</div>
+          <div
+            className="animate-rise mt-6 text-xs text-white/40"
+            style={{ "--i": 6 } as React.CSSProperties}
+          >
+            {t("hero.trust")}
+          </div>
         </div>
 
-        {/* Right — product dashboard */}
+        {/* Right — product dashboard (gentle idle float) */}
         <div className="relative">
           <div className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-[#6366F1]/20 via-transparent to-[#22D3EE]/10 blur-2xl" />
           <div className="animate-fade-up [animation-delay:150ms]">
-            <DashboardMock />
+            <div className="animate-float">
+              <DashboardMock />
+            </div>
           </div>
         </div>
       </div>

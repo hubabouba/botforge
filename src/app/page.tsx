@@ -11,10 +11,12 @@ import { FAQ } from "@/components/marketing/FAQ";
 import { CTA } from "@/components/marketing/CTA";
 import { Footer } from "@/components/marketing/Footer";
 import { Reveal } from "@/components/marketing/Reveal";
+import { ScrollProgress } from "@/components/marketing/ScrollProgress";
 
 export default function LandingPage() {
   return (
     <div className="forge dark relative min-h-screen overflow-x-clip text-white">
+      <ScrollProgress />
       <SiteBackground />
       <Navbar />
       <main className="relative">

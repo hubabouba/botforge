@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type ReactElement, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { loadPrefs } from "@/lib/workspace/assistantPrefs";
+import { readAssistantStream } from "@/lib/ai/streamClient";
 import { CodeIcon, Terminal, ListChecks, Chart, Lock, Play, Bot } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
@@ -139,6 +140,10 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
   const [plan, setPlan] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Abort an in-flight plan if the panel unmounts (view switched away).
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   async function generate() {
     const trimmed = goal.trim();
@@ -146,6 +151,12 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
     setBusy(true);
     setError("");
     setPlan("");
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let acc = "";
+    let hadError = false;
+
     try {
       const res = await fetch("/api/ai/chat", {
         method: "POST",
@@ -157,13 +168,31 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
           preferences: loadPrefs(),
           intent: "plan",
         }),
+        signal: controller.signal,
       });
-      const data = await res.json();
-      if (!res.ok) setError(data.error || "Couldn't generate a plan.");
-      else setPlan(data.reply || "No plan returned.");
-    } catch {
+
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error || "Couldn't generate a plan.");
+        return;
+      }
+
+      for await (const event of readAssistantStream(res.body)) {
+        if (event.type === "text") {
+          acc += event.delta;
+          setPlan(acc);
+        } else if (event.type === "error") {
+          hadError = true;
+          setError(event.message || "Couldn't generate a plan.");
+        }
+        // "edit" events don't occur in planning mode; ignore if any slip through.
+      }
+      if (!hadError && !acc.trim()) setPlan("No plan returned.");
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return; // unmounted
       setError("Network error — please try again.");
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setBusy(false);
     }
   }

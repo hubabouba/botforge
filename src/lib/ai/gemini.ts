@@ -3,16 +3,10 @@
  *
  * Calls Google's Generative Language REST API directly (no SDK dependency) with
  * a single `write_file` function declaration, mirroring the Claude provider so
- * the API route can swap between them by plan. Returns the same
- * AssistantResult ({ reply, edits }).
+ * the API route can swap between them by plan. Streams the same
+ * `AssistantStreamEvent`s (text deltas + completed file edits).
  */
-import {
-  buildSystemPrompt,
-  defaultReply,
-  type AssistantEdit,
-  type AssistantParams,
-  type AssistantResult,
-} from "./types";
+import { buildSystemPrompt, type AssistantParams, type AssistantStreamEvent } from "./types";
 
 // gemini-2.5-flash has a real free-tier quota; gemini-2.0-flash is capped at 0
 // free requests for many accounts/regions (returns 429 immediately).
@@ -23,7 +17,36 @@ interface GeminiPart {
   functionCall?: { name: string; args?: Record<string, unknown> };
 }
 
-export async function assistantChatGemini(params: AssistantParams): Promise<AssistantResult> {
+interface GeminiChunk {
+  candidates?: { content?: { parts?: GeminiPart[] } }[];
+}
+
+/** Parse one `data: {...}` SSE line into assistant events (skips keep-alives/noise). */
+function eventsFromLine(line: string): AssistantStreamEvent[] {
+  if (!line.startsWith("data:")) return [];
+  const json = line.slice(5).trim();
+  if (!json || json === "[DONE]") return [];
+  let chunk: GeminiChunk;
+  try {
+    chunk = JSON.parse(json) as GeminiChunk;
+  } catch {
+    return [];
+  }
+  const parts = chunk.candidates?.[0]?.content?.parts ?? [];
+  const events: AssistantStreamEvent[] = [];
+  for (const part of parts) {
+    if (typeof part.text === "string" && part.text) events.push({ type: "text", delta: part.text });
+    if (part.functionCall?.name === "write_file") {
+      const args = part.functionCall.args ?? {};
+      if (typeof args.path === "string" && typeof args.content === "string") {
+        events.push({ type: "edit", path: args.path, content: args.content });
+      }
+    }
+  }
+  return events;
+}
+
+export async function* assistantChatGeminiStream(params: AssistantParams): AsyncGenerator<AssistantStreamEvent> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY is not set.");
 
@@ -66,7 +89,7 @@ You are the free-tier assistant. Constraints for this tier:
     ],
   };
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:streamGenerateContent?alt=sse&key=${key}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -82,25 +105,23 @@ You are the free-tier assistant. Constraints for this tier:
     }
     throw new Error(`Gemini error ${res.status}: ${text.slice(0, 200)}`);
   }
+  if (!res.body) throw new Error("Gemini returned an empty response stream.");
 
-  const data = (await res.json()) as {
-    candidates?: { content?: { parts?: GeminiPart[] } }[];
-  };
-  const parts = data.candidates?.[0]?.content?.parts ?? [];
-
-  let reply = "";
-  const edits: AssistantEdit[] = [];
-  for (const part of parts) {
-    if (typeof part.text === "string") reply += part.text;
-    if (part.functionCall?.name === "write_file") {
-      const args = part.functionCall.args ?? {};
-      const path = args.path;
-      const content = args.content;
-      if (typeof path === "string" && typeof content === "string") {
-        edits.push({ path, content });
-      }
+  // SSE: one `data: {...}` object per line. A network chunk can split a line,
+  // so buffer the tail between reads.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf("\n")) !== -1) {
+      const line = buffer.slice(0, nl);
+      buffer = buffer.slice(nl + 1);
+      for (const event of eventsFromLine(line)) yield event;
     }
   }
-
-  return { reply: reply.trim() || defaultReply(edits), edits };
+  for (const event of eventsFromLine(buffer)) yield event;
 }

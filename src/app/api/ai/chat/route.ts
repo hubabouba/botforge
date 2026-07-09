@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { assistantChat } from "@/lib/ai/claude";
-import { assistantChatGemini } from "@/lib/ai/gemini";
+import { assistantChatStream } from "@/lib/ai/claude";
+import { assistantChatGeminiStream } from "@/lib/ai/gemini";
+import type { AssistantStreamEvent } from "@/lib/ai/types";
 import { aiDailyLimit, isAiLimitExempt, providerForPlan } from "@/lib/plan";
 import { getUserPlan } from "@/lib/subscription";
 
@@ -93,17 +94,41 @@ export async function POST(req: Request) {
     }
   }
 
-  try {
-    const result =
-      provider === "claude"
-        ? await assistantChat(parsed.data)
-        : await assistantChatGemini(parsed.data);
-    return NextResponse.json({
-      ...result,
-      provider,
-      ...(used !== null ? { usage: { used, limit } } : {}),
-    });
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message || "The assistant failed." }, { status: 500 });
+  // Stream the reply as newline-delimited JSON events. Metadata that's known
+  // up-front (provider, usage) rides in headers so it doesn't pollute the event
+  // protocol; a failure that happens *after* the 200 has been committed can't
+  // change the status, so it's surfaced as an in-stream `error` event instead.
+  const gen: AsyncGenerator<AssistantStreamEvent> =
+    provider === "claude" ? assistantChatStream(parsed.data) : assistantChatGeminiStream(parsed.data);
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const event of gen) {
+          controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+        }
+      } catch (e) {
+        const message = (e as Error).message || "The assistant failed.";
+        controller.enqueue(encoder.encode(JSON.stringify({ type: "error", message }) + "\n"));
+      } finally {
+        controller.close();
+      }
+    },
+    cancel() {
+      // Client disconnected (navigated away / aborted) — let the generator drop.
+      void gen.return(undefined);
+    },
+  });
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/x-ndjson; charset=utf-8",
+    "Cache-Control": "no-store, no-transform",
+    "X-Assistant-Provider": provider,
+  };
+  if (used !== null) {
+    headers["X-Assistant-Usage-Used"] = String(used);
+    headers["X-Assistant-Usage-Limit"] = String(limit);
   }
+  return new Response(stream, { headers });
 }

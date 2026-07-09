@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { Bot, Check, FileIcon, Close, Settings, Lock } from "@/components/icons";
 import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
+import { readAssistantStream } from "@/lib/ai/streamClient";
+import { defaultReply } from "@/lib/ai/types";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { planMeta } from "@/lib/plan";
@@ -45,11 +47,15 @@ export function WorkspaceChat({
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
   const { plan } = usePlan();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   // Load saved persona preferences once on mount (localStorage is client-only).
   useEffect(() => {
     setPrefs(loadPrefs());
   }, []);
+
+  // Abort an in-flight stream if the panel unmounts (e.g. chat collapsed).
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   function updatePrefs(patch: Partial<AssistantPreferences>) {
     setPrefs((prev) => {
@@ -68,7 +74,9 @@ export function WorkspaceChat({
     if (!trimmed || busy) return;
     const userMsg: Msg = { id: uid(), role: "user", text: trimmed };
     const history = [...messages, userMsg];
-    setMessages(history);
+    // Add the user's turn + an empty assistant placeholder we fill as it streams.
+    const replyId = uid();
+    setMessages([...history, { id: replyId, role: "assistant", text: "", edits: [] }]);
     setInput("");
     setBusy(true);
 
@@ -78,6 +86,16 @@ export function WorkspaceChat({
     const recent = history.slice(-30);
     const firstUser = recent.findIndex((m) => m.role === "user");
     const payload = firstUser > 0 ? recent.slice(firstUser) : recent;
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    // Update only the streaming assistant message, by id.
+    const patch = (fn: (m: Msg) => Msg) =>
+      setMessages((prev) => prev.map((m) => (m.id === replyId ? fn(m) : m)));
+
+    let accText = "";
+    const accEdits: Edit[] = [];
+    let hadError = false;
 
     try {
       const res = await fetch("/api/ai/chat", {
@@ -89,17 +107,44 @@ export function WorkspaceChat({
           messages: payload.map((m) => ({ role: m.role, content: m.text })),
           preferences: prefs,
         }),
+        signal: controller.signal,
       });
-      const data = await res.json();
-      if (data.usage && typeof data.usage.used === "number") setQuota(data.usage);
-      if (!res.ok) {
-        setMessages((p) => [...p, { id: uid(), role: "assistant", text: data.error || "Something went wrong.", error: true }]);
-      } else {
-        setMessages((p) => [...p, { id: uid(), role: "assistant", text: data.reply, edits: data.edits ?? [] }]);
+
+      const usedH = res.headers.get("X-Assistant-Usage-Used");
+      const limitH = res.headers.get("X-Assistant-Usage-Limit");
+      if (usedH && limitH) setQuota({ used: Number(usedH), limit: Number(limitH) });
+
+      // Non-OK responses (401/503/400/429) are plain JSON, not a stream.
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        if (data?.usage && typeof data.usage.used === "number") setQuota(data.usage);
+        patch((m) => ({ ...m, text: data?.error || "Something went wrong.", error: true }));
+        return;
       }
-    } catch {
-      setMessages((p) => [...p, { id: uid(), role: "assistant", text: "Network error — please try again.", error: true }]);
+
+      for await (const event of readAssistantStream(res.body)) {
+        if (event.type === "text") {
+          accText += event.delta;
+          patch((m) => ({ ...m, text: accText }));
+        } else if (event.type === "edit") {
+          accEdits.push({ path: event.path, content: event.content });
+          patch((m) => ({ ...m, edits: [...accEdits] }));
+        } else if (event.type === "error") {
+          hadError = true;
+          const text = (accText ? accText + "\n\n" : "") + (event.message || "Something went wrong.");
+          patch((m) => ({ ...m, text, error: true }));
+        }
+      }
+
+      // Model produced only file edits and no prose — show a sensible summary.
+      if (!hadError && !accText.trim() && accEdits.length) {
+        patch((m) => ({ ...m, text: defaultReply(accEdits) }));
+      }
+    } catch (e) {
+      if ((e as Error).name === "AbortError") return; // superseded / unmounted
+      patch((m) => ({ ...m, text: "Network error — please try again.", error: true }));
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setBusy(false);
     }
   }
@@ -216,7 +261,8 @@ export function WorkspaceChat({
           ),
         )}
 
-        {busy && (
+        {/* Typing dots only until the streamed reply starts filling in. */}
+        {busy && !messages[messages.length - 1]?.text && !messages[messages.length - 1]?.edits?.length && (
           <div className="flex items-center gap-1.5 rounded-xl border border-ink-800 bg-ink-900/70 px-3 py-2.5 w-fit">
             {[0, 1, 2].map((i) => (
               <span

@@ -18,6 +18,17 @@ export interface AssistantResult {
   edits: AssistantEdit[];
 }
 
+/**
+ * One event in a streamed assistant response, emitted by both providers so the
+ * API route and client don't need to know which model produced it:
+ *  - `text`: an incremental chunk of prose to append as it arrives.
+ *  - `edit`: a complete proposed file write (Claude/Gemini stream text as it
+ *    goes but only surface a tool call once its arguments are fully assembled).
+ */
+export type AssistantStreamEvent =
+  | { type: "text"; delta: string }
+  | { type: "edit"; path: string; content: string };
+
 /** User-tunable persona for the assistant (how it talks, not what it can do). */
 export interface AssistantPreferences {
   /** Preferred reply language, e.g. "Russian", "English". Empty = match the user. */

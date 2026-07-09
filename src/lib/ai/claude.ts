@@ -1,13 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import {
-  buildSystemPrompt,
-  defaultReply,
-  type AssistantEdit,
-  type AssistantParams,
-  type AssistantResult,
-} from "./types";
-
-export type { AssistantEdit, AssistantResult } from "./types";
+import { buildSystemPrompt, type AssistantParams, type AssistantStreamEvent } from "./types";
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -37,10 +29,12 @@ const WRITE_FILE_TOOL = {
 
 /**
  * The workspace assistant (Claude): answers questions about the bot project and
- * proposes concrete file edits via the write_file tool. Runs a single turn —
- * proposed edits are returned to the client to apply, since files live in the browser.
+ * proposes concrete file edits via the write_file tool. Streams prose as it's
+ * generated, then emits each fully-assembled file edit once the tool call
+ * completes. Runs a single turn — edits are proposals the client applies, since
+ * files live in the browser.
  */
-export async function assistantChat(params: AssistantParams): Promise<AssistantResult> {
+export async function* assistantChatStream(params: AssistantParams): AsyncGenerator<AssistantStreamEvent> {
   const anthropic = getClient();
   const system = buildSystemPrompt(params);
 
@@ -50,7 +44,7 @@ export async function assistantChat(params: AssistantParams): Promise<AssistantR
   //  2. the last message — so next turn the entire prior conversation is a
   //     cache read instead of full-price input.
   const last = params.messages.length - 1;
-  const msg = await anthropic.messages.create({
+  const stream = anthropic.messages.stream({
     model: ASSISTANT_MODEL,
     max_tokens: 4096,
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
@@ -65,21 +59,21 @@ export async function assistantChat(params: AssistantParams): Promise<AssistantR
     ),
   });
 
-  const reply = msg.content
-    .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
-    .map((b) => b.text)
-    .join("\n")
-    .trim();
-
-  const edits: AssistantEdit[] = [];
-  for (const block of msg.content) {
-    if (block.type === "tool_use" && block.name === "write_file") {
-      const input = block.input as { path?: string; content?: string };
-      if (input.path && typeof input.content === "string") {
-        edits.push({ path: input.path, content: input.content });
-      }
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      yield { type: "text", delta: event.delta.text };
     }
   }
 
-  return { reply: reply || defaultReply(edits), edits };
+  // The SDK assembles partial tool-argument JSON for us — read the final message
+  // to get complete write_file calls rather than reconstructing input_json_delta.
+  const final = await stream.finalMessage();
+  for (const block of final.content) {
+    if (block.type === "tool_use" && block.name === "write_file") {
+      const input = block.input as { path?: string; content?: string };
+      if (input.path && typeof input.content === "string") {
+        yield { type: "edit", path: input.path, content: input.content };
+      }
+    }
+  }
 }

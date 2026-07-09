@@ -1,7 +1,12 @@
 /**
  * Single source of truth for brand + marketing content.
- * Change the name/pricing here and it updates across the whole site.
+ * Change the name here and it updates across the whole site. Pricing itself
+ * lives in `plan.ts` (`PLANS`) — the app's plan-gating logic already depends
+ * on those numbers, so `pricingTiers` below reads its price from there instead
+ * of keeping a second, independently-editable copy.
  */
+import { PLANS } from "./plan";
+
 export const brand = {
   name: "Botforge",
   domain: "botforge.dev",
@@ -18,28 +23,20 @@ export const brand = {
 export interface PricingTier {
   id: "free" | "basic" | "pro";
   name: string;
-  price: number; // USD / month
   tagline: string;
   features: string[];
   cta: string;
   highlighted?: boolean;
-  // Filled once Stripe products are created (Phase 6).
-  stripePriceId?: string;
 }
 
-export const pricingTiers: PricingTier[] = [
-  {
-    id: "free",
-    name: "Free",
-    price: 0,
+/** Landing-page copy for each tier. Price/name come from `plan.ts`'s `PLANS`. */
+const PRICING_COPY: Record<PricingTier["id"], Omit<PricingTier, "id" | "name">> = {
+  free: {
     tagline: "Try it and build your first bots.",
     features: ["3 projects", "Basic AI model", "5 AI messages/day", "Run in sandbox", "Download code (ZIP)"],
     cta: "Start free",
   },
-  {
-    id: "basic",
-    name: "Basic",
-    price: 9,
+  basic: {
     tagline: "For personal bots and small projects.",
     features: [
       "Up to 15 projects",
@@ -51,10 +48,7 @@ export const pricingTiers: PricingTier[] = [
     ],
     cta: "Get Basic",
   },
-  {
-    id: "pro",
-    name: "Pro",
-    price: 19,
+  pro: {
     tagline: "For people who build bots seriously.",
     features: [
       "Unlimited projects",
@@ -67,7 +61,14 @@ export const pricingTiers: PricingTier[] = [
     cta: "Get Pro",
     highlighted: true,
   },
-];
+};
+
+export const pricingTiers: (PricingTier & { price: number })[] = PLANS.map((p) => ({
+  id: p.id,
+  name: p.name,
+  price: p.price,
+  ...PRICING_COPY[p.id],
+}));
 
 export const navLinks = [
   { label: "Services", href: "#services" },

@@ -9,6 +9,7 @@
  * Reads the user's own row via RLS with the normal server client, so no
  * service-role key is needed on the read path.
  */
+import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
 import { getPlan, type Plan } from "./plan";
@@ -20,11 +21,12 @@ export async function getUserPlan(supabase: SupabaseClient, user: User): Promise
 
   // 2. Subscription record from Stripe.
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("subscriptions")
       .select("plan, status, current_period_end")
       .eq("user_id", user.id)
       .maybeSingle();
+    if (error) throw error;
 
     if (!data) return "free";
 
@@ -35,8 +37,14 @@ export async function getUserPlan(supabase: SupabaseClient, user: User): Promise
     if (active && notExpired && (data.plan === "basic" || data.plan === "pro")) {
       return data.plan as Plan;
     }
-  } catch {
-    // Table may not exist yet (before the migration is run) — fall through to free.
+  } catch (e) {
+    // "Undefined table" (migration not run yet) is expected pre-launch and not
+    // worth alerting on. Anything else silently downgrades a possibly-paying
+    // user to free, so it's worth knowing about.
+    const code = (e as { code?: string } | null)?.code;
+    if (code !== "42P01" && code !== "PGRST205") {
+      Sentry.captureException(e);
+    }
   }
 
   return "free";

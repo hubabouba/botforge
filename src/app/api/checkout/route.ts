@@ -29,6 +29,13 @@ export async function POST(req: Request) {
 
   const origin = req.headers.get("origin") ?? new URL(req.url).origin;
 
+  // Both opt-in and default OFF: each depends on a Stripe Dashboard setting
+  // that must exist first (a Terms of Service URL; Stripe Tax registrations).
+  // Turning them on before that setup is done would make checkout start
+  // failing outright, so they're separate switches from "Stripe is enabled".
+  const requireTosConsent = process.env.STRIPE_REQUIRE_TOS_CONSENT === "true";
+  const automaticTax = process.env.STRIPE_AUTOMATIC_TAX === "true";
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -40,6 +47,22 @@ export async function POST(req: Request) {
       success_url: `${origin}/dashboard?checkout=success`,
       cancel_url: `${origin}/dashboard?checkout=cancel`,
       allow_promotion_codes: true,
+      ...(requireTosConsent
+        ? {
+            consent_collection: { terms_of_service: "required" as const },
+            custom_text: {
+              terms_of_service_acceptance: {
+                message: `I agree to Botforge's [Terms of Service](${origin}/terms).`,
+              },
+            },
+          }
+        : {}),
+      ...(automaticTax
+        ? {
+            automatic_tax: { enabled: true },
+            billing_address_collection: "required" as const,
+          }
+        : {}),
     });
     return NextResponse.json({ url: session.url });
   } catch (e) {

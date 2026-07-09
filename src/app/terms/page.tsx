@@ -33,9 +33,11 @@ export default function TermsPage() {
 
       <h2>Plans and pricing</h2>
       <p>
-        We offer a free plan and paid plans: {priceList}. Prices are in US dollars and may change
-        with prior notice; changes never affect a period you have already paid for. The features of
-        each plan are described on our pricing page and may evolve over time.
+        We offer a free plan and paid plans: {priceList}. Prices are shown in US dollars and do not
+        include VAT or other sales tax; where applicable, tax is calculated at checkout based on your
+        location and added to the charged amount. Prices may change with prior notice; changes never
+        affect a period you have already paid for. The features of each plan are described on our
+        pricing page and may evolve over time.
       </p>
 
       <h2>Subscriptions and payment</h2>

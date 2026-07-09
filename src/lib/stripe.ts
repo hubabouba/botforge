@@ -8,7 +8,9 @@ import type { Plan } from "./plan";
 
 const secret = process.env.STRIPE_SECRET_KEY;
 
-export const stripe = secret ? new Stripe(secret) : null;
+// Pinned so a future Stripe account-level default change can't silently alter
+// request/response shapes here; matches the version this SDK release expects.
+export const stripe = secret ? new Stripe(secret, { apiVersion: "2026-06-24.dahlia" }) : null;
 
 export function stripeEnabled(): boolean {
   return Boolean(secret);

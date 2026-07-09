@@ -115,7 +115,9 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
     guardedCreate(() => setCreating(true));
   }
 
-  function useTemplate(template: Template) {
+  // Not "useTemplate": a use-prefixed name reads as a React hook to both
+  // humans and the lint rules, and this is called from event handlers.
+  function createFromTemplate(template: Template) {
     guardedCreate(async () => {
       const result = await createProjectFromTemplate(template);
       if (result.ok) router.push(`/workspace/${result.project.id}`);
@@ -216,7 +218,7 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
           {templates.map((t, i) => (
             <button
               key={t.slug}
-              onClick={() => useTemplate(t)}
+              onClick={() => createFromTemplate(t)}
               style={{ animationDelay: `${i * 45}ms` }}
               className="group flex animate-fade-up items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-[#6366F1]/40 hover:bg-white/[0.04]"
             >
@@ -272,6 +274,7 @@ function ProjectCard({
   const [menu, setMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(project.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const open = () => router.push(`/workspace/${project.id}`);
 
@@ -294,7 +297,10 @@ function ProjectCard({
           </span>
           <button
             aria-label="More"
-            onClick={() => setMenu((v) => !v)}
+            onClick={() => {
+              setMenu((v) => !v);
+              setConfirmDelete(false);
+            }}
             className="grid h-7 w-7 place-items-center rounded-lg text-white/50 transition-colors hover:bg-white/[0.06] hover:text-white"
           >
             <MoreVertical className="h-4 w-4" />
@@ -337,7 +343,14 @@ function ProjectCard({
       {/* Dropdown menu */}
       {menu && (
         <>
-          <button className="fixed inset-0 z-10 cursor-default" aria-hidden onClick={() => setMenu(false)} />
+          <button
+            className="fixed inset-0 z-10 cursor-default"
+            aria-hidden
+            onClick={() => {
+              setMenu(false);
+              setConfirmDelete(false);
+            }}
+          />
           <div className="absolute right-4 top-12 z-20 w-44 overflow-hidden rounded-xl border border-white/10 bg-[#0B0D13]/95 py-1 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-xl">
             <MenuItem icon={<ArrowRight className="h-3.5 w-3.5" />} label="Open" onClick={open} />
             <MenuItem
@@ -372,12 +385,18 @@ function ProjectCard({
               }}
             />
             <div className="my-1 h-px bg-white/10" />
+            {/* Two-step delete: destroying a project must never be one misclick away. */}
             <MenuItem
               icon={<Trash className="h-3.5 w-3.5" />}
-              label="Delete"
+              label={confirmDelete ? "Really delete? This is final" : "Delete"}
               danger
               onClick={async () => {
+                if (!confirmDelete) {
+                  setConfirmDelete(true);
+                  return;
+                }
                 setMenu(false);
+                setConfirmDelete(false);
                 await deleteProject(project.id);
                 onChange();
               }}

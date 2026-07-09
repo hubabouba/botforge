@@ -112,16 +112,22 @@ You are the free-tier assistant. Constraints for this tier:
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let nl: number;
-    while ((nl = buffer.indexOf("\n")) !== -1) {
-      const line = buffer.slice(0, nl);
-      buffer = buffer.slice(nl + 1);
-      for (const event of eventsFromLine(line)) yield event;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) !== -1) {
+        const line = buffer.slice(0, nl);
+        buffer = buffer.slice(nl + 1);
+        for (const event of eventsFromLine(line)) yield event;
+      }
     }
+    for (const event of eventsFromLine(buffer)) yield event;
+  } finally {
+    // Runs on early generator return too (client disconnected mid-stream) —
+    // cancel the upstream HTTP stream instead of letting it drain in the void.
+    void reader.cancel().catch(() => {});
   }
-  for (const event of eventsFromLine(buffer)) yield event;
 }

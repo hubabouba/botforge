@@ -7,7 +7,7 @@ import { ArrowLeft, Download, Play, Telegram, Discord, Bot } from "@/components/
 import type { Project } from "@/lib/workspace/types";
 import { cn } from "@/lib/utils";
 
-export type SaveStatus = "saved" | "saving";
+export type SaveStatus = "saved" | "saving" | "error";
 
 function PlatformBadge({ platform }: { platform: Project["platform"] }) {
   const telegram = platform === "telegram";
@@ -99,10 +99,10 @@ export function TopBar({
         <span
           className={cn(
             "h-1.5 w-1.5 rounded-full",
-            status === "saving" ? "animate-pulse bg-amber-400" : "bg-emerald-400",
+            status === "saving" ? "animate-pulse bg-amber-400" : status === "error" ? "bg-rose-400" : "bg-emerald-400",
           )}
         />
-        {status === "saving" ? "Saving…" : "All changes saved"}
+        {status === "saving" ? "Saving…" : status === "error" ? "Save failed — check your connection" : "All changes saved"}
       </span>
 
       <div className="flex items-center gap-2">

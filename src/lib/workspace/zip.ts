@@ -30,6 +30,10 @@ function crc32(bytes: Uint8Array): number {
 const DOS_TIME = 0;
 const DOS_DATE = 0x21; // 1980-01-01
 
+// General-purpose bit 11: file names are UTF-8. Without it, unzippers decode
+// non-ASCII paths (e.g. Cyrillic) as CP437 and mangle them.
+const FLAG_UTF8 = 0x0800;
+
 /** Build a .zip Blob from the project's files. */
 export function zipFiles(files: ProjectFile[]): Blob {
   const encoder = new TextEncoder();
@@ -51,7 +55,7 @@ export function zipFiles(files: ProjectFile[]): Blob {
     const local = concat([
       u32(0x04034b50), // signature
       u16(20), // version needed
-      u16(0), // flags
+      u16(FLAG_UTF8), // flags
       u16(0), // method: store
       u16(DOS_TIME),
       u16(DOS_DATE),
@@ -71,7 +75,7 @@ export function zipFiles(files: ProjectFile[]): Blob {
         u32(0x02014b50), // signature
         u16(20), // version made by
         u16(20), // version needed
-        u16(0), // flags
+        u16(FLAG_UTF8), // flags
         u16(0), // method
         u16(DOS_TIME),
         u16(DOS_DATE),

@@ -140,6 +140,11 @@ export function WorkspaceChat({
       if (!hadError && !accText.trim() && accEdits.length) {
         patch((m) => ({ ...m, text: defaultReply(accEdits) }));
       }
+      // Stream ended with nothing at all (e.g. the model spent its whole token
+      // budget) — never leave a permanently blank message.
+      if (!hadError && !accText.trim() && !accEdits.length) {
+        patch((m) => ({ ...m, text: "The assistant returned an empty reply — please try again.", error: true }));
+      }
     } catch (e) {
       if ((e as Error).name === "AbortError") return; // superseded / unmounted
       patch((m) => ({ ...m, text: "Network error — please try again.", error: true }));
@@ -150,14 +155,17 @@ export function WorkspaceChat({
   }
 
   function apply(msgId: string, idx: number) {
+    // Side effect stays outside the updater — React may re-run updaters
+    // (StrictMode/concurrent), which would apply the write twice.
+    const edit = messages.find((m) => m.id === msgId)?.edits?.[idx];
+    if (!edit || edit.applied) return;
+    onApplyEdit(edit.path, edit.content);
     setMessages((prev) =>
-      prev.map((m) => {
-        if (m.id !== msgId || !m.edits) return m;
-        const edit = m.edits[idx];
-        onApplyEdit(edit.path, edit.content);
-        const edits = m.edits.map((e, i) => (i === idx ? { ...e, applied: true } : e));
-        return { ...m, edits };
-      }),
+      prev.map((m) =>
+        m.id === msgId && m.edits
+          ? { ...m, edits: m.edits.map((e, i) => (i === idx ? { ...e, applied: true } : e)) }
+          : m,
+      ),
     );
   }
 

@@ -92,7 +92,27 @@ export function Workspace({ projectId }: { projectId: string }) {
     const p = pending.current;
     if (!p) return;
     pending.current = null;
-    void writeFile(p.id, p.path, p.content).then(() => setStatus("saved"));
+    writeFile(p.id, p.path, p.content)
+      .then(() => {
+        // A newer edit may already be pending — don't claim "saved" over it.
+        if (!pending.current) setStatus("saved");
+      })
+      .catch(() => setStatus("error"));
+  }, []);
+
+  // Last-resort flush when the tab/window closes before the debounce fires —
+  // without it, up to 700ms of typing silently vanishes. keepalive lets the
+  // request outlive the page.
+  useEffect(() => {
+    const onPageHide = () => {
+      const p = pending.current;
+      if (!p) return;
+      pending.current = null;
+      clearTimeout(saveTimer.current);
+      void writeFile(p.id, p.path, p.content, { keepalive: true }).catch(() => {});
+    };
+    window.addEventListener("pagehide", onPageHide);
+    return () => window.removeEventListener("pagehide", onPageHide);
   }, []);
 
   const onEditorChange = useCallback(
@@ -123,13 +143,13 @@ export function Workspace({ projectId }: { projectId: string }) {
   const closeTab = useCallback(
     (path: string, e: React.MouseEvent) => {
       e.stopPropagation();
-      setOpenPaths((prev) => {
-        const next = prev.filter((p) => p !== path);
-        if (path === activePath) setActivePath(next[next.length - 1] ?? project?.entry ?? "");
-        return next;
-      });
+      // Compute outside the updater — setState inside another updater re-runs
+      // under StrictMode/concurrent rendering.
+      const next = openPaths.filter((p) => p !== path);
+      setOpenPaths(next);
+      if (path === activePath) setActivePath(next[next.length - 1] ?? project?.entry ?? "");
     },
-    [activePath, project],
+    [openPaths, activePath, project],
   );
 
   const onAddFile = useCallback(
@@ -156,13 +176,11 @@ export function Workspace({ projectId }: { projectId: string }) {
       const updated = await deleteFolder(project.id, path);
       refresh(updated);
       const prefix = `${path}/`;
-      setOpenPaths((prev) => {
-        const next = prev.filter((p) => p !== path && !p.startsWith(prefix));
-        if (!next.includes(activePath)) setActivePath(next[next.length - 1] ?? updated?.entry ?? "");
-        return next;
-      });
+      const next = openPaths.filter((p) => p !== path && !p.startsWith(prefix));
+      setOpenPaths(next);
+      if (!next.includes(activePath)) setActivePath(next[next.length - 1] ?? updated?.entry ?? "");
     },
-    [project, activePath, refresh],
+    [project, openPaths, activePath, refresh],
   );
 
   const onRenameFile = useCallback(
@@ -181,13 +199,11 @@ export function Workspace({ projectId }: { projectId: string }) {
       if (!project) return;
       const updated = await deleteFile(project.id, path);
       refresh(updated);
-      setOpenPaths((prev) => {
-        const next = prev.filter((p) => p !== path);
-        if (path === activePath) setActivePath(next[next.length - 1] ?? updated?.entry ?? "");
-        return next;
-      });
+      const next = openPaths.filter((p) => p !== path);
+      setOpenPaths(next);
+      if (path === activePath) setActivePath(next[next.length - 1] ?? updated?.entry ?? "");
     },
-    [project, activePath, refresh],
+    [project, openPaths, activePath, refresh],
   );
 
   const onRenameProject = useCallback(
@@ -203,18 +219,22 @@ export function Workspace({ projectId }: { projectId: string }) {
   const onApplyEdit = useCallback(
     async (path: string, content: string) => {
       if (!project) return;
-      const exists = project.files.some((f) => f.path === path);
-      if (exists) {
-        setProject((prev) =>
-          prev ? { ...prev, files: prev.files.map((f) => (f.path === path ? { ...f, content } : f)) } : prev,
-        );
-        await writeFile(project.id, path, content);
-      } else {
-        refresh(await addFile(project.id, path, content));
+      try {
+        const exists = project.files.some((f) => f.path === path);
+        if (exists) {
+          setProject((prev) =>
+            prev ? { ...prev, files: prev.files.map((f) => (f.path === path ? { ...f, content } : f)) } : prev,
+          );
+          await writeFile(project.id, path, content);
+        } else {
+          refresh(await addFile(project.id, path, content));
+        }
+        setStatus("saved");
+      } catch {
+        setStatus("error");
       }
       openFile(path);
       setEditorNonce((n) => n + 1);
-      setStatus("saved");
     },
     [project, refresh, openFile],
   );

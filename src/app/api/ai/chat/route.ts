@@ -104,19 +104,30 @@ export async function POST(req: Request) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      try {
-        for await (const event of gen) {
+      // After the client disconnects, enqueue()/close() throw — swallow instead
+      // of surfacing a spurious error for every closed tab.
+      const write = (event: unknown) => {
+        try {
           controller.enqueue(encoder.encode(JSON.stringify(event) + "\n"));
+        } catch {
+          /* stream cancelled */
         }
+      };
+      try {
+        for await (const event of gen) write(event);
       } catch (e) {
-        const message = (e as Error).message || "The assistant failed.";
-        controller.enqueue(encoder.encode(JSON.stringify({ type: "error", message }) + "\n"));
+        write({ type: "error", message: (e as Error).message || "The assistant failed." });
       } finally {
-        controller.close();
+        try {
+          controller.close();
+        } catch {
+          /* stream cancelled */
+        }
       }
     },
     cancel() {
-      // Client disconnected (navigated away / aborted) — let the generator drop.
+      // Client disconnected (navigated away / aborted) — stop the generator,
+      // which aborts the upstream model request in its own cleanup.
       void gen.return(undefined);
     },
   });

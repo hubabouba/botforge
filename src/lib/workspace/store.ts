@@ -112,8 +112,19 @@ export async function deleteProject(id: string): Promise<void> {
 // ---- File operations ----
 
 /** Overwrite an existing file's content (the autosave hot path — returns nothing). */
-export async function writeFile(id: string, path: string, content: string): Promise<void> {
-  await post(`/api/projects/${id}/files`, { action: "write", path, content });
+export async function writeFile(
+  id: string,
+  path: string,
+  content: string,
+  opts?: { keepalive?: boolean },
+): Promise<void> {
+  // keepalive lets the final flush survive the page being closed (≤64 KB body).
+  const { res } = await req(`/api/projects/${id}/files`, {
+    method: "POST",
+    body: JSON.stringify({ action: "write", path, content }),
+    keepalive: opts?.keepalive,
+  });
+  if (!res.ok) throw new Error(`Save failed (HTTP ${res.status}).`);
 }
 
 export async function addFile(id: string, path: string, content = ""): Promise<StoredProject | null> {

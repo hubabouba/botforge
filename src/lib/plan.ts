@@ -42,6 +42,16 @@ export function isAiLimitExempt(email?: string | null): boolean {
   return !!e && envEmailList("BOTFORGE_UNLIMITED_AI_EMAILS").includes(e);
 }
 
+/**
+ * Emails allowed into the bot-hosting private beta (Stage 1) — HOSTING_BETA_EMAILS.
+ * During the beta this gate replaces the plan check, so the first real runs
+ * happen only against the owner's own account before hosting is tied to tiers.
+ */
+export function isHostingBetaEmail(email?: string | null): boolean {
+  const e = email?.toLowerCase();
+  return !!e && envEmailList("HOSTING_BETA_EMAILS").includes(e);
+}
+
 /** The next plan up that raises the project limit (for upgrade prompts). */
 export function nextPlanUp(plan: Plan): Plan {
   return plan === "free" ? "basic" : "pro";
@@ -53,7 +63,8 @@ export type Capability =
   | "assistant.logs" // the assistant may read & analyze bot logs (quiet Pro gate)
   | "panel.logs" // the Logs panel
   | "panel.planning" // the AI Planning panel
-  | "panel.metrics"; // the Metrics panel
+  | "panel.metrics" // the Metrics panel
+  | "hosting.run"; // run a bot on Botforge hosting (Real Run) + manage its secrets
 
 export const CAPABILITY_MIN_PLAN: Record<Capability, Plan> = {
   "assistant.claude": "basic",
@@ -61,7 +72,33 @@ export const CAPABILITY_MIN_PLAN: Record<Capability, Plan> = {
   "panel.planning": "basic",
   "panel.metrics": "pro",
   "assistant.logs": "pro",
+  // OPEN DECISION (revisit before Stage 2): Basic+Pro vs Pro-only. Defaulting to
+  // "basic" because the Logs panel already promises Basic users "hosted runs are
+  // on the way" — leaving that unfulfilled for a paying tier would be odd.
+  "hosting.run": "basic",
 };
+
+// ---- Bot hosting limits (Real Run) -----------------------------------------
+// Same shape as PROJECT_LIMIT / AI_DAILY_MESSAGES: the numbers here are the
+// single source of truth, passed to Postgres (begin_project_run) as params.
+// Illustrative starting values — confirm against Fly's live pricing calculator
+// before Stage 2 turns real plan-gating on.
+
+/** Max bots a plan may have running at once (0 = hosting not available). */
+export const HOSTING_CONCURRENT_RUNS: Record<Plan, number> = { free: 0, basic: 1, pro: 3 };
+
+export function hostingConcurrentLimit(plan: Plan): number {
+  return HOSTING_CONCURRENT_RUNS[plan];
+}
+
+/** Monthly bot-runtime budget per plan, in hours (Infinity = unlimited). */
+export const HOSTING_MONTHLY_RUNTIME_HOURS: Record<Plan, number> = { free: 0, basic: 100, pro: 400 };
+
+/** The monthly runtime budget in seconds for begin_project_run (-1 = unlimited). */
+export function hostingRuntimeBudgetSeconds(plan: Plan): number {
+  const hours = HOSTING_MONTHLY_RUNTIME_HOURS[plan];
+  return Number.isFinite(hours) ? Math.round(hours * 3600) : -1;
+}
 
 export interface PlanMeta {
   id: Plan;

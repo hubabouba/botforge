@@ -278,6 +278,11 @@ begin
     return jsonb_build_object('error', 'unauthorized');
   end if;
 
+  -- Serialize this user's Starts: without it, two simultaneous requests for
+  -- DIFFERENT projects both count 0 other active runs and both pass the cap
+  -- (check-then-insert race). Released automatically at transaction end.
+  perform pg_advisory_xact_lock(hashtext(v_user::text));
+
   if not exists (select 1 from public.projects p where p.id = p_project_id and p.user_id = v_user) then
     return jsonb_build_object('error', 'not_found');
   end if;

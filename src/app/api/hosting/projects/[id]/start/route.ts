@@ -5,7 +5,7 @@ import { fetchProject } from "@/lib/workspace/serverStore";
 import { hostingAccessAllowed } from "@/lib/hosting/config";
 import { generateRunToken, hashRunToken } from "@/lib/hosting/runToken";
 import { decryptSecret } from "@/lib/hosting/secrets";
-import { flyConfig, createRunMachine, destroyMachine } from "@/lib/hosting/fly";
+import { flyConfig, createRunMachine, destroyMachine, type FlyConfig } from "@/lib/hosting/fly";
 import { getDeployment, setRunning, setStopped, appendLogs } from "@/lib/hosting/deployments";
 
 export const runtime = "nodejs";
@@ -40,6 +40,15 @@ export async function POST(req: Request, { params }: Ctx) {
   }
 
   const required = requiredSecretFor(project.platform);
+
+  // Fail fast if Fly isn't configured — BEFORE reserving a run slot below, so a
+  // config error can never strand the deployment in 'starting'.
+  let cfg: FlyConfig;
+  try {
+    cfg = flyConfig();
+  } catch {
+    return NextResponse.json({ error: "Hosting isn't fully configured on the server yet." }, { status: 503 });
+  }
 
   // Decrypt this project's secrets via the admin client (ownership already
   // verified). This is the ONLY place ciphertext is read back out.
@@ -85,19 +94,22 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: message, code: result.error }, { status });
   }
 
-  // Tear down any previous machine so exactly one exists per running bot.
-  const prev = await getDeployment(admin, id);
-  const cfg = flyConfig();
-  if (prev?.provider_machine_id) {
-    try {
-      await destroyMachine(cfg, prev.provider_machine_id);
-    } catch {
-      /* best effort */
-    }
-  }
-
+  // From here on the slot is reserved: EVERY failure path must compensate by
+  // freeing it (and destroying a machine we may have just created), or the
+  // deployment would be stranded in 'starting' with a billable orphan on Fly.
   const publicUrl = (process.env.BOTFORGE_PUBLIC_URL || new URL(req.url).origin).replace(/\/$/, "");
+  let machineId: string | null = null;
   try {
+    // Tear down any previous machine so exactly one exists per running bot.
+    const prev = await getDeployment(admin, id);
+    if (prev?.provider_machine_id) {
+      try {
+        await destroyMachine(cfg, prev.provider_machine_id);
+      } catch {
+        /* best effort */
+      }
+    }
+
     const machine = await createRunMachine(cfg, {
       name: `bot-${id.slice(0, 8)}-${Date.now().toString(36)}`,
       env: {
@@ -107,13 +119,25 @@ export async function POST(req: Request, { params }: Ctx) {
         BOTFORGE_ENTRY: project.entry || "main.py",
       },
     });
+    machineId = machine.id;
     await setRunning(admin, id, machine.id, machine.region ?? null);
     await appendLogs(admin, id, [{ stream: "system", line: "Launching bot on Botforge hosting…" }]);
     return NextResponse.json({ ok: true, status: "running" });
   } catch (e) {
-    // Fly refused after we reserved — compensate so the slot is freed.
-    await setStopped(admin, id, "stopped");
-    await appendLogs(admin, id, [{ stream: "system", line: `Failed to launch: ${(e as Error).message}` }]);
+    // Don't leak a running machine we can no longer track.
+    if (machineId) {
+      try {
+        await destroyMachine(cfg, machineId);
+      } catch {
+        /* reconcile will catch it */
+      }
+    }
+    try {
+      await setStopped(admin, id, "stopped");
+      await appendLogs(admin, id, [{ stream: "system", line: `Failed to launch: ${(e as Error).message}` }]);
+    } catch {
+      /* status poll's stale-start heal will free the slot */
+    }
     return NextResponse.json({ error: "Couldn't launch the bot. Please try again." }, { status: 502 });
   }
 }

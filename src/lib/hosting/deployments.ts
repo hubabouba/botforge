@@ -19,6 +19,7 @@ export interface DeploymentRow {
   region: string | null;
   restart_count: number;
   run_token_hash: string | null;
+  last_start_attempt_at: string | null;
   last_started_at: string | null;
   last_stopped_at: string | null;
   last_crash_at: string | null;
@@ -26,7 +27,7 @@ export interface DeploymentRow {
 }
 
 const COLS =
-  "project_id, user_id, status, provider_machine_id, region, restart_count, run_token_hash, last_started_at, last_stopped_at, last_crash_at, updated_at";
+  "project_id, user_id, status, provider_machine_id, region, restart_count, run_token_hash, last_start_attempt_at, last_started_at, last_stopped_at, last_crash_at, updated_at";
 
 export async function getDeployment(admin: SupabaseClient, projectId: string): Promise<DeploymentRow | null> {
   const { data } = await admin.from("project_deployments").select(COLS).eq("project_id", projectId).maybeSingle();
@@ -109,8 +110,19 @@ export async function reconcileWithFly(
   cfg: FlyConfig,
   dep: DeploymentRow,
 ): Promise<DeploymentStatus> {
-  if (!dep.provider_machine_id) return dep.status;
   if (dep.status !== "starting" && dep.status !== "running" && dep.status !== "stopping") return dep.status;
+
+  if (!dep.provider_machine_id) {
+    // Slot reserved but no machine ever recorded — the start route died
+    // mid-flight. After a grace window, release the slot as a crash so the
+    // user isn't stuck with "already running" forever.
+    const attempted = dep.last_start_attempt_at ? Date.parse(dep.last_start_attempt_at) : 0;
+    if (dep.status === "starting" && Date.now() - attempted > 3 * 60_000) {
+      await recordCrash(admin, dep.project_id, dep.restart_count);
+      return "crashed";
+    }
+    return dep.status;
+  }
 
   let state: FlyMachineState | null;
   try {
@@ -130,7 +142,10 @@ export async function reconcileWithFly(
 
 /** Decide our status from (current status, live Fly state). null = no change. */
 function mapFlyState(current: DeploymentStatus, state: FlyMachineState | null): DeploymentStatus | null {
-  if (state === "started") return current === "running" ? null : "running";
+  // "started" = healthy: never a transition here. Promotion to 'running' is
+  // setRunning's job — routing it through the setStopped writer would wipe
+  // run_token_hash and break the live run's log/exit callbacks.
+  if (state === "started") return null;
   if (state === null || state === "destroyed" || state === "destroying") {
     // Machine is gone. If we were tearing down it's a clean stop, else a crash.
     return current === "stopping" ? "stopped" : "crashed";

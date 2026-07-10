@@ -47,14 +47,16 @@ export function HostingPanel({ project }: { project: Project }) {
     let t: ReturnType<typeof setTimeout>;
     const ctrl = new AbortController();
     const tick = async () => {
-      try {
-        const next = await getLogs(project.id, cursor.current, ctrl.signal);
-        if (next.length) {
-          cursor.current = next[next.length - 1].id;
-          setLogs((prev) => [...prev, ...next].slice(-1000));
+      if (document.visibilityState === "visible") {
+        try {
+          const next = await getLogs(project.id, cursor.current, ctrl.signal);
+          if (next.length) {
+            cursor.current = next[next.length - 1].id;
+            setLogs((prev) => [...prev, ...next].slice(-1000));
+          }
+        } catch {
+          /* transient */
         }
-      } catch {
-        /* transient */
       }
       if (!stop) t = setTimeout(tick, 2500);
     };

@@ -51,14 +51,23 @@ def _post(path: str, payload: dict, timeout: float = 15.0) -> bytes:
         return r.read()
 
 
-def _get(path: str, timeout: float = 30.0) -> dict:
-    req = urllib.request.Request(
-        f"{BASE}{path}",
-        headers={"Authorization": f"Bearer {TOKEN}"},
-        method="GET",
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return json.loads(r.read().decode("utf-8"))
+def _get(path: str, timeout: float = 30.0, attempts: int = 3) -> dict:
+    # Retried: a transient network blip at boot must not become a false "crash".
+    last: Exception | None = None
+    for i in range(attempts):
+        try:
+            req = urllib.request.Request(
+                f"{BASE}{path}",
+                headers={"Authorization": f"Bearer {TOKEN}"},
+                method="GET",
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except Exception as e:  # noqa: BLE001 — deliberate catch-all with re-raise
+            last = e
+            if i < attempts - 1:
+                time.sleep(2 * (i + 1))
+    raise last  # type: ignore[misc]
 
 
 # --- log shipping ---------------------------------------------------------
@@ -187,12 +196,17 @@ def main() -> int:
         return 1
 
     system(f"Starting: python {ENTRY}")
+    # The bot only gets its own secrets. The platform's callback credentials
+    # (BOTFORGE_RUN_TOKEN etc.) stay with the supervisor — user/AI code must
+    # never be able to read or reuse them.
+    child_env = {k: v for k, v in os.environ.items() if not k.startswith("BOTFORGE_")}
+    child_env["PYTHONUNBUFFERED"] = "1"
     proc = subprocess.Popen(
         [sys.executable, "-u", ENTRY],
         cwd=APP_DIR,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, bufsize=1,
-        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        env=child_env,
     )
     t_out = threading.Thread(target=pump, args=(proc.stdout, "stdout"), daemon=True)
     t_err = threading.Thread(target=pump, args=(proc.stderr, "stderr"), daemon=True)

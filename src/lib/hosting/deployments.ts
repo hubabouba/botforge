@@ -73,13 +73,29 @@ export async function recordCrash(admin: SupabaseClient, projectId: string, rest
     .eq("project_id", projectId);
 }
 
+/**
+ * Scrub secret-shaped substrings from a log line before it's ever stored.
+ * Bot libraries (e.g. python-telegram-bot via httpx) log full request URLs that
+ * embed the token, which would otherwise land in project_logs in plaintext and
+ * defeat the whole point of encrypting it. Redact by shape, provider-agnostic.
+ */
+export function redactSecrets(line: string): string {
+  return line
+    // Telegram bot token: <digits>:<35+ url-safe chars> (also matches inside /bot<token>/)
+    .replace(/\d{6,12}:[A-Za-z0-9_-]{30,}/g, "[REDACTED]")
+    // Discord bot token: base64.base64.base64-ish, dot-separated
+    .replace(/[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}/g, "[REDACTED]");
+}
+
 export async function appendLogs(
   admin: SupabaseClient,
   projectId: string,
   lines: { stream: string; line: string }[],
 ): Promise<void> {
   if (!lines.length) return;
-  await admin.from("project_logs").insert(lines.map((l) => ({ project_id: projectId, stream: l.stream, line: l.line })));
+  await admin
+    .from("project_logs")
+    .insert(lines.map((l) => ({ project_id: projectId, stream: l.stream, line: redactSecrets(l.line) })));
 }
 
 /**

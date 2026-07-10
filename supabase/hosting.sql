@@ -335,6 +335,11 @@ $$;
 -- Grants — signed-in users only; anon/public get nothing.
 -- ===========================================================================
 
+-- trim_project_logs is a TRIGGER function — it must never be reachable as an
+-- RPC by anyone. Triggers fire it regardless of EXECUTE grants, so revoking is
+-- safe and clears the "public can execute SECURITY DEFINER function" advisor.
+revoke all on function public.trim_project_logs()                                    from public, anon, authenticated;
+
 revoke all on function public.set_project_secret(uuid, text, text, text, integer)   from public, anon;
 revoke all on function public.list_project_secret_names(uuid)                         from public, anon;
 revoke all on function public.delete_project_secret(uuid, text)                       from public, anon;

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "
 import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { loadPrefs } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
+import { HostingPanel } from "./HostingPanel";
+import { useHostingStatus } from "@/hooks/useHostingStatus";
 import { CodeIcon, Terminal, ListChecks, Chart, Lock, Play, Bot } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
@@ -79,9 +81,33 @@ function PanelShell({
   );
 }
 
-// ---- Logs ----------------------------------------------------------------
+// ---- Logs / Run ----------------------------------------------------------
 
-export function LogsPanel({ onRun }: { onRun: () => void }) {
+export function LogsPanel({
+  project,
+  hostingAvailable,
+  onRun,
+}: {
+  project: Project;
+  hostingAvailable: boolean;
+  onRun: () => void;
+}) {
+  // Beta accounts get the real hosting control; everyone else keeps the honest
+  // "run locally" path (also a good fallback if hosting ever has an incident).
+  if (hostingAvailable) {
+    return (
+      <PanelShell icon={Terminal} title="Run & Logs">
+        <HostingPanel project={project} />
+        <button
+          onClick={onRun}
+          className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-white/[0.06]"
+        >
+          <Play className="h-3.5 w-3.5" /> Run locally instead
+        </button>
+      </PanelShell>
+    );
+  }
+
   return (
     <PanelShell icon={Terminal} title="Logs">
       <div className="rounded-xl border border-ink-800 bg-ink-950 font-mono text-[12px]">
@@ -106,28 +132,68 @@ export function LogsPanel({ onRun }: { onRun: () => void }) {
 
 // ---- Metrics -------------------------------------------------------------
 
-const METRICS = [
-  { label: "Active users", hint: "unique chats" },
-  { label: "Messages", hint: "last 24h" },
-  { label: "Errors", hint: "last 24h" },
-  { label: "Uptime", hint: "since deploy" },
-];
+function uptimeLabel(startedAt: number | null, running: boolean): string {
+  if (!running || !startedAt) return "—";
+  const s = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h}h ${m % 60}m` : `${Math.floor(h / 24)}d ${h % 24}h`;
+}
 
-export function MetricsPanel() {
+function Tile({ label, value, hint, muted }: { label: string; value: string; hint: string; muted?: boolean }) {
+  return (
+    <div className="rounded-xl border border-ink-800 bg-ink-900/50 p-3.5">
+      <div className="text-[11px] uppercase tracking-wide text-neutral-500">{label}</div>
+      <div className={cn("mt-1 text-2xl font-semibold", muted ? "text-neutral-600" : "text-neutral-200")}>{value}</div>
+      <div className="mt-0.5 text-[11px] text-neutral-600">{hint}</div>
+    </div>
+  );
+}
+
+export function MetricsPanel({
+  project,
+  hostingAvailable,
+}: {
+  project: Project;
+  hostingAvailable: boolean;
+}) {
+  const { status } = useHostingStatus(project.id, hostingAvailable);
+  const running = status?.status === "running";
+
+  if (!hostingAvailable) {
+    return (
+      <PanelShell icon={Chart} title="Metrics">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {["Active users", "Messages", "Errors", "Uptime"].map((label) => (
+            <Tile key={label} label={label} value="—" hint="" muted />
+          ))}
+        </div>
+        <p className="mt-4 text-[13px] leading-relaxed text-neutral-500">
+          Metrics light up once your bot runs on Botforge hosting. Deploy is coming — for now these
+          are placeholders, not sample data.
+        </p>
+      </PanelShell>
+    );
+  }
+
   return (
     <PanelShell icon={Chart} title="Metrics">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {METRICS.map((m) => (
-          <div key={m.label} className="rounded-xl border border-ink-800 bg-ink-900/50 p-3.5">
-            <div className="text-[11px] uppercase tracking-wide text-neutral-500">{m.label}</div>
-            <div className="mt-1 text-2xl font-semibold text-neutral-600">—</div>
-            <div className="mt-0.5 text-[11px] text-neutral-600">{m.hint}</div>
-          </div>
-        ))}
+      {/* Real process health (cheap — straight from the deployment record). */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Tile label="Status" value={running ? "Running" : (status?.status ?? "Stopped").replace(/_/g, " ")} hint="live" />
+        <Tile label="Uptime" value={uptimeLabel(status?.startedAt ?? null, running)} hint="since start" />
+        <Tile label="Restarts" value={String(status?.restartCount ?? 0)} hint="this deployment" />
+      </div>
+      {/* Honestly-labelled "coming later" — needs the bot to report its own events. */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <Tile label="Active users" value="—" hint="coming later" muted />
+        <Tile label="Messages" value="—" hint="coming later" muted />
       </div>
       <p className="mt-4 text-[13px] leading-relaxed text-neutral-500">
-        Metrics light up once your bot runs on Botforge hosting. Deploy is coming — for now these
-        are placeholders, not sample data.
+        Status, uptime and restarts are live. Active-users and message counts need your bot to report
+        its own events — that instrumentation is coming in a later update, not faked here.
       </p>
     </PanelShell>
   );

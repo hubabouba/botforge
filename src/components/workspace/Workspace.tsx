@@ -54,7 +54,7 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [chatOpen, setChatOpen] = useState(true);
   const [view, setView] = useState<WorkView>("code");
   const [upgrade, setUpgrade] = useState<{ highlight: Plan; reason: string } | null>(null);
-  const { plan, allows } = usePlan();
+  const { plan, allows, hostingBeta } = usePlan();
   // Bumped when the assistant applies an edit, to remount the editor with fresh content.
   const [editorNonce, setEditorNonce] = useState(0);
   // Debounced autosave: hold the latest unsaved edit and flush it after a pause
@@ -324,11 +324,11 @@ export function Workspace({ projectId }: { projectId: string }) {
           {view !== "code" ? (
             <div className="min-h-0 flex-1">
               {view === "logs" ? (
-                <LogsPanel onRun={() => setRunOpen(true)} />
+                <LogsPanel project={project} hostingAvailable={hostingBeta} onRun={() => setRunOpen(true)} />
               ) : view === "planning" ? (
                 <PlanningPanel project={project} files={project.files} />
               ) : (
-                <MetricsPanel />
+                <MetricsPanel project={project} hostingAvailable={hostingBeta} />
               )}
             </div>
           ) : (

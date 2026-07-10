@@ -1,0 +1,12 @@
+# Fly app that OWNS the per-bot Machines. It has no HTTP service of its own —
+# every bot is an outbound polling/websocket client, so there is nothing to
+# expose. Machines are created/stopped/destroyed via the Machines API by the
+# Botforge control plane, not by `fly deploy`. This file exists only so we can
+# build & push the runner image with `fly deploy --build-only --push`.
+#
+# Set `app` to your Fly app name (must match FLY_APP_NAME in Vercel).
+app = "botforge-bots"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"

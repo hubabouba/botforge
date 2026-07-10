@@ -24,3 +24,7 @@ Passwords.txt
 
 # MCP config — contains a Supabase access token, never commit
 .mcp.json
+
+# Python bytecode from local runner syntax checks
+__pycache__/
+*.pyc

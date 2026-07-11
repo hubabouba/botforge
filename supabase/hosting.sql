@@ -47,10 +47,20 @@ create table if not exists public.project_deployments (
   last_started_at       timestamptz,
   last_stopped_at       timestamptz,
   last_crash_at         timestamptz,
+  last_accrued_at       timestamptz,             -- runtime metered up to here (Stage 2 accrual checkpoint)
   updated_at            timestamptz not null default now()
 );
 
+-- Stage 2 upgrade path: the table already exists on the live DB, so the new
+-- accrual checkpoint has to be added explicitly too.
+alter table public.project_deployments add column if not exists last_accrued_at timestamptz;
+
 create index if not exists project_deployments_user_id_idx on public.project_deployments (user_id);
+-- The reconcile cron scans for active runs; tiny table today, but the predicate
+-- is fixed and known, so index it now rather than after it hurts.
+create index if not exists project_deployments_active_idx
+  on public.project_deployments (status)
+  where status in ('starting', 'running', 'stopping');
 
 -- Append-only log ring buffer. bigint identity id doubles as the poll cursor.
 create table if not exists public.project_logs (
@@ -238,6 +248,39 @@ end;
 $$;
 
 -- ===========================================================================
+-- bump_hosting_usage — atomically add metered runtime seconds to the caller's
+-- current UTC month and return the new total. Called ONLY by the service-role
+-- admin client (lazy reconcile + the reconcile cron); a plain UPDATE increment
+-- is row-serialized by Postgres, so the two callers can never lose a write to
+-- each other. Returns the month's running total so the caller can enforce the
+-- plan budget without a second read.
+-- ===========================================================================
+
+create or replace function public.bump_hosting_usage(
+  p_user_id uuid,
+  p_seconds bigint
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_month text := to_char((now() at time zone 'utc'), 'YYYY-MM');
+  v_total bigint;
+begin
+  insert into public.hosting_usage (user_id, month, seconds_used, updated_at)
+  values (p_user_id, v_month, greatest(p_seconds, 0), now())
+  on conflict (user_id, month) do update
+    set seconds_used = hosting_usage.seconds_used + greatest(excluded.seconds_used, 0),
+        updated_at   = now()
+  returning seconds_used into v_total;
+
+  return v_total;
+end;
+$$;
+
+-- ===========================================================================
 -- begin_project_run — the one place a race actually matters (two Start clicks /
 -- two tabs vs. "count my running bots"). One transaction: verify ownership,
 -- check the plan concurrency cap against OTHER active deployments, check the
@@ -253,14 +296,19 @@ $$;
 -- Return shape (jsonb):
 --   { "ok": true, "status": "starting" }
 --   { "error": "unauthorized" | "not_found" | "concurrent_limit"
---            | "budget_exhausted" | "already_running" }
+--            | "global_ceiling" | "budget_exhausted" | "already_running" }
 -- ===========================================================================
+
+-- Stage 2 changed the signature (added p_global_ceiling); CREATE OR REPLACE
+-- would leave the old 4-arg overload behind, still granted — drop it explicitly.
+drop function if exists public.begin_project_run(uuid, integer, bigint, text);
 
 create or replace function public.begin_project_run(
   p_project_id             uuid,
   p_concurrent_limit       integer,   -- -1 = unlimited
   p_runtime_budget_seconds bigint,    -- -1 = unlimited
-  p_run_token_hash         text
+  p_run_token_hash         text,
+  p_global_ceiling         integer default -1   -- max active machines across ALL users; -1 = unlimited
 )
 returns jsonb
 language plpgsql
@@ -278,13 +326,27 @@ begin
     return jsonb_build_object('error', 'unauthorized');
   end if;
 
-  -- Serialize this user's Starts: without it, two simultaneous requests for
-  -- DIFFERENT projects both count 0 other active runs and both pass the cap
-  -- (check-then-insert race). Released automatically at transaction end.
+  -- Serialize ALL Starts platform-wide, then per-user. The global lock makes
+  -- the global-ceiling count below race-free across different users (the
+  -- per-user lock alone can't); Starts are rare enough that serializing them
+  -- costs nothing. Both released automatically at transaction end.
+  perform pg_advisory_xact_lock(hashtext('botforge_hosting_start'));
   perform pg_advisory_xact_lock(hashtext(v_user::text));
 
   if not exists (select 1 from public.projects p where p.id = p_project_id and p.user_id = v_user) then
     return jsonb_build_object('error', 'not_found');
+  end if;
+
+  -- Global machine ceiling: a blunt platform-wide cost/abuse cap, independent
+  -- of any per-user plan limit. Counts every user's active slots.
+  if p_global_ceiling is not null and p_global_ceiling >= 0 then
+    select count(*) into v_running
+    from public.project_deployments d
+    where d.status in ('starting', 'running', 'stopping')
+      and d.project_id <> p_project_id;
+    if v_running >= p_global_ceiling then
+      return jsonb_build_object('error', 'global_ceiling');
+    end if;
   end if;
 
   -- Concurrency cap: count this user's OTHER bots that are already occupying a
@@ -315,15 +377,16 @@ begin
   -- only flips if it's in a startable (not already-active) state — that WHERE is
   -- the double-start guard, and when it excludes the row RETURNING yields nothing.
   insert into public.project_deployments as d
-    (project_id, user_id, status, run_token_hash, restart_count, last_start_attempt_at, last_started_at, updated_at)
+    (project_id, user_id, status, run_token_hash, restart_count, last_start_attempt_at, last_started_at, last_accrued_at, updated_at)
   values
-    (p_project_id, v_user, 'starting', p_run_token_hash, 0, now(), now(), now())
+    (p_project_id, v_user, 'starting', p_run_token_hash, 0, now(), now(), now(), now())
   on conflict (project_id) do update
     set status                = 'starting',
         run_token_hash        = p_run_token_hash,
         restart_count         = 0,
         last_start_attempt_at = now(),
         last_started_at       = now(),
+        last_accrued_at       = now(),   -- metering starts now; nothing before this run is billable
         updated_at            = now()
     where d.status in ('stopped', 'crashed', 'crash_looping', 'killed')
   returning * into v_dep;
@@ -345,12 +408,17 @@ $$;
 -- safe and clears the "public can execute SECURITY DEFINER function" advisor.
 revoke all on function public.trim_project_logs()                                    from public, anon, authenticated;
 
+-- bump_hosting_usage is for the service-role admin client ONLY (reconcile
+-- paths) — no browser session may add or forge runtime charges.
+revoke all on function public.bump_hosting_usage(uuid, bigint)                        from public, anon, authenticated;
+grant execute on function public.bump_hosting_usage(uuid, bigint)                      to service_role;
+
 revoke all on function public.set_project_secret(uuid, text, text, text, integer)   from public, anon;
 revoke all on function public.list_project_secret_names(uuid)                         from public, anon;
 revoke all on function public.delete_project_secret(uuid, text)                       from public, anon;
-revoke all on function public.begin_project_run(uuid, integer, bigint, text)          from public, anon;
+revoke all on function public.begin_project_run(uuid, integer, bigint, text, integer) from public, anon;
 
 grant execute on function public.set_project_secret(uuid, text, text, text, integer)  to authenticated;
 grant execute on function public.list_project_secret_names(uuid)                       to authenticated;
 grant execute on function public.delete_project_secret(uuid, text)                     to authenticated;
-grant execute on function public.begin_project_run(uuid, integer, bigint, text)        to authenticated;
+grant execute on function public.begin_project_run(uuid, integer, bigint, text, integer) to authenticated;

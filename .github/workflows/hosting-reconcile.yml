@@ -1,0 +1,29 @@
+# Botforge hosting reconcile — the external scheduler for
+# POST /api/internal/hosting/reconcile (Vercel Hobby only allows one cron per
+# day, which is far too coarse for runtime metering / budget auto-stop).
+#
+# Requires the repo secret CRON_SECRET, matching the Vercel env var of the same
+# name. GitHub's schedule is best-effort (runs can lag by minutes under load) —
+# fine for an hours-scale budget, and the accrual math is elapsed-time based,
+# so late ticks never lose metered seconds.
+name: hosting-reconcile
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Sweep active bot deployments
+        run: |
+          curl -fsS -X POST \
+            --retry 2 --retry-delay 5 \
+            --max-time 90 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://botforge-snowy.vercel.app/api/internal/hosting/reconcile"
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

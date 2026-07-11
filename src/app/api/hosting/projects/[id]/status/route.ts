@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hostingLimitsFor } from "@/lib/plan";
 import { hostingAccessAllowed } from "@/lib/hosting/config";
 import { flyConfig, type FlyConfig } from "@/lib/hosting/fly";
 import { getDeployment, reconcileWithFly } from "@/lib/hosting/deployments";
@@ -51,11 +52,22 @@ export async function GET(_req: Request, { params }: Ctx) {
     }
   }
 
+  // Monthly runtime meter: what the reconcile paths have accrued so far this
+  // UTC month (owner-readable via RLS) against the plan budget (-1 = unlimited).
+  const month = new Date().toISOString().slice(0, 7);
+  const { data: usageRow } = await supabase
+    .from("hosting_usage")
+    .select("seconds_used")
+    .eq("month", month)
+    .maybeSingle();
+  const usedSeconds = Number((usageRow as { seconds_used: number } | null)?.seconds_used ?? 0);
+  const { budgetSeconds } = hostingLimitsFor(user.email);
+
   const view: DeploymentView = {
     status,
     startedAt: dep?.last_started_at ? new Date(dep.last_started_at).getTime() : null,
     restartCount: dep?.restart_count ?? 0,
-    usage: null, // beta runtime is unmetered; Stage 2 fills this from hosting_usage
+    usage: { usedSeconds, limitSeconds: budgetSeconds },
     secretNames,
     requiredSecret: required,
   };

@@ -24,6 +24,13 @@ const STREAM_COLOR: Record<LogLine["stream"], string> = {
   system: "text-accent",
 };
 
+/** "42m" under an hour, "3.4h" under ten, "127h" beyond — for the monthly meter. */
+export function formatRuntime(seconds: number): string {
+  if (seconds < 3600) return `${Math.max(0, Math.round(seconds / 60))}m`;
+  const hours = seconds / 3600;
+  return hours < 10 ? `${Math.round(hours * 10) / 10}h` : `${Math.round(hours)}h`;
+}
+
 /** The real "Run on Botforge hosting" control — start/stop, secret, live logs. */
 export function HostingPanel({ project }: { project: Project }) {
   const { status, loaded, refresh } = useHostingStatus(project.id, true);
@@ -113,6 +120,12 @@ export function HostingPanel({ project }: { project: Project }) {
         <span className="text-[13px] font-medium text-neutral-200">{meta.label}</span>
         {status && status.restartCount > 0 && (
           <span className="text-[11px] text-neutral-500">· {status.restartCount} restart{status.restartCount === 1 ? "" : "s"}</span>
+        )}
+        {status?.usage && (active || status.usage.usedSeconds > 0) && (
+          <span className="text-[11px] text-neutral-500">
+            · {formatRuntime(status.usage.usedSeconds)}
+            {status.usage.limitSeconds >= 0 && ` / ${formatRuntime(status.usage.limitSeconds)}`} this month
+          </span>
         )}
         <div className="ml-auto flex items-center gap-2">
           {active ? (

@@ -8,8 +8,9 @@
  * client / begin_project_run before calling here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { hostingLimitsFor } from "../plan";
 import type { DeploymentStatus } from "./types";
-import { getMachineState, type FlyConfig, type FlyMachineState } from "./fly";
+import { destroyMachine, getMachineState, type FlyConfig, type FlyMachineState } from "./fly";
 
 export interface DeploymentRow {
   project_id: string;
@@ -23,11 +24,21 @@ export interface DeploymentRow {
   last_started_at: string | null;
   last_stopped_at: string | null;
   last_crash_at: string | null;
+  last_accrued_at: string | null;
   updated_at: string;
 }
 
 const COLS =
-  "project_id, user_id, status, provider_machine_id, region, restart_count, run_token_hash, last_start_attempt_at, last_started_at, last_stopped_at, last_crash_at, updated_at";
+  "project_id, user_id, status, provider_machine_id, region, restart_count, run_token_hash, last_start_attempt_at, last_started_at, last_stopped_at, last_crash_at, last_accrued_at, updated_at";
+
+/** Every row currently occupying a machine slot — the reconcile cron's work list. */
+export async function getActiveDeployments(admin: SupabaseClient): Promise<DeploymentRow[]> {
+  const { data } = await admin
+    .from("project_deployments")
+    .select(COLS)
+    .in("status", ["starting", "running", "stopping"]);
+  return (data as DeploymentRow[] | null) ?? [];
+}
 
 export async function getDeployment(admin: SupabaseClient, projectId: string): Promise<DeploymentRow | null> {
   const { data } = await admin.from("project_deployments").select(COLS).eq("project_id", projectId).maybeSingle();
@@ -137,7 +148,75 @@ export async function reconcileWithFly(
     else await setStopped(admin, dep.project_id, next);
     return next;
   }
+
+  // Machine confirmed alive → meter the runtime and enforce the monthly budget.
+  // Doing it only on the confirmed-alive path means a died-mid-interval machine
+  // leaves its tail un-metered — undercounting by at most one cron period, which
+  // is the honest direction to err in.
+  if (dep.status === "running") {
+    const monthTotal = await accrueRuntime(admin, dep);
+    if (monthTotal !== null && (await stopIfOverBudget(admin, cfg, dep, monthTotal))) return "killed";
+  }
   return dep.status;
+}
+
+// Status polls arrive every ~2.5s; batch metering into ≥60s slices so each
+// running bot costs at most one RPC per minute, not one per poll.
+const ACCRUE_MIN_SECONDS = 60;
+
+/**
+ * Credit the runtime since the last checkpoint to the owner's current month.
+ * Returns the month's new running total in seconds, or null when nothing was
+ * accrued (checkpoint too fresh, or the RPC failed — next pass retries, since
+ * the checkpoint only advances after a successful bump).
+ */
+async function accrueRuntime(admin: SupabaseClient, dep: DeploymentRow): Promise<number | null> {
+  const since = dep.last_accrued_at ?? dep.last_started_at;
+  if (!since) return null;
+  const now = Date.now();
+  const elapsed = Math.floor((now - Date.parse(since)) / 1000);
+  if (elapsed < ACCRUE_MIN_SECONDS) return null;
+
+  const { data, error } = await admin.rpc("bump_hosting_usage", { p_user_id: dep.user_id, p_seconds: elapsed });
+  if (error) return null;
+  await admin
+    .from("project_deployments")
+    .update({ last_accrued_at: new Date(now).toISOString(), updated_at: new Date().toISOString() })
+    .eq("project_id", dep.project_id);
+  return typeof data === "number" ? data : Number(data);
+}
+
+/**
+ * If the month's total exceeds the owner's plan budget, tear the run down:
+ * destroy the machine, free the slot ('killed' = platform-enforced stop, unlike
+ * a user-clicked 'stopped'), and tell the user why in their console.
+ */
+async function stopIfOverBudget(
+  admin: SupabaseClient,
+  cfg: FlyConfig,
+  dep: DeploymentRow,
+  monthTotalSeconds: number,
+): Promise<boolean> {
+  const { data } = await admin.auth.admin.getUserById(dep.user_id);
+  const email = data?.user?.email ?? null;
+  const { budgetSeconds } = hostingLimitsFor(email);
+  if (budgetSeconds < 0 || monthTotalSeconds < budgetSeconds) return false;
+
+  if (dep.provider_machine_id) {
+    try {
+      await destroyMachine(cfg, dep.provider_machine_id);
+    } catch {
+      // Machine may still be alive — keep the row 'running' so the next
+      // reconcile pass retries the destroy. Marking 'killed' now would hide a
+      // live billable machine from every future scan.
+      return false;
+    }
+  }
+  await setStopped(admin, dep.project_id, "killed");
+  await appendLogs(admin, dep.project_id, [
+    { stream: "system", line: "Stopped: this month's hosting hours are used up. The budget resets next month." },
+  ]);
+  return true;
 }
 
 /** Decide our status from (current status, live Fly state). null = no change. */

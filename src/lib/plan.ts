@@ -100,6 +100,23 @@ export function hostingRuntimeBudgetSeconds(plan: Plan): number {
   return Number.isFinite(hours) ? Math.round(hours * 3600) : -1;
 }
 
+/**
+ * The hosting limits that actually apply to an account — the single source of
+ * truth for both the start route and budget enforcement in reconcile, so the
+ * two can never disagree. Beta-allowlisted accounts that resolve to the free
+ * plan get Basic limits: the beta gate grants access, and metering must be
+ * exercisable live rather than instantly zeroing the tester out
+ * (HOSTING_CONCURRENT_RUNS.free = 0).
+ */
+export function hostingLimitsFor(email?: string | null): { concurrent: number; budgetSeconds: number } {
+  const plan = getPlan(email);
+  const effective: Plan = plan === "free" && isHostingBetaEmail(email) ? "basic" : plan;
+  return {
+    concurrent: hostingConcurrentLimit(effective),
+    budgetSeconds: hostingRuntimeBudgetSeconds(effective),
+  };
+}
+
 export interface PlanMeta {
   id: Plan;
   name: string;

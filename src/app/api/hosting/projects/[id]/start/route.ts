@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchProject } from "@/lib/workspace/serverStore";
-import { hostingAccessAllowed } from "@/lib/hosting/config";
+import { hostingLimitsFor } from "@/lib/plan";
+import { globalMachineCeiling, hostingAccessAllowed } from "@/lib/hosting/config";
 import { generateRunToken, hashRunToken } from "@/lib/hosting/runToken";
 import { decryptSecret } from "@/lib/hosting/secrets";
 import { flyConfig, createRunMachine, destroyMachine, type FlyConfig } from "@/lib/hosting/fly";
@@ -70,23 +71,30 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: `Set a ${required} first.`, code: "missing_secret", required }, { status: 400 });
   }
 
-  // Beta limits: 1 concurrent bot (so the concurrency guard is exercisable) and
-  // unmetered runtime during the trial. Stage 2 swaps in real plan limits.
+  // Real plan limits (hostingLimitsFor also grants beta testers on the free
+  // plan Basic numbers, so the allowlist can't zero itself out), plus the
+  // platform-wide machine ceiling — all enforced atomically inside the RPC.
+  const limits = hostingLimitsFor(user.email);
+  if (limits.concurrent <= 0) {
+    return NextResponse.json({ error: "Bot hosting isn't included in your plan." }, { status: 403 });
+  }
   const runToken = generateRunToken();
   const { data: reserve, error: rpcError } = await supabase.rpc("begin_project_run", {
     p_project_id: id,
-    p_concurrent_limit: 1,
-    p_runtime_budget_seconds: -1,
+    p_concurrent_limit: limits.concurrent,
+    p_runtime_budget_seconds: limits.budgetSeconds,
     p_run_token_hash: hashRunToken(runToken),
+    p_global_ceiling: globalMachineCeiling(),
   });
   if (rpcError) return NextResponse.json({ error: "Couldn't reserve a run slot." }, { status: 500 });
 
   const result = reserve as { ok?: boolean; error?: string };
   if (result?.error) {
     const map: Record<string, [number, string]> = {
-      concurrent_limit: [409, "You already have a bot running. Stop it first (beta allows one at a time)."],
+      concurrent_limit: [409, "You've reached your plan's limit of bots running at once. Stop one first."],
       already_running: [409, "This bot is already running."],
       budget_exhausted: [402, "You've used up this month's hosting hours."],
+      global_ceiling: [503, "Hosting is at capacity right now. Please try again in a few minutes."],
       not_found: [404, "Not found."],
       unauthorized: [401, "Not signed in."],
     };

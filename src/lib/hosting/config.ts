@@ -32,3 +32,14 @@ export function hostingOperational(): boolean {
 export function hostingAccessAllowed(email?: string | null): boolean {
   return hostingOperational() && isHostingBetaEmail(email);
 }
+
+/**
+ * Platform-wide cap on simultaneously active Machines, independent of any
+ * per-user plan limit — a blunt cost/abuse ceiling enforced atomically inside
+ * begin_project_run. HOSTING_GLOBAL_MACHINE_CEILING; unset/invalid falls back
+ * to a deliberately conservative default rather than to "unlimited".
+ */
+export function globalMachineCeiling(): number {
+  const raw = Number(process.env.HOSTING_GLOBAL_MACHINE_CEILING);
+  return Number.isInteger(raw) && raw >= -1 ? raw : 20;
+}

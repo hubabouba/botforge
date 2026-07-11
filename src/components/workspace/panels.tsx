@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "
 import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { loadPrefs } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
-import { HostingPanel } from "./HostingPanel";
+import { HostingPanel, formatRuntime } from "./HostingPanel";
 import { useHostingStatus } from "@/hooks/useHostingStatus";
 import { CodeIcon, Terminal, ListChecks, Chart, Lock, Play, Bot } from "@/components/icons";
 import { cn } from "@/lib/utils";
@@ -187,13 +187,22 @@ export function MetricsPanel({
         <Tile label="Restarts" value={String(status?.restartCount ?? 0)} hint="this deployment" />
       </div>
       {/* Honestly-labelled "coming later" — needs the bot to report its own events. */}
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Tile
+          label="Runtime"
+          value={status?.usage ? formatRuntime(status.usage.usedSeconds) : "—"}
+          hint={
+            status?.usage && status.usage.limitSeconds >= 0
+              ? `of ${formatRuntime(status.usage.limitSeconds)} this month`
+              : "this month"
+          }
+        />
         <Tile label="Active users" value="—" hint="coming later" muted />
         <Tile label="Messages" value="—" hint="coming later" muted />
       </div>
       <p className="mt-4 text-[13px] leading-relaxed text-neutral-500">
-        Status, uptime and restarts are live. Active-users and message counts need your bot to report
-        its own events — that instrumentation is coming in a later update, not faked here.
+        Status, uptime, restarts and runtime are live. Active-users and message counts need your bot
+        to report its own events — that instrumentation is coming in a later update, not faked here.
       </p>
     </PanelShell>
   );

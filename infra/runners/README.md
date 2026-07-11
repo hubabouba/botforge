@@ -62,9 +62,21 @@ fly tokens create org
 | `FLY_RUNNER_IMAGE_PYTHON` | `registry.fly.io/botforge-bots:python` |
 | `FLY_REGION` | e.g. `fra` (optional; defaults to the app's primary region) |
 | `BOTFORGE_PUBLIC_URL` | your public site URL, e.g. `https://botforge-snowy.vercel.app` |
+| `CRON_SECRET` | output of `openssl rand -base64 32` — auth for the reconcile cron (Stage 2) |
+| `HOSTING_GLOBAL_MACHINE_CEILING` | max active Machines across ALL users (optional; defaults to 20, `-1` = unlimited) |
 
 Redeploy Vercel after setting these. Until `HOSTING_ENABLED=true` **and** your
 email is in `HOSTING_BETA_EMAILS`, the feature stays completely dark.
+
+## Reconcile cron (Stage 2)
+
+`.github/workflows/hosting-reconcile.yml` POSTs
+`/api/internal/hosting/reconcile` every 5 minutes: it heals state drift for
+bots nobody is watching, accrues runtime into `hosting_usage`, and auto-stops
+runs that used up their monthly budget. Set the **GitHub repo secret**
+`CRON_SECRET` (Settings → Secrets and variables → Actions) to the **same
+value** as the Vercel env var — the workflow is a no-op 401 otherwise. You can
+trigger it manually from the Actions tab (workflow_dispatch) to test.
 
 ## Manual smoke test before wiring the UI (recommended)
 

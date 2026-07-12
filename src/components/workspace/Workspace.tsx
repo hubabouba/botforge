@@ -26,6 +26,7 @@ import { ViewSwitcher, LogsPanel, PlanningPanel, MetricsPanel, type WorkView } f
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { usePlan } from "@/hooks/usePlan";
 import { planMeta, requiredPlan, type Capability, type Plan } from "@/lib/plan";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 // Which capability each non-code view requires.
@@ -35,16 +36,17 @@ const CAP_FOR_VIEW: Record<Exclude<WorkView, "code">, Capability> = {
   metrics: "panel.metrics",
 };
 
-const VIEW_LABEL: Record<WorkView, string> = {
-  code: "Code",
-  logs: "Logs",
-  planning: "AI Planning",
-  metrics: "Metrics",
+const VIEW_LABEL_KEY: Record<WorkView, string> = {
+  code: "ws.viewCode",
+  logs: "ws.viewLogs",
+  planning: "ws.viewPlanning",
+  metrics: "ws.viewMetrics",
 };
 
 type LoadState = "loading" | "ready" | "missing";
 
 export function Workspace({ projectId }: { projectId: string }) {
+  const { t } = useI18n();
   const [project, setProject] = useState<StoredProject | null>(null);
   const [load, setLoad] = useState<LoadState>("loading");
   const [openPaths, setOpenPaths] = useState<string[]>([]);
@@ -249,7 +251,9 @@ export function Workspace({ projectId }: { projectId: string }) {
     const need = requiredPlan(CAP_FOR_VIEW[v as Exclude<WorkView, "code">]);
     setUpgrade({
       highlight: need,
-      reason: `${VIEW_LABEL[v]} is part of the ${planMeta(need).name} plan.`,
+      reason: t("ws.viewLockedReason")
+        .replace("{view}", t(VIEW_LABEL_KEY[v]))
+        .replace("{plan}", planMeta(need).name),
     });
   };
 
@@ -258,7 +262,7 @@ export function Workspace({ projectId }: { projectId: string }) {
     return (
       <div className="forge dark grid h-screen place-items-center bg-[#0A0B0F] text-white/50">
         <div className="flex items-center gap-2 text-sm">
-          <Logo className="h-5 w-5 animate-pulse" /> Loading workspace…
+          <Logo className="h-5 w-5 animate-pulse" /> {t("ws.loading")}
         </div>
       </div>
     );
@@ -269,15 +273,13 @@ export function Workspace({ projectId }: { projectId: string }) {
       <div className="forge dark grid h-screen place-items-center bg-[#0A0B0F] px-6 text-center">
         <div className="max-w-sm">
           <Logo className="mx-auto h-8 w-8 opacity-70" />
-          <h1 className="mt-4 font-display text-lg font-semibold text-white">Project not found</h1>
-          <p className="mt-1 text-sm text-white/50">
-            It may have been created on another device. Pick a template to start a new one.
-          </p>
+          <h1 className="mt-4 font-display text-lg font-semibold text-white">{t("ws.projectNotFound")}</h1>
+          <p className="mt-1 text-sm text-white/50">{t("ws.projectNotFoundHint")}</p>
           <Link
             href="/dashboard"
             className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-4 py-2 text-sm font-medium text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.9)] transition-transform hover:-translate-y-0.5"
           >
-            Back to dashboard
+            {t("ws.backToDashboard")}
           </Link>
         </div>
       </div>
@@ -294,16 +296,13 @@ export function Workspace({ projectId }: { projectId: string }) {
       <div className="forge dark grid h-screen place-items-center bg-[#0A0B0F] px-6 text-center md:hidden">
         <div className="max-w-sm">
           <Logo className="mx-auto h-8 w-8 opacity-70" />
-          <h1 className="mt-4 font-display text-lg font-semibold text-white">Open on a bigger screen</h1>
-          <p className="mt-1 text-sm text-white/50">
-            The code editor needs more room than a phone screen — the file tree and assistant chat need space too.
-            Open this project on a tablet or desktop.
-          </p>
+          <h1 className="mt-4 font-display text-lg font-semibold text-white">{t("ws.mobileGateTitle")}</h1>
+          <p className="mt-1 text-sm text-white/50">{t("ws.mobileGateHint")}</p>
           <Link
             href="/dashboard"
             className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-4 py-2 text-sm font-medium text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.9)] transition-transform hover:-translate-y-0.5"
           >
-            Back to dashboard
+            {t("ws.backToDashboard")}
           </Link>
         </div>
       </div>
@@ -375,7 +374,7 @@ export function Workspace({ projectId }: { projectId: string }) {
                 >
                   <span className="font-mono">{name}</span>
                   <button
-                    aria-label={`Close ${name}`}
+                    aria-label={`${t("ws.close")} ${name}`}
                     onClick={(e) => closeTab(path, e)}
                     className={cn(
                       "grid h-4 w-4 place-items-center rounded transition-colors hover:bg-white/10 hover:text-neutral-200",
@@ -401,7 +400,7 @@ export function Workspace({ projectId }: { projectId: string }) {
                 onSave={flushSave}
               />
             ) : (
-              <div className="grid h-full place-items-center text-sm text-neutral-600">No file open</div>
+              <div className="grid h-full place-items-center text-sm text-neutral-600">{t("ws.noFileOpen")}</div>
             )}
           </div>
             </>

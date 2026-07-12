@@ -6,16 +6,21 @@ import { useTheme } from "next-themes";
 import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { planMeta, type Plan } from "@/lib/plan";
 import { Close } from "@/components/icons";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 const LANGUAGES = ["", "English", "Русский", "Español", "Deutsch", "Français"];
-const LANG_LABEL: Record<string, string> = { "": "Match me" };
-const STYLES: { value: NonNullable<AssistantPreferences["style"]>; label: string }[] = [
-  { value: "concise", label: "Concise" },
-  { value: "balanced", label: "Balanced" },
-  { value: "detailed", label: "Detailed" },
+const STYLES: { value: NonNullable<AssistantPreferences["style"]>; labelKey: string }[] = [
+  { value: "concise", labelKey: "settings.styleConcise" },
+  { value: "balanced", labelKey: "settings.styleBalanced" },
+  { value: "detailed", labelKey: "settings.styleDetailed" },
 ];
 const THEMES = ["light", "dark", "system"] as const;
+const THEME_LABEL_KEY: Record<(typeof THEMES)[number], string> = {
+  light: "settings.themeLight",
+  dark: "settings.themeDark",
+  system: "settings.themeSystem",
+};
 
 export function SettingsModal({
   name,
@@ -30,6 +35,7 @@ export function SettingsModal({
   onOpenUpgrade: () => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
@@ -48,7 +54,7 @@ export function SettingsModal({
       const res = await fetch("/api/account/delete", { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        throw new Error(body.error || "Couldn't delete the account.");
+        throw new Error(body.error || t("settings.deleteAccountError"));
       }
       // Account and session are gone — leave the app.
       window.location.href = "/";
@@ -84,7 +90,7 @@ export function SettingsModal({
         className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lift"
       >
         <div className="flex items-center gap-3 border-b border-border px-5 py-3.5">
-          <h2 className="text-sm font-semibold">Settings</h2>
+          <h2 className="text-sm font-semibold">{t("settings.title")}</h2>
           <button
             onClick={onClose}
             className="ml-auto grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -96,7 +102,7 @@ export function SettingsModal({
         <div className="space-y-6 overflow-y-auto p-5">
           {/* Account */}
           <section>
-            <SectionTitle>Account</SectionTitle>
+            <SectionTitle>{t("settings.account")}</SectionTitle>
             <div className="flex items-center gap-3 rounded-xl border border-border p-3">
               <span className="grid h-10 w-10 place-items-center rounded-full bg-accent text-sm font-semibold text-accent-foreground">
                 {initials}
@@ -110,20 +116,20 @@ export function SettingsModal({
 
           {/* Appearance */}
           <section>
-            <SectionTitle>Appearance</SectionTitle>
+            <SectionTitle>{t("settings.appearance")}</SectionTitle>
             <div className="inline-flex rounded-lg border border-border bg-muted/50 p-0.5">
-              {THEMES.map((t) => (
+              {THEMES.map((th) => (
                 <button
-                  key={t}
-                  onClick={() => setTheme(t)}
+                  key={th}
+                  onClick={() => setTheme(th)}
                   className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-medium capitalize transition-colors",
-                    mounted && theme === t
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    mounted && theme === th
                       ? "bg-background text-foreground shadow-soft"
                       : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {t}
+                  {t(THEME_LABEL_KEY[th])}
                 </button>
               ))}
             </div>
@@ -131,19 +137,19 @@ export function SettingsModal({
 
           {/* Assistant persona */}
           <section>
-            <SectionTitle>Assistant persona</SectionTitle>
-            <p className="mb-2.5 text-xs text-muted-foreground">How the in-editor assistant talks to you, across all projects.</p>
+            <SectionTitle>{t("settings.assistantPersona")}</SectionTitle>
+            <p className="mb-2.5 text-xs text-muted-foreground">{t("settings.assistantPersonaHint")}</p>
 
-            <label className="mb-1 block text-xs text-muted-foreground">Reply language</label>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("settings.replyLanguage")}</label>
             <div className="mb-3 flex flex-wrap gap-1.5">
               {LANGUAGES.map((lang) => (
                 <Chip key={lang || "auto"} active={(prefs.language ?? "") === lang} onClick={() => update({ language: lang })}>
-                  {LANG_LABEL[lang] ?? lang}
+                  {lang || t("settings.matchMe")}
                 </Chip>
               ))}
             </div>
 
-            <label className="mb-1 block text-xs text-muted-foreground">Style</label>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("settings.style")}</label>
             <div className="mb-3 flex gap-1.5">
               {STYLES.map((s) => (
                 <button
@@ -156,78 +162,76 @@ export function SettingsModal({
                       : "border-border text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {s.label}
+                  {t(s.labelKey)}
                 </button>
               ))}
             </div>
 
-            <label className="mb-1 block text-xs text-muted-foreground">Character</label>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("settings.character")}</label>
             <input
               value={prefs.persona ?? ""}
               onChange={(e) => update({ persona: e.target.value })}
               maxLength={400}
-              placeholder="e.g. a friendly mentor · a blunt senior engineer"
+              placeholder={t("settings.characterPlaceholder")}
               className="mb-3 w-full rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-xs outline-none focus:border-accent"
             />
 
-            <label className="mb-1 block text-xs text-muted-foreground">Custom instructions</label>
+            <label className="mb-1 block text-xs text-muted-foreground">{t("settings.customInstructions")}</label>
             <textarea
               value={prefs.custom ?? ""}
               onChange={(e) => update({ custom: e.target.value })}
               maxLength={1000}
               rows={2}
-              placeholder="Anything else the assistant should always do…"
+              placeholder={t("settings.customInstructionsPlaceholder")}
               className="w-full resize-none rounded-lg border border-border bg-muted/40 px-2.5 py-1.5 text-xs outline-none focus:border-accent"
             />
           </section>
 
           {/* Billing */}
           <section>
-            <SectionTitle>Billing</SectionTitle>
+            <SectionTitle>{t("settings.billing")}</SectionTitle>
             <div className="flex items-center justify-between rounded-xl border border-border p-3">
               <div>
-                <div className="text-sm font-medium">{planMeta(plan).name} plan</div>
+                <div className="text-sm font-medium">{planMeta(plan).name} {t("settings.plan")}</div>
                 <div className="text-xs text-muted-foreground">{planMeta(plan).tagline}</div>
               </div>
               <button
                 onClick={onOpenUpgrade}
                 className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
               >
-                {plan === "pro" ? "Manage" : "Upgrade"}
+                {plan === "pro" ? t("settings.manage") : t("settings.upgrade")}
               </button>
             </div>
           </section>
 
           {/* Data & privacy */}
           <section>
-            <SectionTitle>Data &amp; privacy</SectionTitle>
+            <SectionTitle>{t("settings.dataPrivacy")}</SectionTitle>
             <div className="space-y-2.5 rounded-xl border border-border p-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-sm font-medium">Export your data</div>
-                  <div className="text-xs text-muted-foreground">Download all your projects and account data as JSON.</div>
+                  <div className="text-sm font-medium">{t("settings.exportData")}</div>
+                  <div className="text-xs text-muted-foreground">{t("settings.exportDataHint")}</div>
                 </div>
                 <a
                   href="/api/account/export"
                   className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
                 >
-                  Export
+                  {t("settings.export")}
                 </a>
               </div>
 
               <div className="flex items-center justify-between gap-3 border-t border-border pt-2.5">
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-red-500">Delete account</div>
-                  <div className="text-xs text-muted-foreground">
-                    Permanently erase your account, projects and bots. This can’t be undone.
-                  </div>
+                  <div className="text-sm font-medium text-red-500">{t("settings.deleteAccount")}</div>
+                  <div className="text-xs text-muted-foreground">{t("settings.deleteAccountHint")}</div>
                 </div>
                 <button
                   onClick={deleteAccount}
                   disabled={deleting}
                   className="shrink-0 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
                 >
-                  {deleting ? "Deleting…" : confirmDelete ? "Really delete?" : "Delete"}
+                  {deleting ? t("settings.deleting") : confirmDelete ? t("settings.reallyDeleteAccount") : t("settings.delete")}
                 </button>
               </div>
               {dangerErr && <p className="text-xs text-red-500">{dangerErr}</p>}

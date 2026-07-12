@@ -4,24 +4,25 @@ import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "
 import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { loadPrefs } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
-import { HostingPanel, formatRuntime } from "./HostingPanel";
+import { HostingPanel, formatRuntime, STATUS_META } from "./HostingPanel";
 import { useHostingStatus } from "@/hooks/useHostingStatus";
 import { CodeIcon, Terminal, ListChecks, Chart, Lock, Play, Bot } from "@/components/icons";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 export type WorkView = "code" | "logs" | "planning" | "metrics";
 
 interface ViewDef {
   id: WorkView;
-  label: string;
+  labelKey: string;
   icon: (p: { className?: string }) => ReactElement;
 }
 
 export const VIEWS: ViewDef[] = [
-  { id: "code", label: "Code", icon: CodeIcon },
-  { id: "logs", label: "Logs", icon: Terminal },
-  { id: "planning", label: "Planning", icon: ListChecks },
-  { id: "metrics", label: "Metrics", icon: Chart },
+  { id: "code", labelKey: "panel.viewCode", icon: CodeIcon },
+  { id: "logs", labelKey: "panel.viewLogs", icon: Terminal },
+  { id: "planning", labelKey: "panel.viewPlanning", icon: ListChecks },
+  { id: "metrics", labelKey: "panel.viewMetrics", icon: Chart },
 ];
 
 /** Slim segmented switcher above the editor. Locked views show a padlock. */
@@ -34,6 +35,7 @@ export function ViewSwitcher({
   onSelect: (v: WorkView) => void;
   isLocked: (v: WorkView) => boolean;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-ink-800 bg-ink-950 px-1.5">
       {VIEWS.map((v) => {
@@ -49,7 +51,7 @@ export function ViewSwitcher({
             )}
           >
             <v.icon className="h-3.5 w-3.5" />
-            {v.label}
+            {t(v.labelKey)}
             {locked && <Lock className="h-3 w-3 text-neutral-500" />}
           </button>
         );
@@ -92,39 +94,37 @@ export function LogsPanel({
   hostingAvailable: boolean;
   onRun: () => void;
 }) {
+  const { t } = useI18n();
   // Basic+ accounts get the real hosting control; everyone else keeps the honest
   // "run locally" path (also a good fallback if hosting ever has an incident).
   if (hostingAvailable) {
     return (
-      <PanelShell icon={Terminal} title="Run & Logs">
+      <PanelShell icon={Terminal} title={t("panel.runAndLogs")}>
         <HostingPanel project={project} />
         <button
           onClick={onRun}
           className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:bg-white/[0.06]"
         >
-          <Play className="h-3.5 w-3.5" /> Run locally instead
+          <Play className="h-3.5 w-3.5" /> {t("panel.runLocallyInstead")}
         </button>
       </PanelShell>
     );
   }
 
   return (
-    <PanelShell icon={Terminal} title="Logs">
+    <PanelShell icon={Terminal} title={t("panel.viewLogs")}>
       <div className="rounded-xl border border-ink-800 bg-ink-950 font-mono text-[12px]">
-        <div className="border-b border-ink-800 px-3 py-2 text-neutral-500">console</div>
+        <div className="border-b border-ink-800 px-3 py-2 text-neutral-500">{t("hosting.console")}</div>
         <div className="p-4 text-neutral-500">
-          <p className="text-neutral-400">No live logs yet.</p>
-          <p className="mt-2 leading-relaxed">
-            Hosted runs are on the way. Until then, run your bot locally and logs stream to your
-            own terminal.
-          </p>
+          <p className="text-neutral-400">{t("panel.noLiveLogsYet")}</p>
+          <p className="mt-2 leading-relaxed">{t("panel.hostedRunsComing")}</p>
         </div>
       </div>
       <button
         onClick={onRun}
         className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500"
       >
-        <Play className="h-3.5 w-3.5" /> Run locally
+        <Play className="h-3.5 w-3.5" /> {t("panel.runLocally")}
       </button>
     </PanelShell>
   );
@@ -159,51 +159,46 @@ export function MetricsPanel({
   project: Project;
   hostingAvailable: boolean;
 }) {
+  const { t } = useI18n();
   const { status } = useHostingStatus(project.id, hostingAvailable);
   const running = status?.status === "running";
 
   if (!hostingAvailable) {
     return (
-      <PanelShell icon={Chart} title="Metrics">
+      <PanelShell icon={Chart} title={t("panel.viewMetrics")}>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {["Active users", "Messages", "Errors", "Uptime"].map((label) => (
-            <Tile key={label} label={label} value="—" hint="" muted />
+          {["panel.activeUsers", "panel.messages", "panel.errors", "panel.uptime"].map((key) => (
+            <Tile key={key} label={t(key)} value="—" hint="" muted />
           ))}
         </div>
-        <p className="mt-4 text-[13px] leading-relaxed text-neutral-500">
-          Metrics light up once your bot runs on Botforge hosting. Deploy is coming — for now these
-          are placeholders, not sample data.
-        </p>
+        <p className="mt-4 text-[13px] leading-relaxed text-neutral-500">{t("panel.metricsComingHint")}</p>
       </PanelShell>
     );
   }
 
   return (
-    <PanelShell icon={Chart} title="Metrics">
+    <PanelShell icon={Chart} title={t("panel.viewMetrics")}>
       {/* Real process health (cheap — straight from the deployment record). */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <Tile label="Status" value={running ? "Running" : (status?.status ?? "Stopped").replace(/_/g, " ")} hint="live" />
-        <Tile label="Uptime" value={uptimeLabel(status?.startedAt ?? null, running)} hint="since start" />
-        <Tile label="Restarts" value={String(status?.restartCount ?? 0)} hint="this deployment" />
+        <Tile label={t("panel.status")} value={t(STATUS_META[status?.status ?? "stopped"].labelKey)} hint={t("panel.live")} />
+        <Tile label={t("panel.uptime")} value={uptimeLabel(status?.startedAt ?? null, running)} hint={t("panel.sinceStart")} />
+        <Tile label={t("panel.restarts")} value={String(status?.restartCount ?? 0)} hint={t("panel.thisDeployment")} />
       </div>
       {/* Honestly-labelled "coming later" — needs the bot to report its own events. */}
       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Tile
-          label="Runtime"
+          label={t("panel.runtime")}
           value={status?.usage ? formatRuntime(status.usage.usedSeconds) : "—"}
           hint={
             status?.usage && status.usage.limitSeconds >= 0
-              ? `of ${formatRuntime(status.usage.limitSeconds)} this month`
-              : "this month"
+              ? `${t("panel.of")} ${formatRuntime(status.usage.limitSeconds)} ${t("hosting.thisMonth")}`
+              : t("hosting.thisMonth")
           }
         />
-        <Tile label="Active users" value="—" hint="coming later" muted />
-        <Tile label="Messages" value="—" hint="coming later" muted />
+        <Tile label={t("panel.activeUsers")} value="—" hint={t("panel.comingLater")} muted />
+        <Tile label={t("panel.messages")} value="—" hint={t("panel.comingLater")} muted />
       </div>
-      <p className="mt-4 text-[13px] leading-relaxed text-neutral-500">
-        Status, uptime, restarts and runtime are live. Active-users and message counts need your bot
-        to report its own events — that instrumentation is coming in a later update, not faked here.
-      </p>
+      <p className="mt-4 text-[13px] leading-relaxed text-neutral-500">{t("panel.liveMetricsHint")}</p>
     </PanelShell>
   );
 }
@@ -211,6 +206,7 @@ export function MetricsPanel({
 // ---- Planning (real, AI-driven) ------------------------------------------
 
 export function PlanningPanel({ project, files }: { project: Project; files: ProjectFile[] }) {
+  const { t } = useI18n();
   const [goal, setGoal] = useState(project.description ?? "");
   const [plan, setPlan] = useState("");
   const [busy, setBusy] = useState(false);
@@ -248,7 +244,7 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
-        setError(data?.error || "Couldn't generate a plan.");
+        setError(data?.error || t("panel.couldntGeneratePlan"));
         return;
       }
 
@@ -258,14 +254,14 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
           setPlan(acc);
         } else if (event.type === "error") {
           hadError = true;
-          setError(event.message || "Couldn't generate a plan.");
+          setError(event.message || t("panel.couldntGeneratePlan"));
         }
         // "edit" events don't occur in planning mode; ignore if any slip through.
       }
-      if (!hadError && !acc.trim()) setPlan("No plan returned.");
+      if (!hadError && !acc.trim()) setPlan(t("panel.noPlanReturned"));
     } catch (e) {
       if ((e as Error).name === "AbortError") return; // unmounted
-      setError("Network error — please try again.");
+      setError(t("chat.networkError"));
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setBusy(false);
@@ -273,16 +269,13 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
   }
 
   return (
-    <PanelShell icon={ListChecks} title="AI Planning">
-      <p className="mb-3 text-[13px] leading-relaxed text-neutral-400">
-        Describe what you want your bot to do — the assistant drafts a concrete, step-by-step build
-        plan you can then hand to the chat to implement.
-      </p>
+    <PanelShell icon={ListChecks} title={t("ws.viewPlanning")}>
+      <p className="mb-3 text-[13px] leading-relaxed text-neutral-400">{t("panel.planningHint")}</p>
       <textarea
         value={goal}
         onChange={(e) => setGoal(e.target.value)}
         rows={3}
-        placeholder="e.g. A bot that takes food orders, confirms them, and notifies an admin channel."
+        placeholder={t("panel.planningPlaceholder")}
         className="w-full resize-none rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-[13px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-accent/50"
       />
       <button
@@ -291,7 +284,7 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
         className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
       >
         <Bot className="h-3.5 w-3.5" />
-        {busy ? "Planning…" : plan ? "Regenerate plan" : "Generate plan"}
+        {busy ? t("panel.planning") : plan ? t("panel.regeneratePlan") : t("panel.generatePlan")}
       </button>
 
       {error && <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-300">{error}</div>}

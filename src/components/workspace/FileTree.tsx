@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { buildTree, langOf, type ProjectFile, type TreeNode } from "@/lib/workspace/types";
 import { ChevronRight, Plus, Pencil, Trash, FolderIcon } from "@/components/icons";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 /** A small colored square keyed to the file's language — quiet visual anchor. */
@@ -39,6 +40,7 @@ interface NodeHandlers {
 }
 
 function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandlers }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(node.name);
@@ -56,7 +58,7 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
             <span className="truncate font-medium">{node.name}</span>
           </button>
           <button
-            aria-label="Delete folder"
+            aria-label={t("tree.deleteFolder")}
             onClick={() => h.onDeleteFolder(node.path)}
             className="grid h-5 w-5 shrink-0 place-items-center rounded text-neutral-500 opacity-0 transition-opacity hover:bg-white/10 hover:text-rose-300 group-hover/dir:opacity-100"
           >
@@ -111,7 +113,7 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
       </button>
       <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/file:opacity-100">
         <button
-          aria-label="Rename"
+          aria-label={t("tree.rename")}
           onClick={() => {
             setDraft(node.name);
             setRenaming(true);
@@ -121,7 +123,7 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
           <Pencil className="h-3 w-3" />
         </button>
         <button
-          aria-label="Delete"
+          aria-label={t("tree.delete")}
           onClick={() => h.onDelete(node.path)}
           className="grid h-5 w-5 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-rose-300"
         >
@@ -155,6 +157,7 @@ export function FileTree({
   onDeleteFolder: (path: string) => void;
   name: string;
 }) {
+  const { t } = useI18n();
   const [adding, setAdding] = useState<null | "file" | "folder">(null);
   const [draft, setDraft] = useState("");
   const tree = buildTree(files, folders);
@@ -169,11 +172,11 @@ export function FileTree({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2.5">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Explorer</span>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{t("tree.explorer")}</span>
         <div className="flex items-center gap-0.5">
           <button
-            aria-label="New file"
-            title="New file"
+            aria-label={t("tree.newFile")}
+            title={t("tree.newFile")}
             onClick={() => {
               setDraft("");
               setAdding("file");
@@ -183,8 +186,8 @@ export function FileTree({
             <Plus className="h-3.5 w-3.5" />
           </button>
           <button
-            aria-label="New folder"
-            title="New folder"
+            aria-label={t("tree.newFolder")}
+            title={t("tree.newFolder")}
             onClick={() => {
               setDraft("");
               setAdding("folder");

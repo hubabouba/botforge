@@ -14,6 +14,9 @@ import {
 } from "@/lib/workspace/store";
 import { downloadZip } from "@/lib/workspace/zip";
 import { track } from "@/lib/analytics";
+import { useI18n } from "@/lib/i18n/I18nProvider";
+import { messages, type Locale } from "@/lib/i18n/messages";
+import { plural } from "@/lib/i18n/plural";
 import { CreateProjectModal } from "./CreateProjectModal";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { Magnetic } from "@/components/marketing/Magnetic";
@@ -50,15 +53,17 @@ function PlatformTag({ platform }: { platform: Template["platform"] }) {
   );
 }
 
-function timeAgo(ts: number): string {
+function timeAgo(ts: number, lang: Locale): string {
   const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return "just now";
+  if (s < 60) return messages[lang]["dash.justNow"] ?? messages.en["dash.justNow"];
   const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
+  if (m < 60) return `${m}${messages[lang]["dash.minAgo"] ?? messages.en["dash.minAgo"]}`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
+  if (h < 24) return `${h}${messages[lang]["dash.hourAgo"] ?? messages.en["dash.hourAgo"]}`;
   const d = Math.floor(h / 24);
-  return d === 1 ? "yesterday" : `${d}d ago`;
+  return d === 1
+    ? (messages[lang]["dash.yesterday"] ?? messages.en["dash.yesterday"])
+    : `${d}${messages[lang]["dash.dayAgo"] ?? messages.en["dash.dayAgo"]}`;
 }
 
 /** Gradient primary button with a shimmer sweep. */
@@ -76,6 +81,7 @@ function PrimaryButton({ onClick, children }: { onClick: () => void; children: R
 
 export function DashboardHome({ name, userId }: { name: string; userId: string }) {
   const router = useRouter();
+  const { t, lang } = useI18n();
   const { plan, loading: planLoading } = usePlan();
   const [projects, setProjects] = useState<StoredProject[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -152,15 +158,13 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="animate-fade-up">
           <h1 className="font-display text-2xl font-bold tracking-tight text-white">
-            Welcome back, <span className="forge-gradient-text">{name}</span>
+            {t("dash.welcome")} <span className="forge-gradient-text">{name}</span>
           </h1>
-          <p className="mt-1 text-sm text-white/50">
-            Build a Telegram or Discord bot — start in a few clicks.
-          </p>
+          <p className="mt-1 text-sm text-white/50">{t("dash.subtitle")}</p>
         </div>
         <Magnetic className="self-start sm:self-auto">
           <PrimaryButton onClick={startNewProject}>
-            <Plus className="h-4 w-4" /> New project
+            <Plus className="h-4 w-4" /> {t("dash.newProject")}
           </PrimaryButton>
         </Magnetic>
       </div>
@@ -169,11 +173,11 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
       {loaded && projects.length > 0 ? (
         <section>
           <div className="flex items-baseline justify-between">
-            <h2 className="text-sm font-semibold text-white">Your projects</h2>
+            <h2 className="text-sm font-semibold text-white">{t("dash.yourProjects")}</h2>
             <span className="text-xs text-white/45">
               {!planLoading && Number.isFinite(limit) ? (
                 <>
-                  {projects.length} / {limit} projects
+                  {projects.length} / {limit} {plural(lang, limit, { en: ["project", "projects"], ru: ["проект", "проекта", "проектов"] })}
                   {atLimit && (
                     <>
                       {" · "}
@@ -181,14 +185,14 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
                         onClick={() => setUpgrade(true)}
                         className="font-medium text-[#818CF8] hover:underline"
                       >
-                        Upgrade
+                        {t("dash.upgrade")}
                       </button>
                     </>
                   )}
                 </>
               ) : (
                 <>
-                  {projects.length} project{projects.length === 1 ? "" : "s"}
+                  {projects.length} {plural(lang, projects.length, { en: ["project", "projects"], ru: ["проект", "проекта", "проектов"] })}
                 </>
               )}
             </span>
@@ -198,8 +202,8 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search projects…"
-              aria-label="Search projects"
+              placeholder={t("dash.searchPlaceholder")}
+              aria-label={t("dash.searchPlaceholder")}
               className="mt-3 w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#6366F1]/50 sm:max-w-xs"
             />
           )}
@@ -217,13 +221,15 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
               ))}
             </div>
           ) : (
-            <p className="mt-6 text-sm text-white/40">No projects match “{query.trim()}”.</p>
+            <p className="mt-6 text-sm text-white/40">
+              {t("dash.noMatches")} “{query.trim()}”.
+            </p>
           )}
         </section>
       ) : !loaded ? (
         <section className="grid place-items-center rounded-2xl border border-white/[0.06] bg-white/[0.02] px-6 py-16 text-sm text-white/40">
           <span className="inline-flex items-center gap-2">
-            <Bot className="h-4 w-4 animate-pulse" /> Loading your projects…
+            <Bot className="h-4 w-4 animate-pulse" /> {t("dash.loadingProjects")}
           </span>
         </section>
       ) : (
@@ -231,13 +237,11 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#6366F1]/30 to-[#22D3EE]/15 text-[#a5b4fc] ring-1 ring-white/10">
             <Bot className="h-6 w-6" />
           </div>
-          <h2 className="mt-4 font-display font-semibold text-white">No projects yet</h2>
-          <p className="mx-auto mt-1 max-w-sm text-sm text-white/50">
-            Create your first bot with a short setup, or pick a ready-made template below.
-          </p>
+          <h2 className="mt-4 font-display font-semibold text-white">{t("dash.noProjectsYet")}</h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm text-white/50">{t("dash.noProjectsHint")}</p>
           <div className="mt-5 flex justify-center">
             <PrimaryButton onClick={startNewProject}>
-              <Plus className="h-4 w-4" /> New project
+              <Plus className="h-4 w-4" /> {t("dash.newProject")}
             </PrimaryButton>
           </div>
         </section>
@@ -245,24 +249,22 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
 
       {/* Quick start templates */}
       <section>
-        <h2 className="text-sm font-semibold text-white">Quick start from a template</h2>
-        <p className="mt-1 text-sm text-white/50">
-          Skip the setup — open a ready-made starter and edit the code.
-        </p>
+        <h2 className="text-sm font-semibold text-white">{t("dash.quickStart")}</h2>
+        <p className="mt-1 text-sm text-white/50">{t("dash.quickStartHint")}</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {templates.map((t, i) => (
+          {templates.map((tpl, i) => (
             <button
-              key={t.slug}
-              onClick={() => createFromTemplate(t)}
+              key={tpl.slug}
+              onClick={() => createFromTemplate(tpl)}
               style={{ animationDelay: `${i * 45}ms` }}
               className="group flex animate-fade-up items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-[#6366F1]/40 hover:bg-white/[0.04]"
             >
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#6366F1]/25 to-[#22D3EE]/12 text-[#a5b4fc] ring-1 ring-white/10">
-                {t.platform === "telegram" ? <Telegram className="h-4 w-4" /> : <Discord className="h-4 w-4" />}
+                {tpl.platform === "telegram" ? <Telegram className="h-4 w-4" /> : <Discord className="h-4 w-4" />}
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-white">{t.name}</span>
-                <span className="block truncate text-xs text-white/45">{t.description}</span>
+                <span className="block truncate text-sm font-medium text-white">{tpl.name}</span>
+                <span className="block truncate text-xs text-white/45">{tpl.description}</span>
               </span>
               <ArrowRight className="h-4 w-4 shrink-0 text-white/30 transition-all duration-300 group-hover:translate-x-0.5 group-hover:text-[#818CF8]" />
             </button>
@@ -284,7 +286,9 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
         <UpgradeModal
           current={plan}
           highlight={nextPlanUp(plan)}
-          reason={`You've reached your ${planMeta(plan).name} limit of ${limit} projects. Upgrade for more.`}
+          reason={t("dash.limitReason")
+            .replace("{plan}", planMeta(plan).name)
+            .replace("{limit}", String(limit))}
           onClose={() => setUpgrade(false)}
         />
       )}
@@ -306,6 +310,7 @@ function ProjectCard({
   onRequireUpgrade: () => void;
 }) {
   const router = useRouter();
+  const { t, lang } = useI18n();
   const [menu, setMenu] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(project.name);
@@ -331,7 +336,7 @@ function ProjectCard({
             {project.language === "python" ? "Python" : "Node.js"}
           </span>
           <button
-            aria-label="More"
+            aria-label={t("dash.more")}
             onClick={() => {
               setMenu((v) => !v);
               setConfirmDelete(false);
@@ -368,10 +373,10 @@ function ProjectCard({
 
       <div className="mt-4 flex items-center justify-between border-t border-white/[0.08] pt-3 text-xs text-white/45">
         <span>
-          {project.files.length} file{project.files.length === 1 ? "" : "s"} · {timeAgo(project.updatedAt)}
+          {project.files.length} {plural(lang, project.files.length, { en: ["file", "files"], ru: ["файл", "файла", "файлов"] })} · {timeAgo(project.updatedAt, lang)}
         </span>
         <button onClick={open} className="font-medium text-[#818CF8] hover:underline">
-          Open
+          {t("dash.open")}
         </button>
       </div>
 
@@ -387,10 +392,10 @@ function ProjectCard({
             }}
           />
           <div className="absolute right-4 top-12 z-20 w-44 overflow-hidden rounded-xl border border-white/10 bg-[#0B0D13]/95 py-1 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-xl">
-            <MenuItem icon={<ArrowRight className="h-3.5 w-3.5" />} label="Open" onClick={open} />
+            <MenuItem icon={<ArrowRight className="h-3.5 w-3.5" />} label={t("dash.open")} onClick={open} />
             <MenuItem
               icon={<Pencil className="h-3.5 w-3.5" />}
-              label="Rename"
+              label={t("dash.rename")}
               onClick={() => {
                 setDraft(project.name);
                 setRenaming(true);
@@ -399,7 +404,7 @@ function ProjectCard({
             />
             <MenuItem
               icon={<Copy className="h-3.5 w-3.5" />}
-              label="Duplicate"
+              label={t("dash.duplicate")}
               onClick={async () => {
                 setMenu(false);
                 if (!canDuplicate) {
@@ -413,7 +418,7 @@ function ProjectCard({
             />
             <MenuItem
               icon={<Download className="h-3.5 w-3.5" />}
-              label="Download ZIP"
+              label={t("dash.downloadZip")}
               onClick={() => {
                 downloadZip(project.name, project.files);
                 setMenu(false);
@@ -423,7 +428,7 @@ function ProjectCard({
             {/* Two-step delete: destroying a project must never be one misclick away. */}
             <MenuItem
               icon={<Trash className="h-3.5 w-3.5" />}
-              label={confirmDelete ? "Really delete? This is final" : "Delete"}
+              label={confirmDelete ? t("dash.reallyDelete") : t("dash.delete")}
               danger
               onClick={async () => {
                 if (!confirmDelete) {

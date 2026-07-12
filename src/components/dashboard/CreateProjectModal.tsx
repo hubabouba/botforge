@@ -13,6 +13,7 @@ import {
 } from "@/lib/workspace/scaffold";
 import { createProject } from "@/lib/workspace/store";
 import { track } from "@/lib/analytics";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import type { Language, Platform } from "@/lib/workspace/types";
 import { Close, ArrowLeft, ArrowRight, Chat, Bell, Shield, ShoppingBag, Wrench, Bot, Telegram, Discord } from "@/components/icons";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ function Seg<T extends string>({
 
 export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; onLimit?: () => void }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [step, setStep] = useState<1 | 2>(1);
   const [type, setType] = useState<BotType>("assistant");
   const [name, setName] = useState("");
@@ -104,7 +106,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
       onLimit?.();
       onClose();
     } else {
-      setError("Couldn't create the project. Please try again.");
+      setError(t("create.errorGeneric"));
     }
   }
 
@@ -116,8 +118,10 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
       >
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-border px-5 py-3.5">
-          <h2 className="text-sm font-semibold">New project</h2>
-          <span className="text-xs text-muted-foreground">Step {step} of 2</span>
+          <h2 className="text-sm font-semibold">{t("create.title")}</h2>
+          <span className="text-xs text-muted-foreground">
+            {t("create.step")} {step} {t("create.of")} 2
+          </span>
           <div className="ml-2 flex gap-1">
             <span className={cn("h-1 w-6 rounded-full", step >= 1 ? "bg-accent" : "bg-border")} />
             <span className={cn("h-1 w-6 rounded-full", step >= 2 ? "bg-accent" : "bg-border")} />
@@ -133,7 +137,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
         <div className="overflow-y-auto p-5">
           {step === 1 ? (
             <>
-              <p className="text-sm text-muted-foreground">What kind of bot are you building?</p>
+              <p className="text-sm text-muted-foreground">{t("create.whatKind")}</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 {BOT_TYPES.map((meta) => {
                   const Icon = TYPE_ICON[meta.icon];
@@ -162,7 +166,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
           ) : (
             <div className="space-y-5">
               <div>
-                <label className="text-sm font-medium">Project name</label>
+                <label className="text-sm font-medium">{t("create.projectName")}</label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -173,7 +177,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
 
               <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
                 <div>
-                  <div className="mb-2 text-sm font-medium">Platform</div>
+                  <div className="mb-2 text-sm font-medium">{t("create.platform")}</div>
                   <Seg
                     options={[
                       { id: "telegram", label: "Telegram" },
@@ -184,7 +188,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
                   />
                 </div>
                 <div>
-                  <div className="mb-2 text-sm font-medium">Language</div>
+                  <div className="mb-2 text-sm font-medium">{t("create.language")}</div>
                   <Seg
                     options={[
                       { id: "python", label: "Python", disabled: platform === "discord" },
@@ -194,13 +198,13 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
                     onChange={(v) => setLanguage(v as Language)}
                   />
                   {platform === "discord" && (
-                    <p className="mt-1.5 text-[11px] text-muted-foreground">Discord starters use discord.js (Node).</p>
+                    <p className="mt-1.5 text-[11px] text-muted-foreground">{t("create.discordHint")}</p>
                   )}
                 </div>
               </div>
 
               <div>
-                <div className="mb-2 text-sm font-medium">Who is it for?</div>
+                <div className="mb-2 text-sm font-medium">{t("create.whoFor")}</div>
                 <div className="grid gap-2 sm:grid-cols-3">
                   {AUDIENCES.map((a) => (
                     <button
@@ -220,28 +224,26 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
 
               <div>
                 <label className="text-sm font-medium">
-                  What should it do? <span className="font-normal text-muted-foreground">(optional)</span>
+                  {t("create.whatShouldItDo")} <span className="font-normal text-muted-foreground">{t("create.optional")}</span>
                 </label>
                 <textarea
                   value={purpose}
                   onChange={(e) => setPurpose(e.target.value)}
                   rows={2}
-                  placeholder="e.g. Answer FAQs about my online shop and notify me of new orders."
+                  placeholder={t("create.purposePlaceholder")}
                   className="mt-2 w-full resize-none rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/25"
                 />
-                <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  Goes into the README now; guides the AI generator later.
-                </p>
+                <p className="mt-1.5 text-[11px] text-muted-foreground">{t("create.purposeHint")}</p>
               </div>
 
               <div>
                 <label className="text-sm font-medium">
-                  Personality <span className="font-normal text-muted-foreground">(optional)</span>
+                  {t("create.personality")} <span className="font-normal text-muted-foreground">{t("create.optional")}</span>
                 </label>
                 <input
                   value={personality}
                   onChange={(e) => setPersonality(e.target.value)}
-                  placeholder="e.g. Friendly and concise"
+                  placeholder={t("create.personalityPlaceholder")}
                   className="mt-2 w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/25"
                 />
                 <div className="mt-2 flex flex-wrap gap-1.5">
@@ -262,7 +264,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
                   ))}
                 </div>
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
-                  Baked into the code as a <code className="font-mono">PERSONA</code> constant — the assistant can rewrite replies in this voice.
+                  {t("create.personalityHintPre")} <code className="font-mono">PERSONA</code> {t("create.personalityHintPost")}
                 </p>
               </div>
             </div>
@@ -276,7 +278,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
               onClick={() => setStep(1)}
               className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
-              <ArrowLeft className="h-4 w-4" /> Back
+              <ArrowLeft className="h-4 w-4" /> {t("create.back")}
             </button>
           ) : (
             <PlatformHint />
@@ -286,7 +288,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
               onClick={() => setStep(2)}
               className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
             >
-              Next <ArrowRight className="h-4 w-4" />
+              {t("create.next")} <ArrowRight className="h-4 w-4" />
             </button>
           ) : (
             <div className="flex items-center gap-3">
@@ -296,7 +298,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
                 disabled={busy}
                 className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-colors hover:bg-accent-hover disabled:opacity-50"
               >
-                {busy ? "Creating…" : "Create project"} <ArrowRight className="h-4 w-4" />
+                {busy ? t("create.creating") : t("create.createProject")} <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           )}
@@ -307,11 +309,12 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
 }
 
 function PlatformHint() {
+  const { t } = useI18n();
   return (
     <span className="flex items-center gap-2 text-xs text-muted-foreground">
       <Telegram className="h-3.5 w-3.5" />
       <Discord className="h-3.5 w-3.5" />
-      Telegram &amp; Discord supported
+      {t("create.platformHint")}
     </span>
   );
 }

@@ -6,6 +6,7 @@ import { planMeta } from "@/lib/plan";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { SettingsModal } from "@/components/settings/SettingsModal";
 import { Settings, Lock, LogOut } from "@/components/icons";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 function initialsOf(name: string, email: string): string {
@@ -16,6 +17,7 @@ function initialsOf(name: string, email: string): string {
 }
 
 export function AccountMenu({ email, name }: { email: string; name: string }) {
+  const { t } = useI18n();
   const { plan } = usePlan();
   const [open, setOpen] = useState(false);
   const [settings, setSettings] = useState(false);
@@ -35,14 +37,14 @@ export function AccountMenu({ email, name }: { email: string; name: string }) {
           className="hidden items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-accent/50 hover:text-foreground sm:inline-flex"
         >
           <Lock className="h-3 w-3" />
-          {meta.name} · Upgrade
+          {meta.name} · {t("account.upgrade")}
         </button>
       )}
 
       <div className="relative">
         <button
           onClick={() => setOpen((v) => !v)}
-          aria-label="Account menu"
+          aria-label={t("account.accountMenu")}
           className="grid h-9 w-9 place-items-center rounded-full bg-accent text-[12px] font-semibold text-accent-foreground transition-transform hover:scale-105"
         >
           {initialsOf(name, email)}
@@ -56,13 +58,13 @@ export function AccountMenu({ email, name }: { email: string; name: string }) {
                 <div className="truncate text-sm font-medium">{name}</div>
                 <div className="truncate text-xs text-muted-foreground">{email}</div>
                 <span className="mt-1.5 inline-block rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  {meta.name} plan
+                  {meta.name} {t("account.plan")}
                 </span>
               </div>
 
               <MenuItem
                 icon={<Lock className="h-3.5 w-3.5" />}
-                label={plan === "pro" ? "Manage plan" : "Upgrade plan"}
+                label={plan === "pro" ? t("account.managePlan") : t("account.upgradePlan")}
                 onClick={() => {
                   setOpen(false);
                   setUpgrade(true);
@@ -70,7 +72,7 @@ export function AccountMenu({ email, name }: { email: string; name: string }) {
               />
               <MenuItem
                 icon={<Settings className="h-3.5 w-3.5" />}
-                label="Settings"
+                label={t("account.settings")}
                 onClick={() => {
                   setOpen(false);
                   setSettings(true);
@@ -84,7 +86,7 @@ export function AccountMenu({ email, name }: { email: string; name: string }) {
                   className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm text-foreground transition-colors hover:bg-muted"
                 >
                   <LogOut className="h-3.5 w-3.5" />
-                  Sign out
+                  {t("account.signOut")}
                 </button>
               </form>
             </div>

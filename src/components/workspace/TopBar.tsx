@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Logo } from "@/components/marketing/Logo";
 import { ArrowLeft, Download, Play, Telegram, Discord, Bot } from "@/components/icons";
 import type { Project } from "@/lib/workspace/types";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 export type SaveStatus = "saved" | "saving" | "error";
@@ -41,6 +42,7 @@ export function TopBar({
   onDownload: () => void;
   onRun: () => void;
 }) {
+  const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project.name);
   const langLabel = project.language === "python" ? "Python" : "Node.js";
@@ -55,7 +57,7 @@ export function TopBar({
       <Link
         href="/dashboard"
         className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-white/60 transition-colors hover:bg-white/[0.06] hover:text-white"
-        title="Back to dashboard"
+        title={t("top.backToDashboard")}
       >
         <ArrowLeft className="h-4 w-4" />
         <Logo className="h-5 w-5" />
@@ -84,7 +86,7 @@ export function TopBar({
               setEditing(true);
             }}
             className="truncate rounded px-1 text-sm font-medium text-white transition-colors hover:bg-white/[0.06]"
-            title="Rename project"
+            title={t("top.renameProject")}
           >
             {project.name}
           </button>
@@ -102,13 +104,13 @@ export function TopBar({
             status === "saving" ? "animate-pulse bg-amber-400" : status === "error" ? "bg-rose-400" : "bg-emerald-400",
           )}
         />
-        {status === "saving" ? "Saving…" : status === "error" ? "Save failed — check your connection" : "All changes saved"}
+        {status === "saving" ? t("top.saving") : status === "error" ? t("top.saveFailed") : t("top.allSaved")}
       </span>
 
       <div className="flex items-center gap-2">
         <button
           onClick={onToggleChat}
-          title={chatOpen ? "Hide assistant" : "Show assistant"}
+          title={chatOpen ? t("top.hideAssistant") : t("top.showAssistant")}
           className={cn(
             "hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all lg:inline-flex",
             chatOpen
@@ -117,21 +119,21 @@ export function TopBar({
           )}
         >
           <Bot className="h-3.5 w-3.5" />
-          Assistant
+          {t("top.assistant")}
         </button>
         <button
           onClick={onDownload}
           className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/70 transition-colors hover:bg-white/[0.06] hover:text-white"
         >
           <Download className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Download ZIP</span>
+          <span className="hidden sm:inline">{t("top.downloadZip")}</span>
         </button>
         <button
           onClick={onRun}
           className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-medium text-white shadow-[0_8px_24px_-8px_rgba(16,185,129,0.75)] transition-transform hover:-translate-y-px"
         >
           <Play className="h-3.5 w-3.5" />
-          Run locally
+          {t("top.runLocally")}
         </button>
       </div>
     </header>

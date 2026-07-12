@@ -10,6 +10,7 @@ import { defaultReply } from "@/lib/ai/types";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { planMeta } from "@/lib/plan";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 interface Edit {
@@ -26,7 +27,7 @@ interface Msg {
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-const SUGGESTIONS = ["Add a /help command", "Explain what this bot does", "Handle errors gracefully"];
+const SUGGESTION_KEYS = ["chat.suggestion1", "chat.suggestion2", "chat.suggestion3"];
 
 export function WorkspaceChat({
   project,
@@ -39,6 +40,7 @@ export function WorkspaceChat({
   onApplyEdit: (path: string, content: string) => void;
   onCollapse: () => void;
 }) {
+  const { t } = useI18n();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -120,7 +122,7 @@ export function WorkspaceChat({
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
         if (data?.usage && typeof data.usage.used === "number") setQuota(data.usage);
-        patch((m) => ({ ...m, text: data?.error || "Something went wrong.", error: true }));
+        patch((m) => ({ ...m, text: data?.error || t("chat.genericError"), error: true }));
         return;
       }
 
@@ -133,7 +135,7 @@ export function WorkspaceChat({
           patch((m) => ({ ...m, edits: [...accEdits] }));
         } else if (event.type === "error") {
           hadError = true;
-          const text = (accText ? accText + "\n\n" : "") + (event.message || "Something went wrong.");
+          const text = (accText ? accText + "\n\n" : "") + (event.message || t("chat.genericError"));
           patch((m) => ({ ...m, text, error: true }));
         }
       }
@@ -145,11 +147,11 @@ export function WorkspaceChat({
       // Stream ended with nothing at all (e.g. the model spent its whole token
       // budget) — never leave a permanently blank message.
       if (!hadError && !accText.trim() && !accEdits.length) {
-        patch((m) => ({ ...m, text: "The assistant returned an empty reply — please try again.", error: true }));
+        patch((m) => ({ ...m, text: t("chat.emptyReplyError"), error: true }));
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") return; // superseded / unmounted
-      patch((m) => ({ ...m, text: "Network error — please try again.", error: true }));
+      patch((m) => ({ ...m, text: t("chat.networkError"), error: true }));
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setBusy(false);
@@ -178,7 +180,7 @@ export function WorkspaceChat({
         <span className="grid h-5 w-5 place-items-center rounded bg-accent text-white">
           <Bot className="h-3.5 w-3.5" />
         </span>
-        <span className="text-sm font-medium text-neutral-200">Assistant</span>
+        <span className="text-sm font-medium text-neutral-200">{t("chat.assistant")}</span>
         {plan === "pro" ? (
           <span className="ml-auto rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
             Pro
@@ -189,12 +191,12 @@ export function WorkspaceChat({
             className="ml-auto inline-flex items-center gap-1 rounded-full border border-ink-700 px-2 py-0.5 text-[10px] font-medium text-neutral-400 transition-colors hover:border-accent/50 hover:text-neutral-200"
           >
             <Lock className="h-3 w-3" />
-            {plan === "basic" ? "Basic · Upgrade" : "Free · Upgrade"}
+            {plan === "basic" ? t("chat.basicUpgrade") : t("chat.freeUpgrade")}
           </button>
         )}
         <button
           onClick={() => setSettingsOpen((v) => !v)}
-          aria-label="Assistant settings"
+          aria-label={t("chat.assistantSettings")}
           aria-pressed={settingsOpen}
           className={cn(
             "grid h-6 w-6 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200",
@@ -205,7 +207,7 @@ export function WorkspaceChat({
         </button>
         <button
           onClick={onCollapse}
-          aria-label="Hide assistant"
+          aria-label={t("chat.hideAssistant")}
           className="grid h-6 w-6 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200"
         >
           <Close className="h-4 w-4" />
@@ -228,7 +230,7 @@ export function WorkspaceChat({
       <div ref={scrollRef} className="flex-1 space-y-3.5 overflow-y-auto p-4">
         {messages.length === 0 && (
           <div className="rounded-xl border border-ink-800 bg-ink-900/60 p-3.5 text-[13px] text-neutral-400">
-            Ask me to add features, fix bugs, or explain the code. I can edit files directly — you approve each change.
+            {t("chat.introHint")}
           </div>
         )}
 
@@ -254,14 +256,14 @@ export function WorkspaceChat({
                     <span className="font-mono text-xs text-neutral-300">{edit.path}</span>
                     {edit.applied ? (
                       <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-emerald-400">
-                        <Check className="h-3.5 w-3.5" /> Applied
+                        <Check className="h-3.5 w-3.5" /> {t("chat.applied")}
                       </span>
                     ) : (
                       <button
                         onClick={() => apply(m.id, i)}
                         className="ml-auto rounded-md bg-accent px-2.5 py-1 text-[11px] font-medium text-white transition-colors hover:bg-accent-hover"
                       >
-                        Apply
+                        {t("chat.apply")}
                       </button>
                     )}
                   </div>
@@ -287,15 +289,15 @@ export function WorkspaceChat({
 
         {messages.length === 0 && !busy && (
           <div className="pt-1">
-            <div className="mb-2 text-[11px] uppercase tracking-wider text-neutral-600">Try</div>
+            <div className="mb-2 text-[11px] uppercase tracking-wider text-neutral-600">{t("chat.try")}</div>
             <div className="flex flex-wrap gap-1.5">
-              {SUGGESTIONS.map((s) => (
+              {SUGGESTION_KEYS.map((key) => (
                 <button
-                  key={s}
-                  onClick={() => send(s)}
+                  key={key}
+                  onClick={() => send(t(key))}
                   className="rounded-full border border-ink-800 bg-ink-900 px-2.5 py-1 text-[12px] text-neutral-400 transition-colors hover:border-accent/40 hover:text-neutral-200"
                 >
-                  {s}
+                  {t(key)}
                 </button>
               ))}
             </div>
@@ -316,15 +318,15 @@ export function WorkspaceChat({
               }
             }}
             rows={2}
-            placeholder="Ask the assistant to change the code…"
+            placeholder={t("chat.composerPlaceholder")}
             className="w-full resize-none bg-transparent px-1.5 py-1 text-[13px] text-neutral-200 outline-none placeholder:text-neutral-600"
           />
           <div className="flex items-center justify-between pl-1.5">
             <span className="text-[11px] text-neutral-600">
-              ⏎ send · ⇧⏎ newline
+              {t("chat.sendHint")}
               {quota && (
                 <span className={cn("ml-1.5", quota.used >= quota.limit && "text-rose-400")}>
-                  · {quota.used}/{quota.limit} today
+                  · {quota.used}/{quota.limit} {t("chat.today")}
                 </span>
               )}
             </span>
@@ -333,7 +335,7 @@ export function WorkspaceChat({
               disabled={!input.trim() || busy}
               className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
             >
-              Send
+              {t("chat.send")}
             </button>
           </div>
         </div>
@@ -343,7 +345,7 @@ export function WorkspaceChat({
         <UpgradeModal
           current={plan}
           highlight={plan === "basic" ? "pro" : "basic"}
-          reason={`You're on ${planMeta(plan).name}. Upgrade for a smarter assistant and more.`}
+          reason={t("chat.upgradeReason").replace("{plan}", planMeta(plan).name)}
           onClose={() => setUpgradeOpen(false)}
         />
       )}
@@ -352,11 +354,10 @@ export function WorkspaceChat({
 }
 
 const LANGUAGES = ["", "English", "Русский", "Español", "Deutsch", "Français"];
-const LANG_LABEL: Record<string, string> = { "": "Match me" };
-const STYLES: { value: NonNullable<AssistantPreferences["style"]>; label: string }[] = [
-  { value: "concise", label: "Concise" },
-  { value: "balanced", label: "Balanced" },
-  { value: "detailed", label: "Detailed" },
+const STYLES: { value: NonNullable<AssistantPreferences["style"]>; labelKey: string }[] = [
+  { value: "concise", labelKey: "settings.styleConcise" },
+  { value: "balanced", labelKey: "settings.styleBalanced" },
+  { value: "detailed", labelKey: "settings.styleDetailed" },
 ];
 
 function AssistantSettings({
@@ -370,20 +371,21 @@ function AssistantSettings({
   onReset: () => void;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="border-b border-ink-800 bg-ink-900/60 px-4 py-3.5 text-[13px]">
       <div className="mb-3 flex items-center">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">Assistant persona</span>
+        <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">{t("settings.assistantPersona")}</span>
         <button
           onClick={onClose}
           className="ml-auto text-[11px] text-neutral-500 hover:text-neutral-300"
         >
-          Done
+          {t("chat.done")}
         </button>
       </div>
 
       {/* Reply language */}
-      <label className="mb-1 block text-[12px] text-neutral-400">Reply language</label>
+      <label className="mb-1 block text-[12px] text-neutral-400">{t("settings.replyLanguage")}</label>
       <div className="mb-3 flex flex-wrap gap-1.5">
         {LANGUAGES.map((lang) => (
           <button
@@ -396,13 +398,13 @@ function AssistantSettings({
                 : "border-ink-800 bg-ink-900 text-neutral-400 hover:text-neutral-200",
             )}
           >
-            {LANG_LABEL[lang] ?? lang}
+            {lang || t("settings.matchMe")}
           </button>
         ))}
       </div>
 
       {/* Verbosity */}
-      <label className="mb-1 block text-[12px] text-neutral-400">Style</label>
+      <label className="mb-1 block text-[12px] text-neutral-400">{t("settings.style")}</label>
       <div className="mb-3 flex gap-1.5">
         {STYLES.map((s) => (
           <button
@@ -415,36 +417,36 @@ function AssistantSettings({
                 : "border-ink-800 bg-ink-900 text-neutral-400 hover:text-neutral-200",
             )}
           >
-            {s.label}
+            {t(s.labelKey)}
           </button>
         ))}
       </div>
 
       {/* Persona / character */}
-      <label className="mb-1 block text-[12px] text-neutral-400">Character</label>
+      <label className="mb-1 block text-[12px] text-neutral-400">{t("settings.character")}</label>
       <input
         value={prefs.persona ?? ""}
         onChange={(e) => onChange({ persona: e.target.value })}
         maxLength={400}
-        placeholder="e.g. a friendly mentor · a blunt senior engineer"
+        placeholder={t("settings.characterPlaceholder")}
         className="mb-3 w-full rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-[12px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-accent/50"
       />
 
       {/* Custom instructions */}
-      <label className="mb-1 block text-[12px] text-neutral-400">Custom instructions</label>
+      <label className="mb-1 block text-[12px] text-neutral-400">{t("settings.customInstructions")}</label>
       <textarea
         value={prefs.custom ?? ""}
         onChange={(e) => onChange({ custom: e.target.value })}
         maxLength={1000}
         rows={2}
-        placeholder="Anything else the assistant should always do…"
+        placeholder={t("settings.customInstructionsPlaceholder")}
         className="w-full resize-none rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-[12px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-accent/50"
       />
 
       <div className="mt-3 flex items-center justify-between">
-        <span className="text-[11px] text-neutral-600">Saved for all your projects</span>
+        <span className="text-[11px] text-neutral-600">{t("chat.savedForAllProjects")}</span>
         <button onClick={onReset} className="text-[11px] text-neutral-500 hover:text-neutral-300">
-          Reset
+          {t("chat.reset")}
         </button>
       </div>
     </div>

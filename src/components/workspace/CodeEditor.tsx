@@ -3,6 +3,8 @@
 import { useMemo, useRef, useState } from "react";
 import { highlightToLines, TOKEN_COLORS } from "@/lib/workspace/highlight";
 import { langOf, type Lang, type ProjectFile } from "@/lib/workspace/types";
+import { useI18n } from "@/lib/i18n/I18nProvider";
+import { plural } from "@/lib/i18n/plural";
 import { cn } from "@/lib/utils";
 
 const PAIRS: Record<string, string> = { "(": ")", "[": "]", "{": "}", '"': '"', "'": "'", "`": "`" };
@@ -32,6 +34,7 @@ export function CodeEditor({
   onChange: (content: string) => void;
   onSave?: () => void;
 }) {
+  const { t, lang: uiLang } = useI18n();
   const ref = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState(file.content);
   const [caret, setCaret] = useState({ line: 1, col: 1 });
@@ -208,10 +211,12 @@ export function CodeEditor({
       {/* Status bar */}
       <div className="flex h-6 shrink-0 items-center gap-4 border-t border-ink-800 bg-ink-950 px-3 text-[11px] text-neutral-500">
         <span>
-          Ln {caret.line}, Col {caret.col}
+          {t("editor.ln")} {caret.line}, {t("editor.col")} {caret.col}
         </span>
-        <span>Spaces: 2</span>
-        <span className="ml-auto">{lines.length} lines</span>
+        <span>{t("editor.spaces")}</span>
+        <span className="ml-auto">
+          {lines.length} {plural(uiLang, lines.length, { en: ["line", "lines"], ru: ["строка", "строки", "строк"] })}
+        </span>
         <span className="text-neutral-400">{LANG_LABEL[lang]}</span>
       </div>
     </div>

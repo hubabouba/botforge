@@ -6,6 +6,7 @@ import Link from "next/link";
 import { PLANS, PLAN_RANK, planMeta, type Plan } from "@/lib/plan";
 import { track } from "@/lib/analytics";
 import { Close, Check, Lock } from "@/components/icons";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 // Flip on once Stripe Checkout is wired (Part 5). Until then the CTA is a
@@ -23,6 +24,7 @@ export function UpgradeModal({
   reason?: string;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState<Plan | null>(null);
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -36,7 +38,7 @@ export function UpgradeModal({
 
   async function subscribe(plan: Plan) {
     if (!STRIPE_ENABLED) {
-      setError("Payments aren't switched on yet (NEXT_PUBLIC_STRIPE_ENABLED).");
+      setError(t("upgrade.stripeDisabledError"));
       return;
     }
     setBusy(plan);
@@ -50,9 +52,9 @@ export function UpgradeModal({
       });
       const data = await res.json().catch(() => ({}));
       if (data.url) window.location.href = data.url;
-      else setError(data.error || `Checkout failed (HTTP ${res.status}).`);
+      else setError(data.error || t("upgrade.checkoutFailed").replace("{status}", String(res.status)));
     } catch {
-      setError("Network error — please try again.");
+      setError(t("upgrade.networkError"));
     } finally {
       setBusy(null);
     }
@@ -65,9 +67,9 @@ export function UpgradeModal({
       const res = await fetch("/api/billing-portal", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (data.url) window.location.href = data.url;
-      else setError(data.error || `Portal failed (HTTP ${res.status}).`);
+      else setError(data.error || t("upgrade.portalFailed").replace("{status}", String(res.status)));
     } catch {
-      setError("Network error — please try again.");
+      setError(t("upgrade.networkError"));
     } finally {
       setBusy(null);
     }
@@ -84,7 +86,7 @@ export function UpgradeModal({
             <Lock className="h-3.5 w-3.5" />
           </span>
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold">Upgrade your plan</h2>
+            <h2 className="text-sm font-semibold">{t("upgrade.title")}</h2>
             {reason && <p className="truncate text-xs text-muted-foreground">{reason}</p>}
           </div>
           <button
@@ -118,18 +120,18 @@ export function UpgradeModal({
                   <span className="text-sm font-semibold">{p.name}</span>
                   {isCurrent && (
                     <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      Current
+                      {t("upgrade.current")}
                     </span>
                   )}
                   {isHighlight && (
                     <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-medium text-accent">
-                      Recommended
+                      {t("upgrade.recommended")}
                     </span>
                   )}
                 </div>
                 <div className="mt-2 flex items-baseline gap-1">
                   <span className="text-2xl font-semibold tracking-tight">${p.price}</span>
-                  <span className="text-xs text-muted-foreground">/mo</span>
+                  <span className="text-xs text-muted-foreground">{t("upgrade.perMonth")}</span>
                 </div>
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{p.tagline}</p>
                 <ul className="mt-3 space-y-1.5">
@@ -148,14 +150,14 @@ export function UpgradeModal({
                         disabled={busy === p.id}
                         className="w-full rounded-lg border border-border py-2 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
                       >
-                        {busy === p.id ? "Opening…" : "Manage"}
+                        {busy === p.id ? t("upgrade.opening") : t("upgrade.manage")}
                       </button>
                     ) : (
                       <button
                         disabled
                         className="w-full rounded-lg border border-border py-2 text-xs font-medium text-muted-foreground"
                       >
-                        Your plan
+                        {t("upgrade.yourPlan")}
                       </button>
                     )
                   ) : p.id === "free" || isDowngrade ? (
@@ -163,7 +165,7 @@ export function UpgradeModal({
                       disabled
                       className="w-full rounded-lg border border-border py-2 text-xs font-medium text-muted-foreground opacity-60"
                     >
-                      {p.id === "free" ? "Free forever" : "Included"}
+                      {p.id === "free" ? t("upgrade.freeForever") : t("upgrade.included")}
                     </button>
                   ) : (
                     <button
@@ -176,7 +178,7 @@ export function UpgradeModal({
                           : "border border-border hover:bg-muted",
                       )}
                     >
-                      {STRIPE_ENABLED ? (busy === p.id ? "Redirecting…" : `Choose ${p.name}`) : "Coming soon"}
+                      {STRIPE_ENABLED ? (busy === p.id ? t("upgrade.redirecting") : `${t("upgrade.choose")} ${p.name}`) : t("upgrade.comingSoon")}
                     </button>
                   )}
                 </div>
@@ -186,14 +188,14 @@ export function UpgradeModal({
         </div>
 
         <div className="border-t border-border px-5 py-3 text-center text-[11px] text-muted-foreground">
-          {STRIPE_ENABLED ? "Secure payment via Stripe · Cancel anytime · " : "Payments launch soon via Stripe · "}
-          By subscribing you agree to our{" "}
+          {STRIPE_ENABLED ? t("upgrade.footerSecure") : t("upgrade.footerSoon")}
+          {t("upgrade.agreeToOur")}{" "}
           <Link href="/terms" target="_blank" className="underline hover:text-foreground">
-            Terms
+            {t("upgrade.terms")}
           </Link>{" "}
-          and{" "}
+          {t("upgrade.and")}{" "}
           <Link href="/privacy" target="_blank" className="underline hover:text-foreground">
-            Privacy Policy
+            {t("upgrade.privacyPolicy")}
           </Link>
           .
         </div>

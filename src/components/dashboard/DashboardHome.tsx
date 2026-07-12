@@ -81,6 +81,7 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
   const [loaded, setLoaded] = useState(false);
   const [creating, setCreating] = useState(false);
   const [upgrade, setUpgrade] = useState(false);
+  const [query, setQuery] = useState("");
 
   const reload = useCallback(async () => setProjects(await listProjects()), []);
 
@@ -117,6 +118,11 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
   const limit = projectLimit(plan);
   // Don't gate until the plan is known, or a paid user briefly sees the free cap.
   const atLimit = !planLoading && projects.length >= limit;
+
+  // Only surface search once the grid is big enough to be worth filtering.
+  const showSearch = projects.length > 6;
+  const q = query.trim().toLowerCase();
+  const visible = q ? projects.filter((p) => p.name.toLowerCase().includes(q)) : projects;
 
   /** Run a create action, or prompt to upgrade if the plan's project cap is hit. */
   function guardedCreate(fn: () => void) {
@@ -187,18 +193,32 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
               )}
             </span>
           </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {projects.map((p, i) => (
-              <ProjectCard
-                key={p.id}
-                project={p}
-                index={i}
-                onChange={reload}
-                canDuplicate={!atLimit}
-                onRequireUpgrade={() => setUpgrade(true)}
-              />
-            ))}
-          </div>
+          {showSearch && (
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search projects…"
+              aria-label="Search projects"
+              className="mt-3 w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#6366F1]/50 sm:max-w-xs"
+            />
+          )}
+          {visible.length > 0 ? (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {visible.map((p, i) => (
+                <ProjectCard
+                  key={p.id}
+                  project={p}
+                  index={i}
+                  onChange={reload}
+                  canDuplicate={!atLimit}
+                  onRequireUpgrade={() => setUpgrade(true)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="mt-6 text-sm text-white/40">No projects match “{query.trim()}”.</p>
+          )}
         </section>
       ) : !loaded ? (
         <section className="grid place-items-center rounded-2xl border border-white/[0.06] bg-white/[0.02] px-6 py-16 text-sm text-white/40">

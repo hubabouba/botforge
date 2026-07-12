@@ -33,6 +33,31 @@ export function SettingsModal({
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [dangerErr, setDangerErr] = useState("");
+
+  async function deleteAccount() {
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      return;
+    }
+    setDeleting(true);
+    setDangerErr("");
+    try {
+      const res = await fetch("/api/account/delete", { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Couldn't delete the account.");
+      }
+      // Account and session are gone — leave the app.
+      window.location.href = "/";
+    } catch (e) {
+      setDangerErr((e as Error).message);
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  }
 
   useEffect(() => {
     setMounted(true);
@@ -170,6 +195,42 @@ export function SettingsModal({
               >
                 {plan === "pro" ? "Manage" : "Upgrade"}
               </button>
+            </div>
+          </section>
+
+          {/* Data & privacy */}
+          <section>
+            <SectionTitle>Data &amp; privacy</SectionTitle>
+            <div className="space-y-2.5 rounded-xl border border-border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">Export your data</div>
+                  <div className="text-xs text-muted-foreground">Download all your projects and account data as JSON.</div>
+                </div>
+                <a
+                  href="/api/account/export"
+                  className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+                >
+                  Export
+                </a>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-border pt-2.5">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-red-500">Delete account</div>
+                  <div className="text-xs text-muted-foreground">
+                    Permanently erase your account, projects and bots. This can’t be undone.
+                  </div>
+                </div>
+                <button
+                  onClick={deleteAccount}
+                  disabled={deleting}
+                  className="shrink-0 rounded-lg border border-red-500/40 px-3 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : confirmDelete ? "Really delete?" : "Delete"}
+                </button>
+              </div>
+              {dangerErr && <p className="text-xs text-red-500">{dangerErr}</p>}
             </div>
           </section>
         </div>

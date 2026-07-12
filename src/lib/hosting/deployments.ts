@@ -14,6 +14,7 @@ import { destroyMachine, getMachineState, type FlyConfig, type FlyMachineState }
 import { globalMachineCeiling } from "./config";
 import { generateRunToken, hashRunToken } from "./runToken";
 import { decryptProjectSecrets, launchMachine } from "./launch";
+import { sendHostingBudgetEmail } from "../email";
 
 export interface DeploymentRow {
   project_id: string;
@@ -314,6 +315,14 @@ async function stopIfOverBudget(
   await appendLogs(admin, dep.project_id, [
     { stream: "system", line: "Stopped: this month's hosting hours are used up. The budget resets next month." },
   ]);
+  // Best-effort heads-up — the panel only shows this if the user opens it.
+  if (email) {
+    try {
+      await sendHostingBudgetEmail(email);
+    } catch {
+      /* email is a no-op unless configured; never block the stop on it */
+    }
+  }
   return true;
 }
 

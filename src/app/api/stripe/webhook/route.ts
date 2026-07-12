@@ -4,6 +4,7 @@ import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
 import { planForPriceId } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendPaymentFailedEmail, sendSubscriptionEndedEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -46,13 +47,18 @@ export async function POST(req: Request) {
         const stub = event.data.object as Stripe.Subscription;
         const sub = await stripe.subscriptions.retrieve(stub.id);
         await upsert(sub, sub.metadata?.user_id);
+        // Tell the user when their paid plan actually ends (back on Free).
+        if (event.type === "customer.subscription.deleted") {
+          const to = await emailForUser(sub.metadata?.user_id);
+          if (to) await sendSubscriptionEndedEmail(to);
+        }
         break;
       }
       case "invoice.payment_failed": {
-        // No email infra yet — at minimum, make sure a failed real charge
-        // doesn't fail silently. The subscription's own status transition
-        // (-> past_due/unpaid) still flows through the handler above once
-        // Stripe's dunning fires the corresponding subscription.updated event.
+        // Make the failure visible two ways: an ops signal to Sentry, and a
+        // heads-up email to the customer (Stripe will keep retrying, but they
+        // should know to fix their card). The subscription's own status
+        // transition (-> past_due/unpaid) still flows through the handler above.
         const invoice = event.data.object as Stripe.Invoice;
         const invoiceSub = invoice.parent?.subscription_details?.subscription;
         const subId = typeof invoiceSub === "string" ? invoiceSub : invoiceSub?.id;
@@ -67,6 +73,8 @@ export async function POST(req: Request) {
             amountDue: invoice.amount_due,
           },
         });
+        const to = invoice.customer_email ?? (await emailForUser(userId));
+        if (to) await sendPaymentFailedEmail(to);
         break;
       }
       default:
@@ -78,6 +86,18 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ received: true });
+}
+
+/** Resolve a user's email from their id via the admin client (for notifications). */
+async function emailForUser(userId?: string | null): Promise<string | null> {
+  if (!userId) return null;
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin.auth.admin.getUserById(userId);
+    return data?.user?.email ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Read the subscription's period end (unix seconds) defensively across API versions. */

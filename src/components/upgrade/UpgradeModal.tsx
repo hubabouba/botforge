@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { PLANS, PLAN_RANK, planMeta, type Plan } from "@/lib/plan";
+import { track } from "@/lib/analytics";
 import { Close, Check, Lock } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
@@ -40,6 +41,7 @@ export function UpgradeModal({
     }
     setBusy(plan);
     setError("");
+    track("upgrade_clicked", { plan });
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",

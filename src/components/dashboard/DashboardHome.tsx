@@ -13,6 +13,7 @@ import {
   type StoredProject,
 } from "@/lib/workspace/store";
 import { downloadZip } from "@/lib/workspace/zip";
+import { track } from "@/lib/analytics";
 import { CreateProjectModal } from "./CreateProjectModal";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { Magnetic } from "@/components/marketing/Magnetic";
@@ -101,6 +102,18 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
     };
   }, [userId]);
 
+  // Fire the checkout-completed funnel event once when Stripe redirects back
+  // with ?checkout=success, then strip the param so a refresh won't re-fire it.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("checkout") === "success") {
+      track("checkout_completed");
+      params.delete("checkout");
+      const qs = params.toString();
+      window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
+  }, []);
+
   const limit = projectLimit(plan);
   // Don't gate until the plan is known, or a paid user briefly sees the free cap.
   const atLimit = !planLoading && projects.length >= limit;
@@ -120,8 +133,10 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
   function createFromTemplate(template: Template) {
     guardedCreate(async () => {
       const result = await createProjectFromTemplate(template);
-      if (result.ok) router.push(`/workspace/${result.project.id}`);
-      else if (result.error === "limit") setUpgrade(true);
+      if (result.ok) {
+        track("project_created", { source: "template", platform: template.platform });
+        router.push(`/workspace/${result.project.id}`);
+      } else if (result.error === "limit") setUpgrade(true);
     });
   }
 

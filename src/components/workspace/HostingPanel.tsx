@@ -5,6 +5,7 @@ import type { Project } from "@/lib/workspace/types";
 import type { DeploymentStatus, LogLine } from "@/lib/hosting/types";
 import { useHostingStatus } from "@/hooks/useHostingStatus";
 import { getLogs, startBot, stopBot, setSecret, deleteSecret } from "@/lib/hosting/client";
+import { track } from "@/lib/analytics";
 import { Play, Check, Trash, Lock } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
@@ -90,7 +91,8 @@ export function HostingPanel({ project }: { project: Project }) {
     setErr("");
     setBusy(true);
     const r = await startBot(project.id);
-    if (!r.ok) setErr(r.error || "Couldn't start the bot.");
+    if (r.ok) track("hosting_started");
+    else setErr(r.error || "Couldn't start the bot.");
     await refresh();
     setBusy(false);
   }

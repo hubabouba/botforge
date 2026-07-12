@@ -5,6 +5,7 @@ import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { Bot, Check, FileIcon, Close, Settings, Lock } from "@/components/icons";
 import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
+import { track } from "@/lib/analytics";
 import { defaultReply } from "@/lib/ai/types";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
@@ -79,6 +80,7 @@ export function WorkspaceChat({
     setMessages([...history, { id: replyId, role: "assistant", text: "", edits: [] }]);
     setInput("");
     setBusy(true);
+    track("ai_message_sent");
 
     // The API accepts at most 30 messages — send a sliding window of the most
     // recent ones so long conversations keep working. Trim any leading

@@ -12,6 +12,7 @@ import {
   type BotTypeMeta,
 } from "@/lib/workspace/scaffold";
 import { createProject } from "@/lib/workspace/store";
+import { track } from "@/lib/analytics";
 import type { Language, Platform } from "@/lib/workspace/types";
 import { Close, ArrowLeft, ArrowRight, Chat, Bell, Shield, ShoppingBag, Wrench, Bot, Telegram, Discord } from "@/components/icons";
 import { cn } from "@/lib/utils";
@@ -94,6 +95,7 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
       scaffoldProject({ name, platform, language, type, audience, purpose, personality }),
     );
     if (result.ok) {
+      track("project_created", { source: "wizard", platform, language });
       router.push(`/workspace/${result.project.id}`);
       return; // keep busy — we're navigating away
     }

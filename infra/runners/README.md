@@ -2,31 +2,48 @@
 
 Generic container images that run a user's bot on Botforge hosting ("Real Run").
 One image serves **any** user's bot of that language — the specific project's
-source and dependencies are pulled and installed at runtime by `supervisor.py`.
+source and dependencies are pulled and installed at runtime by the supervisor.
 The user/AI never controls the image, its base, or its entrypoint; only the
-application source that `supervisor.py` fetches.
+application source the supervisor fetches.
 
-Stage 1 ships the **Python / Telegram** runner only.
+Two runners, one Fly app (`FLY_APP_NAME`) — Machines pick an image by label at
+create-time, so both languages share the same app:
 
 ```
 infra/runners/python/
   Dockerfile      # python:3.12-slim, non-root, runs supervisor.py as PID 1
   supervisor.py   # OUR code: pulls files, pip installs, runs the bot, ships logs
   fly.toml        # the Fly app that owns per-bot Machines (no HTTP service)
+
+infra/runners/node/
+  Dockerfile      # node:20-slim, non-root, runs supervisor.js as PID 1
+  supervisor.js   # same contract as supervisor.py — npm installs instead of pip
+  fly.toml        # same Fly app, different image label
 ```
+
+Platform/language combos hosting actually supports (`scaffold.ts` always
+generates Discord bots as discord.js/Node — there's no Python+Discord combo):
+
+| Platform | Language | Runner |
+| --- | --- | --- |
+| Telegram | Python | `python` |
+| Telegram | Node (grammy) | `node` |
+| Discord | Node (discord.js) | `node` |
 
 ## How a run works
 
 1. The control plane (`/api/hosting/projects/[id]/start`) creates a Fly Machine
-   from this image with env vars: `BOTFORGE_PUBLIC_URL`, `BOTFORGE_RUN_TOKEN`,
-   `BOTFORGE_ENTRY`, plus the decrypted bot secrets (e.g. `TELEGRAM_TOKEN`).
-2. `supervisor.py` (PID 1) fetches the project files from
+   from the project's language's image with env vars: `BOTFORGE_PUBLIC_URL`,
+   `BOTFORGE_RUN_TOKEN`, `BOTFORGE_ENTRY`, plus the decrypted bot secrets (e.g.
+   `TELEGRAM_TOKEN` / `DISCORD_TOKEN`).
+2. The supervisor (PID 1) fetches the project files from
    `GET /api/internal/hosting/files` (Bearer = run token), writes them to `/app`
-   (never a `.env`), runs `pip install -r requirements.txt`, then execs the entry
-   file and streams stdout/stderr to `POST /api/internal/hosting/logs`.
+   (never a `.env`), installs dependencies (`pip install -r requirements.txt` or
+   `npm install`), then execs the entry file and streams stdout/stderr to
+   `POST /api/internal/hosting/logs`.
 3. On process exit it calls `POST /api/internal/hosting/exit`, and the platform
-   tears the Machine down (a crash leaves it stopped; the user presses Start
-   again — no auto-restart in v1).
+   tears the Machine down. A crash is auto-restarted up to 3 times with backoff
+   (Stage 2.5); after that it's `crash_looping` and the user presses Start.
 
 ## One-time setup (owner, ~15 min)
 
@@ -39,16 +56,24 @@ fly auth login
 # 1. Create the app that will own per-bot Machines (name is your choice):
 fly apps create botforge-bots
 
-# 2. Build & push the Python runner image to Fly's registry (no service is
-#    released — we only need the image available to the Machines API):
+# 2. Build & push each runner image to Fly's registry (no service is
+#    released — we only need the images available to the Machines API):
 cd infra/runners/python
 fly deploy --build-only --push --image-label python
 #   → pushes registry.fly.io/botforge-bots:python
+
+cd ../node
+fly deploy --build-only --push --image-label node
+#   → pushes registry.fly.io/botforge-bots:node
 
 # 3. Create an API token for the control plane (org-scoped):
 fly tokens create org
 #   → copy the printed token (starts with "FlyV1 …")
 ```
+
+Only pushed one image label? The other language's hosting simply stays
+unconfigured (`runnerImageFor` throws) — the rest keeps working; nothing else
+in the app depends on both existing.
 
 ## Vercel env (Production only — never Preview)
 
@@ -60,6 +85,7 @@ fly tokens create org
 | `FLY_API_TOKEN` | the `FlyV1 …` token from step 3 |
 | `FLY_APP_NAME` | `botforge-bots` |
 | `FLY_RUNNER_IMAGE_PYTHON` | `registry.fly.io/botforge-bots:python` |
+| `FLY_RUNNER_IMAGE_NODE` | `registry.fly.io/botforge-bots:node` |
 | `FLY_REGION` | e.g. `fra` (optional; defaults to the app's primary region) |
 | `BOTFORGE_PUBLIC_URL` | your public site URL, e.g. `https://botforge-snowy.vercel.app` |
 | `CRON_SECRET` | output of `openssl rand -base64 32` — auth for the reconcile cron (Stage 2) |

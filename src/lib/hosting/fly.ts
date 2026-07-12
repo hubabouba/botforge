@@ -7,26 +7,43 @@
  *
  * https://fly.io/docs/machines/api/
  */
+import type { Language } from "../workspace/types";
 
 const FLY_API = "https://api.machines.dev/v1";
 
 export interface FlyConfig {
   token: string;
   appName: string;
-  /** Runner image ref, e.g. registry.fly.io/<app>:python. */
-  image: string;
   region?: string;
 }
 
-/** Reads Fly config from env; throws if hosting is misconfigured. */
+/**
+ * Reads the base Fly config from env; throws if hosting isn't configured at
+ * all. Deliberately does NOT require a runner image — stop/status/reconcile
+ * never touch one (only creating a Machine does), so a Python-only site keeps
+ * working even before a Node runner image is pushed.
+ */
 export function flyConfig(): FlyConfig {
   const token = process.env.FLY_API_TOKEN;
   const appName = process.env.FLY_APP_NAME;
-  const image = process.env.FLY_RUNNER_IMAGE_PYTHON;
-  if (!token || !appName || !image) {
-    throw new Error("Fly hosting is not configured (FLY_API_TOKEN / FLY_APP_NAME / FLY_RUNNER_IMAGE_PYTHON).");
+  if (!token || !appName) {
+    throw new Error("Fly hosting is not configured (FLY_API_TOKEN / FLY_APP_NAME).");
   }
-  return { token, appName, image, region: process.env.FLY_REGION || undefined };
+  return { token, appName, region: process.env.FLY_REGION || undefined };
+}
+
+/** One Fly app hosts Machines of BOTH languages, picked by image at create-time. */
+const RUNNER_IMAGE_ENV: Record<Language, string> = {
+  python: "FLY_RUNNER_IMAGE_PYTHON",
+  node: "FLY_RUNNER_IMAGE_NODE",
+};
+
+/** The runner image for a project's language; throws if that language's image isn't configured. */
+export function runnerImageFor(language: Language): string {
+  const envVar = RUNNER_IMAGE_ENV[language];
+  const image = process.env[envVar];
+  if (!image) throw new Error(`Hosting for ${language} bots isn't configured (${envVar}).`);
+  return image;
 }
 
 export type FlyMachineState =
@@ -59,7 +76,7 @@ async function flyFetch(cfg: FlyConfig, path: string, init?: RequestInit): Promi
  */
 export async function createRunMachine(
   cfg: FlyConfig,
-  opts: { env: Record<string, string>; memoryMb?: number; name?: string },
+  opts: { image: string; env: Record<string, string>; memoryMb?: number; name?: string },
 ): Promise<{ id: string; region?: string }> {
   const res = await flyFetch(cfg, `/apps/${cfg.appName}/machines`, {
     method: "POST",
@@ -67,7 +84,7 @@ export async function createRunMachine(
       name: opts.name,
       region: cfg.region,
       config: {
-        image: cfg.image,
+        image: opts.image,
         env: opts.env,
         auto_destroy: false,
         restart: { policy: "no" },

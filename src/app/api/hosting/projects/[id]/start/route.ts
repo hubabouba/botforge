@@ -6,9 +6,9 @@ import { getUserPlan } from "@/lib/subscription";
 import { effectiveHostingPlan, hostingLimitsFor } from "@/lib/plan";
 import { globalMachineCeiling, hostingAccessAllowed } from "@/lib/hosting/config";
 import { generateRunToken, hashRunToken } from "@/lib/hosting/runToken";
-import { flyConfig, type FlyConfig } from "@/lib/hosting/fly";
+import { flyConfig, runnerImageFor, type FlyConfig } from "@/lib/hosting/fly";
 import { setStopped, appendLogs } from "@/lib/hosting/deployments";
-import { decryptProjectSecrets, launchMachine } from "@/lib/hosting/launch";
+import { decryptProjectSecrets, defaultEntryFor, launchMachine } from "@/lib/hosting/launch";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,6 +16,10 @@ export const maxDuration = 60;
 type Ctx = { params: Promise<{ id: string }> };
 
 const requiredSecretFor = (platform: string) => (platform === "discord" ? "DISCORD_TOKEN" : "TELEGRAM_TOKEN");
+
+// Discord bots are always discord.js (Node) — see scaffold.ts. Telegram bots
+// can be either Python or Node (grammy). There is no Python+Discord combo.
+const HOSTED_COMBOS = new Set(["telegram:python", "telegram:node", "discord:node"]);
 
 // POST /api/hosting/projects/[id]/start — launch the project's bot on a Fly Machine.
 export async function POST(req: Request, { params }: Ctx) {
@@ -37,21 +41,22 @@ export async function POST(req: Request, { params }: Ctx) {
   const project = await fetchProject(supabase, id);
   if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
-  // Stage 1 supports Python Telegram bots only — say so honestly.
-  if (project.platform !== "telegram" || project.language !== "python") {
+  if (!HOSTED_COMBOS.has(`${project.platform}:${project.language}`)) {
     return NextResponse.json(
-      { error: "Hosting is in beta and currently runs Python Telegram bots only." },
+      { error: "Hosting doesn't support this platform/language combination yet." },
       { status: 400 },
     );
   }
 
   const required = requiredSecretFor(project.platform);
 
-  // Fail fast if Fly isn't configured — BEFORE reserving a run slot below, so a
-  // config error can never strand the deployment in 'starting'.
+  // Fail fast if Fly (or this project's specific runner image) isn't
+  // configured — BEFORE reserving a run slot below, so a config error can
+  // never strand the deployment in 'starting'.
   let cfg: FlyConfig;
   try {
     cfg = flyConfig();
+    runnerImageFor(project.language);
   } catch {
     return NextResponse.json({ error: "Hosting isn't fully configured on the server yet." }, { status: 503 });
   }
@@ -103,7 +108,8 @@ export async function POST(req: Request, { params }: Ctx) {
   try {
     await launchMachine(admin, cfg, {
       projectId: id,
-      entry: project.entry || "main.py",
+      language: project.language,
+      entry: project.entry || defaultEntryFor(project.language),
       env,
       runToken,
       publicUrl,

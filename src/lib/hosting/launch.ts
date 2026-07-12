@@ -7,8 +7,9 @@
  * the caller has already verified ownership / reserved the run slot.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Language } from "../workspace/types";
 import { decryptSecret } from "./secrets";
-import { createRunMachine, destroyMachine, type FlyConfig } from "./fly";
+import { createRunMachine, destroyMachine, runnerImageFor, type FlyConfig } from "./fly";
 import { appendLogs, getDeployment, setRunning } from "./deployments";
 
 /**
@@ -31,9 +32,16 @@ export async function decryptProjectSecrets(
   return env;
 }
 
+/** The bot's entry file when a project doesn't specify one. */
+export function defaultEntryFor(language: Language): string {
+  return language === "node" ? "index.js" : "main.py";
+}
+
 export interface LaunchInput {
   projectId: string;
-  /** Entry file to exec, e.g. "main.py". */
+  /** Which runner image to launch on — picks python or node. */
+  language: Language;
+  /** Entry file to exec, e.g. "main.py" / "index.js". */
   entry: string;
   /** Decrypted bot secrets (e.g. TELEGRAM_TOKEN) to inject as real env vars. */
   env: Record<string, string>;
@@ -65,6 +73,7 @@ export async function launchMachine(admin: SupabaseClient, cfg: FlyConfig, input
 
   const machine = await createRunMachine(cfg, {
     name: `bot-${input.projectId.slice(0, 8)}-${Date.now().toString(36)}`,
+    image: runnerImageFor(input.language),
     env: {
       ...input.env,
       BOTFORGE_PUBLIC_URL: input.publicUrl,

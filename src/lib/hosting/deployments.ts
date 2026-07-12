@@ -10,11 +10,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { effectiveHostingPlan, hostingLimitsFor } from "../plan";
 import { getUserPlan } from "../subscription";
+import type { Language } from "../workspace/types";
 import type { DeploymentStatus } from "./types";
 import { destroyMachine, getMachineState, type FlyConfig, type FlyMachineState } from "./fly";
 import { globalMachineCeiling } from "./config";
 import { generateRunToken, hashRunToken } from "./runToken";
-import { decryptProjectSecrets, launchMachine } from "./launch";
+import { decryptProjectSecrets, defaultEntryFor, launchMachine } from "./launch";
 import { sendHostingBudgetEmail } from "../email";
 
 export interface DeploymentRow {
@@ -171,12 +172,14 @@ async function maybeAutoRestart(admin: SupabaseClient, cfg: FlyConfig, dep: Depl
   await appendLogs(admin, dep.project_id, [
     { stream: "system", line: `Auto-restarting after a crash (attempt ${attempt}/${MAX_AUTO_RESTARTS})…` },
   ]);
-  const { data: proj } = await admin.from("projects").select("entry").eq("id", dep.project_id).maybeSingle();
-  const entry = (proj as { entry: string | null } | null)?.entry || "main.py";
+  const { data: proj } = await admin.from("projects").select("entry, language").eq("id", dep.project_id).maybeSingle();
+  const projectRow = proj as { entry: string | null; language: Language } | null;
+  const language: Language = projectRow?.language ?? "python";
+  const entry = projectRow?.entry || defaultEntryFor(language);
 
   try {
     const env = await decryptProjectSecrets(admin, dep.project_id);
-    await launchMachine(admin, cfg, { projectId: dep.project_id, entry, env, runToken, publicUrl });
+    await launchMachine(admin, cfg, { projectId: dep.project_id, language, entry, env, runToken, publicUrl });
     return "running";
   } catch (e) {
     // Launch failed after reserving. Record it as another crash so the streak

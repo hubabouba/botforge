@@ -1,0 +1,11 @@
+# Same Fly app as the Python runner — one app owns Machines for BOTH
+# languages, distinguished only by image label at create-time (Machines don't
+# require a shared image, just a shared app). This file exists only so we can
+# build & push the Node runner image with `fly deploy --build-only --push`.
+#
+# Must match FLY_APP_NAME in Vercel (same value as infra/runners/python/fly.toml).
+app = "botforge-bots"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"

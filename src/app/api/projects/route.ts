@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getUserPlan } from "@/lib/subscription";
 import { projectLimit } from "@/lib/plan";
-import { fetchProjects } from "@/lib/workspace/serverStore";
+import { fetchProjectSummaries } from "@/lib/workspace/serverStore";
 
 export const runtime = "nodejs";
 
@@ -32,7 +32,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
   try {
-    return NextResponse.json({ projects: await fetchProjects(supabase) });
+    return NextResponse.json({ projects: await fetchProjectSummaries(supabase) });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message || "Failed to load projects." }, { status: 500 });
   }

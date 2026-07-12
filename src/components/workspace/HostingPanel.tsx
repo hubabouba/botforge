@@ -47,6 +47,12 @@ export function HostingPanel({ project }: { project: Project }) {
   const active = st === "starting" || st === "running" || st === "stopping";
   const required = status?.requiredSecret ?? "TELEGRAM_TOKEN";
   const secretSet = status?.secretNames.includes(required) ?? false;
+  const statusHint =
+    st === "crashed"
+      ? "The bot crashed — restarting it automatically…"
+      : st === "crash_looping"
+        ? "Auto-restart gave up after repeated crashes. Fix the error in the logs, then press Start."
+        : "";
 
   // Poll logs after the last-seen id while the panel is mounted.
   useEffect(() => {
@@ -148,6 +154,12 @@ export function HostingPanel({ project }: { project: Project }) {
           )}
         </div>
       </div>
+
+      {statusHint && (
+        <p className={cn("text-[12px] leading-relaxed", st === "crash_looping" ? "text-rose-300/90" : "text-amber-300/90")}>
+          {statusHint}
+        </p>
+      )}
 
       {err && (
         <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-300">{err}</div>

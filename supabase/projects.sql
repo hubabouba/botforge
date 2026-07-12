@@ -94,6 +94,34 @@ create trigger trg_touch_project_folders
   for each row execute function public.touch_project();
 
 -- ---------------------------------------------------------------------------
+-- Cap files per project at the DB level (matches the 200-file creation limit).
+-- One guard covers BOTH paths — the bulk create_project insert and the
+-- incremental "add file" route — and is race-free, unlike a per-request count
+-- in the API that two concurrent adds could each slip past.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.enforce_project_file_limit()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_max constant integer := 200;
+begin
+  if (select count(*) from public.project_files where project_id = new.project_id) >= v_max then
+    raise exception 'project_file_limit' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_enforce_project_file_limit on public.project_files;
+create trigger trg_enforce_project_file_limit
+  before insert on public.project_files
+  for each row execute function public.enforce_project_file_limit();
+
+-- ---------------------------------------------------------------------------
 -- Assemble a project (with its files & folders) as the JSON shape the client
 -- store expects: { id, name, platform, language, description, entry,
 --                  createdAt, updatedAt, files:[{path,content}], folders:[...] }.

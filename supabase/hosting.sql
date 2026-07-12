@@ -56,11 +56,13 @@ create table if not exists public.project_deployments (
 alter table public.project_deployments add column if not exists last_accrued_at timestamptz;
 
 create index if not exists project_deployments_user_id_idx on public.project_deployments (user_id);
--- The reconcile cron scans for active runs; tiny table today, but the predicate
--- is fixed and known, so index it now rather than after it hurts.
+-- The reconcile cron scans for active runs + 'crashed' rows awaiting an
+-- auto-restart; tiny table today, but the predicate is fixed and known, so
+-- index it now rather than after it hurts.
+drop index if exists project_deployments_active_idx;
 create index if not exists project_deployments_active_idx
   on public.project_deployments (status)
-  where status in ('starting', 'running', 'stopping');
+  where status in ('starting', 'running', 'stopping', 'crashed');
 
 -- Append-only log ring buffer. bigint identity id doubles as the poll cursor.
 create table if not exists public.project_logs (
@@ -400,6 +402,99 @@ end;
 $$;
 
 -- ===========================================================================
+-- attempt_auto_restart — the background twin of begin_project_run for crash
+-- recovery. Same transactional guards (platform + per-user advisory lock, global
+-- ceiling, concurrency cap, monthly budget), but:
+--   * caller identity is a PARAMETER (p_user_id), not auth.uid() — this runs
+--     from the reconcile cron / status poll under the service-role client, where
+--     auth.uid() is null;
+--   * it only ever revives a row that is exactly 'crashed' (never 'stopped' /
+--     'killed' / 'crash_looping' — a manual stop or an exhausted streak stays
+--     put), so it can only continue an in-progress crash streak;
+--   * it does NOT reset restart_count — the streak must survive the restart so
+--     the MAX_AUTO_RESTARTS cap is measurable.
+-- service_role only (like bump_hosting_usage): there's no auth.uid() ownership
+-- check here, so it must be unreachable from any browser session.
+--
+-- Return shape (jsonb): { "ok": true } | { "error": "concurrent_limit" |
+--   "global_ceiling" | "budget_exhausted" | "not_restartable" }
+-- ===========================================================================
+
+create or replace function public.attempt_auto_restart(
+  p_user_id                uuid,
+  p_project_id             uuid,
+  p_concurrent_limit       integer,
+  p_runtime_budget_seconds bigint,
+  p_run_token_hash         text,
+  p_global_ceiling         integer default -1
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_month   text := to_char((now() at time zone 'utc'), 'YYYY-MM');
+  v_running integer;
+  v_used    bigint;
+  v_dep     public.project_deployments;
+begin
+  perform pg_advisory_xact_lock(hashtext('botforge_hosting_start'));
+  perform pg_advisory_xact_lock(hashtext(p_user_id::text));
+
+  if p_global_ceiling is not null and p_global_ceiling >= 0 then
+    select count(*) into v_running
+    from public.project_deployments d
+    where d.status in ('starting', 'running', 'stopping')
+      and d.project_id <> p_project_id;
+    if v_running >= p_global_ceiling then
+      return jsonb_build_object('error', 'global_ceiling');
+    end if;
+  end if;
+
+  if p_concurrent_limit is not null and p_concurrent_limit >= 0 then
+    select count(*) into v_running
+    from public.project_deployments d
+    where d.user_id = p_user_id
+      and d.project_id <> p_project_id
+      and d.status in ('starting', 'running', 'stopping');
+    if v_running >= p_concurrent_limit then
+      return jsonb_build_object('error', 'concurrent_limit');
+    end if;
+  end if;
+
+  if p_runtime_budget_seconds is not null and p_runtime_budget_seconds >= 0 then
+    select coalesce(seconds_used, 0) into v_used
+    from public.hosting_usage
+    where user_id = p_user_id and month = v_month;
+    if coalesce(v_used, 0) >= p_runtime_budget_seconds then
+      return jsonb_build_object('error', 'budget_exhausted');
+    end if;
+  end if;
+
+  -- Continue the streak: flip to 'starting' ONLY from 'crashed', keeping
+  -- restart_count and last_crash_at (the WHERE also owner-scopes by p_user_id).
+  update public.project_deployments as d
+    set status                = 'starting',
+        run_token_hash        = p_run_token_hash,
+        last_start_attempt_at = now(),
+        last_started_at       = now(),
+        last_accrued_at       = now(),
+        updated_at            = now()
+  where d.project_id = p_project_id
+    and d.user_id    = p_user_id
+    and d.status     = 'crashed'
+  returning * into v_dep;
+
+  if v_dep.project_id is null then
+    return jsonb_build_object('error', 'not_restartable');
+  end if;
+
+  return jsonb_build_object('ok', true);
+end;
+$$;
+
+-- ===========================================================================
 -- Grants — signed-in users only; anon/public get nothing.
 -- ===========================================================================
 
@@ -412,6 +507,11 @@ revoke all on function public.trim_project_logs()                               
 -- paths) — no browser session may add or forge runtime charges.
 revoke all on function public.bump_hosting_usage(uuid, bigint)                        from public, anon, authenticated;
 grant execute on function public.bump_hosting_usage(uuid, bigint)                      to service_role;
+
+-- attempt_auto_restart takes the user id as a parameter (no auth.uid() ownership
+-- check), so it MUST be service-role only — never callable from a browser.
+revoke all on function public.attempt_auto_restart(uuid, uuid, integer, bigint, text, integer) from public, anon, authenticated;
+grant execute on function public.attempt_auto_restart(uuid, uuid, integer, bigint, text, integer) to service_role;
 
 revoke all on function public.set_project_secret(uuid, text, text, text, integer)   from public, anon;
 revoke all on function public.list_project_secret_names(uuid)                         from public, anon;

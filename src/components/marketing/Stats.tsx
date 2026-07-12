@@ -1,64 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/I18nProvider";
-
-/** Animated count-up that fires once when scrolled into view. */
-function CountUp({
-  to,
-  decimals = 0,
-  suffix = "",
-  duration = 1500,
-}: {
-  to: number;
-  decimals?: number;
-  suffix?: string;
-  duration?: number;
-}) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [val, setVal] = useState(0);
-  const started = useRef(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting && !started.current) {
-          started.current = true;
-          const start = performance.now();
-          const tick = (now: number) => {
-            const p = Math.min(1, (now - start) / duration);
-            const eased = 1 - Math.pow(1 - p, 3);
-            setVal(to * eased);
-            if (p < 1) requestAnimationFrame(tick);
-            else setVal(to);
-          };
-          requestAnimationFrame(tick);
-          io.disconnect();
-        }
-      },
-      { threshold: 0.4 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [to, duration]);
-
-  return (
-    <span ref={ref} className="font-mono">
-      {val.toFixed(decimals)}
-      {suffix}
-    </span>
-  );
-}
 
 export function Stats() {
   const { t } = useI18n();
+  // Honest capability highlights — real facts about the product, not invented
+  // usage metrics (a young product can't truthfully claim "500+ bots" or
+  // "99.9% uptime"). Values are brand/technical tokens (same in every
+  // language); only the labels are translated.
   const items = [
-    { node: <CountUp to={500} suffix="+" />, label: t("stat.bots") },
-    { node: <CountUp to={2} suffix="M+" />, label: t("stat.requests") },
-    { node: <CountUp to={99.9} decimals={1} suffix="%" />, label: t("stat.uptime") },
-    { node: <span className="font-mono">24/7</span>, label: t("stat.support") },
+    { node: <span className="font-display">Claude</span>, label: t("stat.assistant") },
+    { node: <span className="font-mono">24/7</span>, label: t("stat.hosting") },
+    { node: <span className="font-mono">AES-256</span>, label: t("stat.secrets") },
+    { node: <span className="font-mono">1-click</span>, label: t("stat.flow") },
   ];
 
   return (

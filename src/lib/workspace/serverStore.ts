@@ -11,6 +11,12 @@ import type { StoredProject } from "./store";
 export const PROJECT_SELECT =
   "id, name, platform, language, description, entry, created_at, updated_at, project_files(path, content), project_folders(path)";
 
+// Lightweight list select: file PATHS only, no contents. The dashboard list
+// needs the file *count* (project.files.length), never the bodies — pulling
+// every file's full text just to render cards was pure over-fetch.
+export const PROJECT_LIST_SELECT =
+  "id, name, platform, language, description, entry, created_at, updated_at, project_files(path), project_folders(path)";
+
 interface ProjectRow {
   id: string;
   name: string;
@@ -32,18 +38,23 @@ export function mapRow(row: ProjectRow): StoredProject {
     language: row.language as StoredProject["language"],
     description: row.description ?? "",
     entry: row.entry ?? "",
-    files: (row.project_files ?? []).map((f) => ({ path: f.path, content: f.content })),
+    // content is absent in the lightweight list select — default to "".
+    files: (row.project_files ?? []).map((f) => ({ path: f.path, content: f.content ?? "" })),
     folders: (row.project_folders ?? []).map((f) => f.path),
     createdAt: new Date(row.created_at).getTime(),
     updatedAt: new Date(row.updated_at).getTime(),
   };
 }
 
-/** All of the signed-in user's projects, newest first. */
-export async function fetchProjects(supabase: SupabaseClient): Promise<StoredProject[]> {
+/**
+ * All of the signed-in user's projects as lightweight summaries (file paths but
+ * no contents), newest first — for the dashboard list. `content` is returned as
+ * "" so the existing StoredProject shape (and `files.length`) still works.
+ */
+export async function fetchProjectSummaries(supabase: SupabaseClient): Promise<StoredProject[]> {
   const { data, error } = await supabase
     .from("projects")
-    .select(PROJECT_SELECT)
+    .select(PROJECT_LIST_SELECT)
     .order("updated_at", { ascending: false });
   if (error) throw error;
   return (data as unknown as ProjectRow[]).map(mapRow);

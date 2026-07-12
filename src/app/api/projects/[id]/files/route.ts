@@ -88,6 +88,11 @@ export async function POST(req: Request, { params }: Ctx) {
     }
     return NextResponse.json({ project: await fetchProject(supabase, id) });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message || "File operation failed." }, { status: 500 });
+    const message = (e as Error).message || "File operation failed.";
+    // The DB trigger caps files per project — surface it as an honest 400.
+    if (message.includes("project_file_limit")) {
+      return NextResponse.json({ error: "This project has reached its 200-file limit." }, { status: 400 });
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

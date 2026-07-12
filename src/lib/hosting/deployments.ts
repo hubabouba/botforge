@@ -11,6 +11,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { hostingLimitsFor } from "../plan";
 import type { DeploymentStatus } from "./types";
 import { destroyMachine, getMachineState, type FlyConfig, type FlyMachineState } from "./fly";
+import { globalMachineCeiling } from "./config";
+import { generateRunToken, hashRunToken } from "./runToken";
+import { decryptProjectSecrets, launchMachine } from "./launch";
 
 export interface DeploymentRow {
   project_id: string;
@@ -31,12 +34,17 @@ export interface DeploymentRow {
 const COLS =
   "project_id, user_id, status, provider_machine_id, region, restart_count, run_token_hash, last_start_attempt_at, last_started_at, last_stopped_at, last_crash_at, last_accrued_at, updated_at";
 
-/** Every row currently occupying a machine slot — the reconcile cron's work list. */
+/**
+ * Rows the reconcile cron must visit: those occupying a machine slot, PLUS
+ * 'crashed' ones awaiting an auto-restart attempt (a bot nobody is watching
+ * would otherwise never get restarted, since the lazy path only fires when its
+ * owner has the panel open).
+ */
 export async function getActiveDeployments(admin: SupabaseClient): Promise<DeploymentRow[]> {
   const { data } = await admin
     .from("project_deployments")
     .select(COLS)
-    .in("status", ["starting", "running", "stopping"]);
+    .in("status", ["starting", "running", "stopping", "crashed"]);
   return (data as DeploymentRow[] | null) ?? [];
 }
 
@@ -71,18 +79,106 @@ export async function setStopped(admin: SupabaseClient, projectId: string, statu
     .eq("project_id", projectId);
 }
 
-/** The bot process exited on its own — record as a crash (restart is manual in v1). */
-export async function recordCrash(admin: SupabaseClient, projectId: string, restartCount: number): Promise<void> {
+// Crashes closer together than this window are one "streak"; a gap longer than
+// the window starts a fresh streak (an isolated crash after days of uptime
+// shouldn't inherit an old count). Manual Start resets the count to 0 outright
+// (begin_project_run).
+const CRASH_WINDOW_MS = 10 * 60_000;
+/** Auto-restart attempts per streak before giving up as crash_looping. */
+export const MAX_AUTO_RESTARTS = 3;
+
+/**
+ * The bot process exited on its own. Within a streak restart_count climbs by 1
+ * per crash; once it passes MAX_AUTO_RESTARTS the deployment goes terminal
+ * 'crash_looping' — auto-restart stops and only a manual Start revives it.
+ * Returns the status it wrote so callers can report it without a re-read.
+ */
+export async function recordCrash(admin: SupabaseClient, dep: DeploymentRow): Promise<DeploymentStatus> {
+  const withinWindow = dep.last_crash_at !== null && Date.now() - Date.parse(dep.last_crash_at) < CRASH_WINDOW_MS;
+  const nextCount = withinWindow ? dep.restart_count + 1 : 1;
+  const looping = nextCount > MAX_AUTO_RESTARTS;
+  const status: DeploymentStatus = looping ? "crash_looping" : "crashed";
   await admin
     .from("project_deployments")
     .update({
-      status: "crashed",
+      status,
       last_crash_at: new Date().toISOString(),
-      restart_count: restartCount + 1,
+      restart_count: nextCount,
       run_token_hash: null,
       updated_at: new Date().toISOString(),
     })
-    .eq("project_id", projectId);
+    .eq("project_id", dep.project_id);
+  if (looping) {
+    await appendLogs(admin, dep.project_id, [
+      {
+        stream: "system",
+        line: `Auto-restart gave up after ${MAX_AUTO_RESTARTS} attempts in a row. Fix the error above, then press Start.`,
+      },
+    ]);
+  }
+  return status;
+}
+
+// Wait before each auto-restart, indexed by the streak position about to be
+// retried (restart_count is 1-based and already counts the crash that just
+// happened). Growing gaps stop a fast crash-loop from hammering Fly / the budget.
+const RESTART_BACKOFF_MS = [15_000, 60_000, 180_000];
+
+/**
+ * A 'crashed' deployment is a pending auto-restart. Once its backoff has
+ * elapsed, atomically re-reserve the run (re-checking concurrency, budget and
+ * the global ceiling — WITHOUT resetting the streak counter) and relaunch. Any
+ * refusal (budget/ceiling gone, plan dropped hosting) just leaves it 'crashed'
+ * for the user to Start manually. Never throws: it's called from reconcile.
+ */
+async function maybeAutoRestart(admin: SupabaseClient, cfg: FlyConfig, dep: DeploymentRow): Promise<DeploymentStatus> {
+  const attempt = dep.restart_count; // 1..MAX_AUTO_RESTARTS (past that recordCrash wrote crash_looping)
+  if (attempt < 1 || attempt > MAX_AUTO_RESTARTS) return dep.status;
+
+  const backoff = RESTART_BACKOFF_MS[attempt - 1] ?? RESTART_BACKOFF_MS[RESTART_BACKOFF_MS.length - 1];
+  const since = dep.last_crash_at ? Date.parse(dep.last_crash_at) : 0;
+  if (Date.now() - since < backoff) return dep.status; // too soon — a later reconcile pass retries
+
+  // Out-of-band (cron / a background reconcile) has no request origin, so the
+  // machine's callback URL must come from env. Without it we can't launch.
+  const publicUrl = (process.env.BOTFORGE_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicUrl) return dep.status;
+
+  const { data: userData } = await admin.auth.admin.getUserById(dep.user_id);
+  const email = userData?.user?.email ?? null;
+  const limits = hostingLimitsFor(email);
+  if (limits.concurrent <= 0) return dep.status; // plan no longer includes hosting
+
+  const runToken = generateRunToken();
+  const { data: reserve, error } = await admin.rpc("attempt_auto_restart", {
+    p_user_id: dep.user_id,
+    p_project_id: dep.project_id,
+    p_concurrent_limit: limits.concurrent,
+    p_runtime_budget_seconds: limits.budgetSeconds,
+    p_run_token_hash: hashRunToken(runToken),
+    p_global_ceiling: globalMachineCeiling(),
+  });
+  if (error) return dep.status;
+  if (!(reserve as { ok?: boolean } | null)?.ok) return dep.status; // budget/ceiling/not-crashed → stay put
+
+  // Reserved: status is now 'starting'. Relaunch the machine.
+  await appendLogs(admin, dep.project_id, [
+    { stream: "system", line: `Auto-restarting after a crash (attempt ${attempt}/${MAX_AUTO_RESTARTS})…` },
+  ]);
+  const { data: proj } = await admin.from("projects").select("entry").eq("id", dep.project_id).maybeSingle();
+  const entry = (proj as { entry: string | null } | null)?.entry || "main.py";
+
+  try {
+    const env = await decryptProjectSecrets(admin, dep.project_id);
+    await launchMachine(admin, cfg, { projectId: dep.project_id, entry, env, runToken, publicUrl });
+    return "running";
+  } catch (e) {
+    // Launch failed after reserving. Record it as another crash so the streak
+    // advances toward the cap instead of stranding in 'starting'. dep still
+    // holds the pre-reserve counter/timestamp, exactly what recordCrash needs.
+    await appendLogs(admin, dep.project_id, [{ stream: "system", line: `Auto-restart failed: ${(e as Error).message}` }]);
+    return recordCrash(admin, dep);
+  }
 }
 
 /**
@@ -121,6 +217,9 @@ export async function reconcileWithFly(
   cfg: FlyConfig,
   dep: DeploymentRow,
 ): Promise<DeploymentStatus> {
+  // 'crashed' isn't a machine state to reconcile — it's a pending auto-restart.
+  if (dep.status === "crashed") return maybeAutoRestart(admin, cfg, dep);
+
   if (dep.status !== "starting" && dep.status !== "running" && dep.status !== "stopping") return dep.status;
 
   if (!dep.provider_machine_id) {
@@ -129,8 +228,7 @@ export async function reconcileWithFly(
     // user isn't stuck with "already running" forever.
     const attempted = dep.last_start_attempt_at ? Date.parse(dep.last_start_attempt_at) : 0;
     if (dep.status === "starting" && Date.now() - attempted > 3 * 60_000) {
-      await recordCrash(admin, dep.project_id, dep.restart_count);
-      return "crashed";
+      return recordCrash(admin, dep);
     }
     return dep.status;
   }
@@ -144,8 +242,8 @@ export async function reconcileWithFly(
 
   const next = mapFlyState(dep.status, state);
   if (next && next !== dep.status) {
-    if (next === "crashed") await recordCrash(admin, dep.project_id, dep.restart_count);
-    else await setStopped(admin, dep.project_id, next);
+    if (next === "crashed") return recordCrash(admin, dep);
+    await setStopped(admin, dep.project_id, next);
     return next;
   }
 

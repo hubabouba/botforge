@@ -36,9 +36,9 @@ export async function POST(req: Request) {
     await setStopped(admin, dep.project_id, "stopped");
   } else if (dep.status === "running" || dep.status === "starting") {
     await appendLogs(admin, dep.project_id, [
-      { stream: "system", line: `Bot stopped unexpectedly (exit ${parsed.data.code}). Press Start to run it again.` },
+      { stream: "system", line: `Bot stopped unexpectedly (exit ${parsed.data.code}).` },
     ]);
-    await recordCrash(admin, dep.project_id, dep.restart_count);
+    await recordCrash(admin, dep);
   }
 
   return NextResponse.json({ ok: true });

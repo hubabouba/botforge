@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
-  const plan = await getUserPlan(supabase, user);
+  const plan = await getUserPlan(supabase, user.id, user.email);
   const spec = parsed.data;
 
   const { data, error } = await supabase.rpc("create_project", {

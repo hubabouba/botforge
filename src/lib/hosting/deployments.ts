@@ -8,7 +8,8 @@
  * client / begin_project_run before calling here.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { hostingLimitsFor } from "../plan";
+import { effectiveHostingPlan, hostingLimitsFor } from "../plan";
+import { getUserPlan } from "../subscription";
 import type { DeploymentStatus } from "./types";
 import { destroyMachine, getMachineState, type FlyConfig, type FlyMachineState } from "./fly";
 import { globalMachineCeiling } from "./config";
@@ -147,7 +148,11 @@ async function maybeAutoRestart(admin: SupabaseClient, cfg: FlyConfig, dep: Depl
 
   const { data: userData } = await admin.auth.admin.getUserById(dep.user_id);
   const email = userData?.user?.email ?? null;
-  const limits = hostingLimitsFor(email);
+  // The real plan (env allow-list OR the Stripe-backed subscriptions table —
+  // `admin` bypasses RLS, so this can resolve any user's row), not just the
+  // allow-list a background path used to be limited to.
+  const plan = effectiveHostingPlan(await getUserPlan(admin, dep.user_id, email), email);
+  const limits = hostingLimitsFor(plan);
   if (limits.concurrent <= 0) return dep.status; // plan no longer includes hosting
 
   const runToken = generateRunToken();
@@ -298,7 +303,8 @@ async function stopIfOverBudget(
 ): Promise<boolean> {
   const { data } = await admin.auth.admin.getUserById(dep.user_id);
   const email = data?.user?.email ?? null;
-  const { budgetSeconds } = hostingLimitsFor(email);
+  const plan = effectiveHostingPlan(await getUserPlan(admin, dep.user_id, email), email);
+  const { budgetSeconds } = hostingLimitsFor(plan);
   if (budgetSeconds < 0 || monthTotalSeconds < budgetSeconds) return false;
 
   if (dep.provider_machine_id) {

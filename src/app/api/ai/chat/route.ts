@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const plan = await getUserPlan(supabase, user);
+  const plan = await getUserPlan(supabase, user.id, user.email);
   const provider = providerForPlan(plan);
 
   // Guard: the chosen provider must be configured.

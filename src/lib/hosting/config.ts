@@ -6,7 +6,7 @@
  * With the flag unset the control-plane routes 503 and no UI surfaces a run
  * control — so incomplete hosting work can merge and deploy safely.
  */
-import { isHostingBetaEmail } from "../plan";
+import { planAllows, type Plan } from "../plan";
 import { hostingSecretsConfigured } from "./secrets";
 
 /** Master kill-switch for bot hosting. Everything is inert until this is true. */
@@ -24,13 +24,13 @@ export function hostingOperational(): boolean {
 }
 
 /**
- * Stage 1 access gate: hosting must be operational AND the account must be on
- * the private-beta allow-list. This intentionally replaces the plan check during
- * the beta so the first real runs happen only against the owner's own account.
- * Stage 2 swaps this for the real plan capability check (`hosting.run`).
+ * The real access gate: hosting must be operational AND the account's plan
+ * must unlock `hosting.run` (Basic+). Callers resolve the effective plan first
+ * — `await getUserPlan(...)` then `effectiveHostingPlan(plan, email)` — and
+ * pass the result here; this stays a pure sync check so it's trivial to test.
  */
-export function hostingAccessAllowed(email?: string | null): boolean {
-  return hostingOperational() && isHostingBetaEmail(email);
+export function hostingAccessAllowed(plan: Plan): boolean {
+  return hostingOperational() && planAllows(plan, "hosting.run");
 }
 
 /**

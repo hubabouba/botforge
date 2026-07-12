@@ -92,7 +92,7 @@ export function LogsPanel({
   hostingAvailable: boolean;
   onRun: () => void;
 }) {
-  // Beta accounts get the real hosting control; everyone else keeps the honest
+  // Basic+ accounts get the real hosting control; everyone else keeps the honest
   // "run locally" path (also a good fallback if hosting ever has an incident).
   if (hostingAvailable) {
     return (

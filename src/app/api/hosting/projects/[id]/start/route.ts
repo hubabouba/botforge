@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchProject } from "@/lib/workspace/serverStore";
-import { hostingLimitsFor } from "@/lib/plan";
+import { getUserPlan } from "@/lib/subscription";
+import { effectiveHostingPlan, hostingLimitsFor } from "@/lib/plan";
 import { globalMachineCeiling, hostingAccessAllowed } from "@/lib/hosting/config";
 import { generateRunToken, hashRunToken } from "@/lib/hosting/runToken";
 import { flyConfig, type FlyConfig } from "@/lib/hosting/fly";
@@ -24,8 +25,12 @@ export async function POST(req: Request, { params }: Ctx) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  if (!hostingAccessAllowed(user.email)) {
-    return NextResponse.json({ error: "Bot hosting isn't available on your account yet." }, { status: 403 });
+
+  // Resolve once, reuse for both the access gate and the concurrency/budget
+  // limits below — a single source of truth so they can never disagree.
+  const plan = effectiveHostingPlan(await getUserPlan(supabase, user.id, user.email), user.email);
+  if (!hostingAccessAllowed(plan)) {
+    return NextResponse.json({ error: "Bot hosting isn't included in your plan." }, { status: 403 });
   }
 
   // Ownership + shape via the RLS client.
@@ -64,13 +69,9 @@ export async function POST(req: Request, { params }: Ctx) {
     return NextResponse.json({ error: `Set a ${required} first.`, code: "missing_secret", required }, { status: 400 });
   }
 
-  // Real plan limits (hostingLimitsFor also grants beta testers on the free
-  // plan Basic numbers, so the allowlist can't zero itself out), plus the
-  // platform-wide machine ceiling — all enforced atomically inside the RPC.
-  const limits = hostingLimitsFor(user.email);
-  if (limits.concurrent <= 0) {
-    return NextResponse.json({ error: "Bot hosting isn't included in your plan." }, { status: 403 });
-  }
+  // Real plan limits (from the same `plan` the access gate already checked),
+  // plus the platform-wide machine ceiling — all enforced atomically in the RPC.
+  const limits = hostingLimitsFor(plan);
   const runToken = generateRunToken();
   const { data: reserve, error: rpcError } = await supabase.rpc("begin_project_run", {
     p_project_id: id,

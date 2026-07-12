@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hostingLimitsFor } from "@/lib/plan";
+import { getUserPlan } from "@/lib/subscription";
+import { effectiveHostingPlan, hostingLimitsFor } from "@/lib/plan";
 import { hostingAccessAllowed } from "@/lib/hosting/config";
 import { flyConfig, type FlyConfig } from "@/lib/hosting/fly";
 import { getDeployment, reconcileWithFly } from "@/lib/hosting/deployments";
@@ -22,7 +23,8 @@ export async function GET(_req: Request, { params }: Ctx) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  if (!hostingAccessAllowed(user.email)) {
+  const plan = effectiveHostingPlan(await getUserPlan(supabase, user.id, user.email), user.email);
+  if (!hostingAccessAllowed(plan)) {
     return NextResponse.json({ error: "Bot hosting isn't available on your account yet." }, { status: 403 });
   }
 
@@ -61,7 +63,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     .eq("month", month)
     .maybeSingle();
   const usedSeconds = Number((usageRow as { seconds_used: number } | null)?.seconds_used ?? 0);
-  const { budgetSeconds } = hostingLimitsFor(user.email);
+  const { budgetSeconds } = hostingLimitsFor(plan);
 
   const view: DeploymentView = {
     status,

@@ -6,6 +6,7 @@ import {
   hostingConcurrentLimit,
   hostingRuntimeBudgetSeconds,
   hostingLimitsFor,
+  effectiveHostingPlan,
   getPlan,
 } from "@/lib/plan";
 
@@ -46,7 +47,7 @@ describe("per-plan numeric caps", () => {
   });
 });
 
-describe("getPlan / hostingLimitsFor (env allow-lists)", () => {
+describe("getPlan (env allow-lists)", () => {
   const ORIGINAL = process.env;
   afterEach(() => {
     process.env = ORIGINAL;
@@ -59,23 +60,37 @@ describe("getPlan / hostingLimitsFor (env allow-lists)", () => {
     expect(getPlan("nobody@x.com")).toBe("free");
     expect(getPlan(null)).toBe("free");
   });
+});
 
-  it("a beta-allowlisted free user still gets Basic hosting limits (allow-list can't zero itself out)", () => {
-    process.env = { ...ORIGINAL, HOSTING_BETA_EMAILS: "beta@x.com", BOTFORGE_PRO_EMAILS: "", BOTFORGE_BASIC_EMAILS: "" };
-    const limits = hostingLimitsFor("beta@x.com");
-    expect(limits.concurrent).toBe(1);
-    expect(limits.budgetSeconds).toBe(100 * 3600);
+describe("effectiveHostingPlan (HOSTING_BETA_EMAILS override)", () => {
+  const ORIGINAL = process.env;
+  afterEach(() => {
+    process.env = ORIGINAL;
   });
 
-  it("a real Pro subscriber keeps Pro hosting limits", () => {
-    process.env = { ...ORIGINAL, BOTFORGE_PRO_EMAILS: "pro@x.com" };
-    const limits = hostingLimitsFor("pro@x.com");
-    expect(limits.concurrent).toBe(3);
-    expect(limits.budgetSeconds).toBe(400 * 3600);
+  it("bumps a beta-listed free account to basic (can't be zeroed out)", () => {
+    process.env = { ...ORIGINAL, HOSTING_BETA_EMAILS: "beta@x.com" };
+    expect(effectiveHostingPlan("free", "beta@x.com")).toBe("basic");
   });
 
-  it("a non-beta free user gets zero hosting", () => {
-    process.env = { ...ORIGINAL, HOSTING_BETA_EMAILS: "", BOTFORGE_PRO_EMAILS: "", BOTFORGE_BASIC_EMAILS: "" };
-    expect(hostingLimitsFor("free@x.com").concurrent).toBe(0);
+  it("never touches a real paid plan", () => {
+    process.env = { ...ORIGINAL, HOSTING_BETA_EMAILS: "pro@x.com" };
+    expect(effectiveHostingPlan("pro", "pro@x.com")).toBe("pro");
+  });
+
+  it("leaves a non-listed free account at free", () => {
+    process.env = { ...ORIGINAL, HOSTING_BETA_EMAILS: "" };
+    expect(effectiveHostingPlan("free", "nobody@x.com")).toBe("free");
+  });
+});
+
+describe("hostingLimitsFor (resolved plan → concurrency/budget pair)", () => {
+  it("free gets zero hosting", () => {
+    expect(hostingLimitsFor("free").concurrent).toBe(0);
+  });
+
+  it("basic/pro match HOSTING_CONCURRENT_RUNS / HOSTING_MONTHLY_RUNTIME_HOURS", () => {
+    expect(hostingLimitsFor("basic")).toEqual({ concurrent: 1, budgetSeconds: 100 * 3600 });
+    expect(hostingLimitsFor("pro")).toEqual({ concurrent: 3, budgetSeconds: 400 * 3600 });
   });
 });

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { getUserPlan } from "@/lib/subscription";
+import { effectiveHostingPlan } from "@/lib/plan";
 import { hostingAccessAllowed } from "@/lib/hosting/config";
 import { encryptSecret } from "@/lib/hosting/secrets";
 
@@ -25,7 +27,8 @@ export async function POST(req: Request, { params }: Ctx) {
   const { id } = await params;
   const { supabase, user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  if (!hostingAccessAllowed(user.email)) {
+  const plan = effectiveHostingPlan(await getUserPlan(supabase, user.id, user.email), user.email);
+  if (!hostingAccessAllowed(plan)) {
     return NextResponse.json({ error: "Bot hosting isn't available on your account yet." }, { status: 403 });
   }
 
@@ -55,7 +58,8 @@ export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
   const { supabase, user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  if (!hostingAccessAllowed(user.email)) {
+  const plan = effectiveHostingPlan(await getUserPlan(supabase, user.id, user.email), user.email);
+  if (!hostingAccessAllowed(plan)) {
     return NextResponse.json({ error: "Bot hosting isn't available on your account yet." }, { status: 403 });
   }
 
@@ -72,7 +76,8 @@ export async function DELETE(req: Request, { params }: Ctx) {
   const { id } = await params;
   const { supabase, user } = await requireUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  if (!hostingAccessAllowed(user.email)) {
+  const plan = effectiveHostingPlan(await getUserPlan(supabase, user.id, user.email), user.email);
+  if (!hostingAccessAllowed(plan)) {
     return NextResponse.json({ error: "Bot hosting isn't available on your account yet." }, { status: 403 });
   }
 

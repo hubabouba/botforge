@@ -6,17 +6,23 @@
  *   2. The `subscriptions` table (written by the Stripe webhook).
  *   3. Free.
  *
- * Reads the user's own row via RLS with the normal server client, so no
- * service-role key is needed on the read path.
+ * Takes an id/email pair rather than a full `User` so it works with EITHER the
+ * RLS-scoped server client (a signed-in request, reading only the caller's own
+ * row) or the service-role admin client (background reconcile code resolving
+ * some OTHER user's plan by id — admin bypasses RLS, so this is the only way
+ * those paths can honor a real Stripe subscription instead of just env allow-lists).
  */
 import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { User } from "@supabase/supabase-js";
 import { getPlan, type Plan } from "./plan";
 
-export async function getUserPlan(supabase: SupabaseClient, user: User): Promise<Plan> {
+export async function getUserPlan(
+  supabase: SupabaseClient,
+  userId: string,
+  email?: string | null,
+): Promise<Plan> {
   // 1. Owner/test overrides win.
-  const envPlan = getPlan(user.email);
+  const envPlan = getPlan(email);
   if (envPlan !== "free") return envPlan;
 
   // 2. Subscription record from Stripe.
@@ -24,7 +30,7 @@ export async function getUserPlan(supabase: SupabaseClient, user: User): Promise
     const { data, error } = await supabase
       .from("subscriptions")
       .select("plan, status, current_period_end")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle();
     if (error) throw error;
 

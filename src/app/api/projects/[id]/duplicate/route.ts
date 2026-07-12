@@ -16,7 +16,7 @@ export async function POST(_req: Request, { params }: Ctx) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-  const plan = await getUserPlan(supabase, user);
+  const plan = await getUserPlan(supabase, user.id, user.email);
   const limit = projectLimit(plan);
 
   const { data, error } = await supabase.rpc("duplicate_project", {

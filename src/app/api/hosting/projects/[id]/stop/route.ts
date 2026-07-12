@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { hostingAccessAllowed } from "@/lib/hosting/config";
+import { hostingOperational } from "@/lib/hosting/config";
 import { flyConfig, destroyMachine } from "@/lib/hosting/fly";
 import { setStopped, appendLogs } from "@/lib/hosting/deployments";
 
@@ -17,8 +17,12 @@ export async function POST(_req: Request, { params }: Ctx) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
-  if (!hostingAccessAllowed(user.email)) {
-    return NextResponse.json({ error: "Bot hosting isn't available on your account yet." }, { status: 403 });
+  // Deliberately NOT plan-gated: a user must always be able to stop their own
+  // bot even if their subscription has since lapsed — losing hosting access
+  // shouldn't mean losing the ability to turn off what's still running. RLS
+  // below already scopes this to the caller's own deployment row.
+  if (!hostingOperational()) {
+    return NextResponse.json({ error: "Hosting isn't available right now." }, { status: 503 });
   }
 
   // RLS read: only the owner sees their deployment row.

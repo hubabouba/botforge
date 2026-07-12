@@ -56,7 +56,7 @@ fly tokens create org
 | --- | --- |
 | `HOSTING_ENABLED` | `true` |
 | `HOSTING_SECRETS_KEY` | output of `openssl rand -base64 32` (generate once) |
-| `HOSTING_BETA_EMAILS` | your account email (private beta allow-list) |
+| `HOSTING_BETA_EMAILS` | your account email (Basic-tier override for free-plan testing — see below) |
 | `FLY_API_TOKEN` | the `FlyV1 …` token from step 3 |
 | `FLY_APP_NAME` | `botforge-bots` |
 | `FLY_RUNNER_IMAGE_PYTHON` | `registry.fly.io/botforge-bots:python` |
@@ -65,8 +65,12 @@ fly tokens create org
 | `CRON_SECRET` | output of `openssl rand -base64 32` — auth for the reconcile cron (Stage 2) |
 | `HOSTING_GLOBAL_MACHINE_CEILING` | max active Machines across ALL users (optional; defaults to 20, `-1` = unlimited) |
 
-Redeploy Vercel after setting these. Until `HOSTING_ENABLED=true` **and** your
-email is in `HOSTING_BETA_EMAILS`, the feature stays completely dark.
+Redeploy Vercel after setting these. Until `HOSTING_ENABLED=true`, the feature
+stays completely dark for everyone. Once it's on, access itself is a real plan
+check — any Basic or Pro account can start a hosted run. `HOSTING_BETA_EMAILS`
+is only an override so your own account can test hosting on a free plan
+without a real Stripe subscription (it gets Basic's concurrency/budget numbers
+instead of Free's zero).
 
 ## Reconcile cron (Stage 2)
 

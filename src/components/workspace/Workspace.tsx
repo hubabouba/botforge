@@ -287,11 +287,32 @@ export function Workspace({ projectId }: { projectId: string }) {
   const activeFile = project.files.find((f) => f.path === activePath) ?? project.files[0];
 
   return (
-    <div className="forge dark relative flex h-screen flex-col overflow-hidden bg-[#0A0B0F] text-neutral-200">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 -z-[1] h-64 bg-[radial-gradient(60%_100%_at_50%_0%,rgba(99,102,241,0.14),transparent_70%)]"
-      />
+    <>
+      {/* Below `md` the file tree and assistant chat both disappear (see their
+          own `md:block`/`lg:block`), leaving a bare editor with no explanation.
+          Show an honest message instead of that silently-broken layout. */}
+      <div className="forge dark grid h-screen place-items-center bg-[#0A0B0F] px-6 text-center md:hidden">
+        <div className="max-w-sm">
+          <Logo className="mx-auto h-8 w-8 opacity-70" />
+          <h1 className="mt-4 font-display text-lg font-semibold text-white">Open on a bigger screen</h1>
+          <p className="mt-1 text-sm text-white/50">
+            The code editor needs more room than a phone screen — the file tree and assistant chat need space too.
+            Open this project on a tablet or desktop.
+          </p>
+          <Link
+            href="/dashboard"
+            className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-4 py-2 text-sm font-medium text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.9)] transition-transform hover:-translate-y-0.5"
+          >
+            Back to dashboard
+          </Link>
+        </div>
+      </div>
+
+      <div className="forge dark relative hidden h-screen flex-col overflow-hidden bg-[#0A0B0F] text-neutral-200 md:flex">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 -z-[1] h-64 bg-[radial-gradient(60%_100%_at_50%_0%,rgba(99,102,241,0.14),transparent_70%)]"
+        />
       <TopBar
         project={project}
         status={status}
@@ -401,14 +422,15 @@ export function Workspace({ projectId }: { projectId: string }) {
 
       {runOpen && <RunGuideModal project={project} onClose={() => setRunOpen(false)} />}
 
-      {upgrade && (
-        <UpgradeModal
-          current={plan}
-          highlight={upgrade.highlight}
-          reason={upgrade.reason}
-          onClose={() => setUpgrade(null)}
-        />
-      )}
-    </div>
+        {upgrade && (
+          <UpgradeModal
+            current={plan}
+            highlight={upgrade.highlight}
+            reason={upgrade.reason}
+            onClose={() => setUpgrade(null)}
+          />
+        )}
+      </div>
+    </>
   );
 }

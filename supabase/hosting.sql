@@ -104,21 +104,21 @@ alter table public.hosting_usage       enable row level security;
 drop policy if exists "read own deployments" on public.project_deployments;
 create policy "read own deployments"
   on public.project_deployments for select
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 -- project_logs: owner may read their logs (join back to projects, like
 -- project_files). Inserts come from the internal logs route (admin client).
 drop policy if exists "read own logs" on public.project_logs;
 create policy "read own logs"
   on public.project_logs for select
-  using (exists (select 1 from public.projects p where p.id = project_logs.project_id and p.user_id = auth.uid()));
+  using (exists (select 1 from public.projects p where p.id = project_logs.project_id and p.user_id = (select auth.uid())));
 
 -- hosting_usage: owner may read their budget (for a "used X of Y hours" UI).
 -- Writes happen only via the reconcile job (admin client).
 drop policy if exists "read own hosting usage" on public.hosting_usage;
 create policy "read own hosting usage"
   on public.hosting_usage for select
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 -- ===========================================================================
 -- Log ring-buffer trim — keep only the newest N lines per project.

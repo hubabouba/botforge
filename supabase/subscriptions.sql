@@ -19,4 +19,4 @@ alter table public.subscriptions enable row level security;
 drop policy if exists "read own subscription" on public.subscriptions;
 create policy "read own subscription"
   on public.subscriptions for select
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);

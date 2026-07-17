@@ -17,7 +17,7 @@ alter table public.ai_usage enable row level security;
 drop policy if exists "read own ai usage" on public.ai_usage;
 create policy "read own ai usage"
   on public.ai_usage for select
-  using (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id);
 
 -- Atomic "check limit and increment" for the calling user (auth.uid()).
 -- Returns the new count for today, or -1 when the daily limit is reached.

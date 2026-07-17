@@ -52,20 +52,20 @@ alter table public.project_folders enable row level security;
 drop policy if exists "own projects" on public.projects;
 create policy "own projects"
   on public.projects for all
-  using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
 
 drop policy if exists "own project files" on public.project_files;
 create policy "own project files"
   on public.project_files for all
-  using (exists (select 1 from public.projects p where p.id = project_files.project_id and p.user_id = auth.uid()))
-  with check (exists (select 1 from public.projects p where p.id = project_files.project_id and p.user_id = auth.uid()));
+  using (exists (select 1 from public.projects p where p.id = project_files.project_id and p.user_id = (select auth.uid())))
+  with check (exists (select 1 from public.projects p where p.id = project_files.project_id and p.user_id = (select auth.uid())));
 
 drop policy if exists "own project folders" on public.project_folders;
 create policy "own project folders"
   on public.project_folders for all
-  using (exists (select 1 from public.projects p where p.id = project_folders.project_id and p.user_id = auth.uid()))
-  with check (exists (select 1 from public.projects p where p.id = project_folders.project_id and p.user_id = auth.uid()));
+  using (exists (select 1 from public.projects p where p.id = project_folders.project_id and p.user_id = (select auth.uid())))
+  with check (exists (select 1 from public.projects p where p.id = project_folders.project_id and p.user_id = (select auth.uid())));
 
 -- ---------------------------------------------------------------------------
 -- Keep projects.updated_at honest whenever files/folders change (any write path).

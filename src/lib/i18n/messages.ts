@@ -255,6 +255,20 @@ const en: Dict = {
   "tree.explorer": "Explorer",
   "tree.newFile": "New file",
   "tree.newFolder": "New folder",
+  "tree.filePlaceholder": "path/to/file.py",
+  "tree.folderPlaceholder": "folder-name",
+  "tree.clickAgainToDelete": "Click again to delete",
+  "tree.fileOpFailed": "That change didn't save — check your connection and try again.",
+
+  // ---- Shared / misc (debug-sweep additions) ----
+  "common.close": "Close",
+  "dev.earlyPreview": "Early preview",
+  "dev.underDevelopment": "Botforge is under active development — some features aren’t live yet.",
+  "dev.dismiss": "Dismiss",
+  "settings.language": "Interface language",
+  "hosting.couldntStop": "Couldn't stop the bot.",
+  "hosting.couldntDeleteToken": "Couldn't remove the token.",
+  "chat.preparedChanges": "Prepared changes to {n} {files}.",
 
   // ---- Code editor ----
   "editor.ln": "Ln",
@@ -593,6 +607,20 @@ const ru: Dict = {
   "tree.explorer": "Проводник",
   "tree.newFile": "Новый файл",
   "tree.newFolder": "Новая папка",
+  "tree.filePlaceholder": "путь/к/файлу.py",
+  "tree.folderPlaceholder": "имя-папки",
+  "tree.clickAgainToDelete": "Нажми ещё раз, чтобы удалить",
+  "tree.fileOpFailed": "Изменение не сохранилось — проверь соединение и попробуй ещё раз.",
+
+  // ---- Общее / разное (добавки дебаг-прохода) ----
+  "common.close": "Закрыть",
+  "dev.earlyPreview": "Ранняя версия",
+  "dev.underDevelopment": "Botforge в активной разработке — часть функций ещё не запущена.",
+  "dev.dismiss": "Скрыть",
+  "settings.language": "Язык интерфейса",
+  "hosting.couldntStop": "Не удалось остановить бота.",
+  "hosting.couldntDeleteToken": "Не удалось удалить токен.",
+  "chat.preparedChanges": "Подготовлены изменения: {n} {files}.",
 
   // ---- Редактор кода ----
   "editor.ln": "Стр",

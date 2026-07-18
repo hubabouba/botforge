@@ -99,7 +99,8 @@ export function HostingPanel({ project }: { project: Project }) {
   async function doStop() {
     setErr("");
     setBusy(true);
-    await stopBot(project.id);
+    const r = await stopBot(project.id);
+    if (!r.ok) setErr(r.error || t("hosting.couldntStop"));
     await refresh();
     setBusy(false);
   }
@@ -184,7 +185,9 @@ export function HostingPanel({ project }: { project: Project }) {
             <span className="font-mono text-xs text-neutral-400">{required} ••••••••</span>
             <button
               onClick={async () => {
-                await deleteSecret(project.id, required);
+                setErr("");
+                const ok = await deleteSecret(project.id, required);
+                if (!ok) setErr(t("hosting.couldntDeleteToken"));
                 await refresh();
               }}
               disabled={active}

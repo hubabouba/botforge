@@ -91,6 +91,7 @@ export function UpgradeModal({
           </div>
           <button
             onClick={onClose}
+            aria-label={t("common.close")}
             className="ml-auto grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Close className="h-4 w-4" />

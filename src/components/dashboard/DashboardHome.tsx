@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { templates, type Template } from "@/lib/workspace/templates";
 import {
@@ -315,10 +315,17 @@ function ProjectCard({
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(project.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Unmounting the input on Escape can still fire its onBlur → commit; the ref
+  // makes the cancellation win regardless of event order.
+  const renameCancelled = useRef(false);
 
   const open = () => router.push(`/workspace/${project.id}`);
 
   async function commitRename() {
+    if (renameCancelled.current) {
+      renameCancelled.current = false;
+      return;
+    }
     await renameProject(project.id, draft);
     setRenaming(false);
     onChange();
@@ -356,14 +363,19 @@ function ProjectCard({
           onBlur={commitRename}
           onKeyDown={(e) => {
             if (e.key === "Enter") commitRename();
-            if (e.key === "Escape") setRenaming(false);
+            if (e.key === "Escape") {
+              renameCancelled.current = true;
+              setDraft(project.name);
+              setRenaming(false);
+            }
           }}
           className="mt-3 w-full rounded-md border border-[#6366F1]/50 bg-white/[0.04] px-2 py-1 text-sm text-white outline-none"
         />
       ) : (
         <button
           onClick={open}
-          className="mt-3 text-left font-medium text-white transition-colors hover:text-[#a5b4fc]"
+          title={project.name}
+          className="mt-3 truncate text-left font-medium text-white transition-colors hover:text-[#a5b4fc]"
         >
           {project.name}
         </button>

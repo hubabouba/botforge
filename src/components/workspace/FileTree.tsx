@@ -1,10 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { buildTree, langOf, type ProjectFile, type TreeNode } from "@/lib/workspace/types";
 import { ChevronRight, Plus, Pencil, Trash, FolderIcon } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
+
+/**
+ * Deleting a file/folder is destructive with no undo — same two-step pattern
+ * as project/account deletion: first click arms (button turns red), second
+ * click within the window deletes, otherwise it disarms itself.
+ */
+function useArmedDelete(): [boolean, (onConfirmed: () => void) => void] {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const timer = setTimeout(() => setArmed(false), 2500);
+    return () => clearTimeout(timer);
+  }, [armed]);
+  const fire = (onConfirmed: () => void) => {
+    if (!armed) {
+      setArmed(true);
+      return;
+    }
+    setArmed(false);
+    onConfirmed();
+  };
+  return [armed, fire];
+}
 
 /** A small colored square keyed to the file's language — quiet visual anchor. */
 function FileDot({ path }: { path: string }) {
@@ -44,6 +67,11 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
   const [open, setOpen] = useState(true);
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(node.name);
+  // Escape must CANCEL a rename — but unmounting the input can still fire its
+  // onBlur, whose commit would save the half-typed draft anyway. The ref makes
+  // the cancellation win regardless of event order.
+  const renameCancelled = useRef(false);
+  const [armed, fireDelete] = useArmedDelete();
   const pad = { paddingLeft: `${depth * 12 + 8}px` };
 
   if (node.type === "dir") {
@@ -58,9 +86,15 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
             <span className="truncate font-medium">{node.name}</span>
           </button>
           <button
-            aria-label={t("tree.deleteFolder")}
-            onClick={() => h.onDeleteFolder(node.path)}
-            className="grid h-5 w-5 shrink-0 place-items-center rounded text-neutral-500 opacity-0 transition-opacity hover:bg-white/10 hover:text-rose-300 group-hover/dir:opacity-100"
+            aria-label={armed ? t("tree.clickAgainToDelete") : t("tree.deleteFolder")}
+            title={armed ? t("tree.clickAgainToDelete") : t("tree.deleteFolder")}
+            onClick={() => fireDelete(() => h.onDeleteFolder(node.path))}
+            className={cn(
+              "grid h-5 w-5 shrink-0 place-items-center rounded transition-opacity group-hover/dir:opacity-100",
+              armed
+                ? "bg-rose-500/20 text-rose-300 opacity-100"
+                : "text-neutral-500 opacity-0 hover:bg-white/10 hover:text-rose-300",
+            )}
           >
             <Trash className="h-3 w-3" />
           </button>
@@ -72,6 +106,10 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
 
   if (renaming) {
     const commit = () => {
+      if (renameCancelled.current) {
+        renameCancelled.current = false;
+        return;
+      }
       const name = draft.trim();
       if (name && name !== node.name) {
         const dir = dirOf(node.path);
@@ -89,7 +127,10 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
           onBlur={commit}
           onKeyDown={(e) => {
             if (e.key === "Enter") commit();
-            if (e.key === "Escape") setRenaming(false);
+            if (e.key === "Escape") {
+              renameCancelled.current = true;
+              setRenaming(false);
+            }
           }}
           className="w-full rounded border border-accent/50 bg-ink-900 px-1.5 py-0.5 text-[13px] text-neutral-100 outline-none"
         />
@@ -123,9 +164,13 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
           <Pencil className="h-3 w-3" />
         </button>
         <button
-          aria-label={t("tree.delete")}
-          onClick={() => h.onDelete(node.path)}
-          className="grid h-5 w-5 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-rose-300"
+          aria-label={armed ? t("tree.clickAgainToDelete") : t("tree.delete")}
+          title={armed ? t("tree.clickAgainToDelete") : undefined}
+          onClick={() => fireDelete(() => h.onDelete(node.path))}
+          className={cn(
+            "grid h-5 w-5 place-items-center rounded",
+            armed ? "bg-rose-500/20 text-rose-300" : "text-neutral-500 hover:bg-white/10 hover:text-rose-300",
+          )}
         >
           <Trash className="h-3 w-3" />
         </button>
@@ -145,6 +190,7 @@ export function FileTree({
   onDelete,
   onDeleteFolder,
   name,
+  error,
 }: {
   files: ProjectFile[];
   folders: string[];
@@ -156,6 +202,8 @@ export function FileTree({
   onDelete: (path: string) => void;
   onDeleteFolder: (path: string) => void;
   name: string;
+  /** A failed file operation to surface (empty = none). */
+  error?: string;
 }) {
   const { t } = useI18n();
   const [adding, setAdding] = useState<null | "file" | "folder">(null);
@@ -204,6 +252,8 @@ export function FileTree({
         <span className="truncate">{name}</span>
       </div>
 
+      {error && <div className="px-3 pb-1.5 text-[11px] leading-snug text-rose-300">{error}</div>}
+
       {adding && (
         <div className="px-3 pb-1 pl-6">
           <input
@@ -218,7 +268,7 @@ export function FileTree({
                 setAdding(null);
               }
             }}
-            placeholder={adding === "folder" ? "folder-name" : "path/to/file.py"}
+            placeholder={adding === "folder" ? t("tree.folderPlaceholder") : t("tree.filePlaceholder")}
             className="w-full rounded border border-accent/50 bg-ink-900 px-1.5 py-0.5 text-[13px] text-neutral-100 outline-none placeholder:text-neutral-600"
           />
         </div>

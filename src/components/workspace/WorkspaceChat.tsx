@@ -6,11 +6,11 @@ import { Bot, Check, FileIcon, Close, Settings, Lock } from "@/components/icons"
 import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
 import { track } from "@/lib/analytics";
-import { defaultReply } from "@/lib/ai/types";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { planMeta } from "@/lib/plan";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { plural } from "@/lib/i18n/plural";
 import { cn } from "@/lib/utils";
 
 interface Edit {
@@ -40,7 +40,7 @@ export function WorkspaceChat({
   onApplyEdit: (path: string, content: string) => void;
   onCollapse: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -61,11 +61,10 @@ export function WorkspaceChat({
   useEffect(() => () => abortRef.current?.abort(), []);
 
   function updatePrefs(patch: Partial<AssistantPreferences>) {
-    setPrefs((prev) => {
-      const next = { ...prev, ...patch };
-      savePrefs(next);
-      return next;
-    });
+    // Side effect stays outside the updater — StrictMode re-runs updaters.
+    const next = { ...prefs, ...patch };
+    savePrefs(next);
+    setPrefs(next);
   }
 
   useEffect(() => {
@@ -142,7 +141,11 @@ export function WorkspaceChat({
 
       // Model produced only file edits and no prose — show a sensible summary.
       if (!hadError && !accText.trim() && accEdits.length) {
-        patch((m) => ({ ...m, text: defaultReply(accEdits) }));
+        const n = accEdits.length;
+        const summary = t("chat.preparedChanges")
+          .replace("{n}", String(n))
+          .replace("{files}", plural(lang, n, { en: ["file", "files"], ru: ["файл", "файла", "файлов"] }));
+        patch((m) => ({ ...m, text: summary }));
       }
       // Stream ended with nothing at all (e.g. the model spent its whole token
       // budget) — never leave a permanently blank message.
@@ -252,8 +255,10 @@ export function WorkspaceChat({
               {m.edits?.map((edit, i) => (
                 <div key={i} className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900">
                   <div className="flex items-center gap-2 px-3 py-2">
-                    <FileIcon className="h-3.5 w-3.5 text-neutral-400" />
-                    <span className="font-mono text-xs text-neutral-300">{edit.path}</span>
+                    <FileIcon className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
+                    <span title={edit.path} className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-300">
+                      {edit.path}
+                    </span>
                     {edit.applied ? (
                       <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-emerald-400">
                         <Check className="h-3.5 w-3.5" /> {t("chat.applied")}

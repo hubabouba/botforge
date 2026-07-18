@@ -19,5 +19,8 @@ export default async function WorkspacePage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  return <Workspace projectId={projectId} />;
+  // key: direct workspace→workspace navigation (back/forward, manual URL) must
+  // remount — otherwise chat history, an in-flight stream and view state from
+  // the previous project would carry over into the new one.
+  return <Workspace key={projectId} projectId={projectId} />;
 }

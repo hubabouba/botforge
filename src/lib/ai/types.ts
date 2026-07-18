@@ -104,8 +104,3 @@ Rules:
 Current project files:
 ${fileDump}`;
 }
-
-/** Fallback reply text when a provider returns edits but no prose. */
-export function defaultReply(edits: AssistantEdit[]): string {
-  return edits.length ? `Prepared changes to ${edits.length} file${edits.length === 1 ? "" : "s"}.` : "Done.";
-}

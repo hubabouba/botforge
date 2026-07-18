@@ -33,6 +33,7 @@ export function RunGuideModal({ project, onClose }: { project: Project; onClose:
           <h2 className="text-sm font-medium text-neutral-100">{t("run.title")}</h2>
           <button
             onClick={onClose}
+            aria-label={t("common.close")}
             className="ml-auto grid h-7 w-7 place-items-center rounded-lg text-neutral-500 hover:bg-white/[0.06] hover:text-neutral-200"
           >
             <Close className="h-4 w-4" />

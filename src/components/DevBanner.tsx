@@ -3,16 +3,37 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Close } from "@/components/icons";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 const KEY = "bf-dev-banner-dismissed";
 
+// localStorage throws when storage/cookies are blocked (private mode, strict
+// settings) — and this component mounts in the root layout, so an unguarded
+// throw would take down every page. Same guard pattern as I18nProvider.
+function readDismissed(): boolean {
+  try {
+    return localStorage.getItem(KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeDismissed(): void {
+  try {
+    localStorage.setItem(KEY, "1");
+  } catch {
+    /* not persistable — the banner just reappears next visit */
+  }
+}
+
 /** Slim, dismissible "early development" notice shown site-wide (except the IDE). */
 export function DevBanner() {
+  const { t } = useI18n();
   const [show, setShow] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
-    setShow(localStorage.getItem(KEY) !== "1");
+    setShow(!readDismissed());
   }, []);
 
   // The workspace is a full-screen app — no room for a marketing bar.
@@ -27,15 +48,13 @@ export function DevBanner() {
       <div className="container-x flex items-center justify-center gap-2 py-1.5 text-center text-xs">
         <span className="flex items-center gap-1.5 font-medium text-accent">
           <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-          Early preview
+          {t("dev.earlyPreview")}
         </span>
-        <span className="hidden text-muted-foreground sm:inline">
-          Botforge is under active development — some features aren’t live yet.
-        </span>
+        <span className="hidden text-muted-foreground sm:inline">{t("dev.underDevelopment")}</span>
         <button
-          aria-label="Dismiss"
+          aria-label={t("dev.dismiss")}
           onClick={() => {
-            localStorage.setItem(KEY, "1");
+            writeDismissed();
             setShow(false);
           }}
           className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/marketing/Logo";
 import { ArrowLeft, Download, Play, Telegram, Discord, Bot } from "@/components/icons";
@@ -45,9 +45,16 @@ export function TopBar({
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project.name);
+  // Unmounting the input on Escape can still fire its onBlur → commit; the ref
+  // makes the cancellation win regardless of event order.
+  const cancelled = useRef(false);
   const langLabel = project.language === "python" ? "Python" : "Node.js";
 
   function commit() {
+    if (cancelled.current) {
+      cancelled.current = false;
+      return;
+    }
     onRename(draft);
     setEditing(false);
   }
@@ -73,6 +80,7 @@ export function TopBar({
             onKeyDown={(e) => {
               if (e.key === "Enter") commit();
               if (e.key === "Escape") {
+                cancelled.current = true;
                 setDraft(project.name);
                 setEditing(false);
               }

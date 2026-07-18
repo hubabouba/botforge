@@ -56,6 +56,8 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [chatOpen, setChatOpen] = useState(true);
   const [view, setView] = useState<WorkView>("code");
   const [upgrade, setUpgrade] = useState<{ highlight: Plan; reason: string } | null>(null);
+  // A failed file-tree operation (add/rename/delete) would otherwise be silent.
+  const [treeError, setTreeError] = useState("");
   const { plan, allows, hostingAvailable } = usePlan();
   // Bumped when the assistant applies an edit, to remount the editor with fresh content.
   const [editorNonce, setEditorNonce] = useState(0);
@@ -158,18 +160,25 @@ export function Workspace({ projectId }: { projectId: string }) {
     async (path: string) => {
       if (!project) return;
       const clean = normalizePath(path);
-      refresh(await addFile(project.id, path));
-      if (clean) openFile(clean);
+      const updated = await addFile(project.id, path);
+      refresh(updated);
+      setTreeError(updated ? "" : t("tree.fileOpFailed"));
+      // Only open a tab for a file that really got created — a failed request
+      // must not leave a phantom tab pointing at nothing (the editor would
+      // then silently show a different file than the highlighted tab).
+      if (clean && updated?.files.some((f) => f.path === clean)) openFile(clean);
     },
-    [project, refresh, openFile],
+    [project, refresh, openFile, t],
   );
 
   const onAddFolder = useCallback(
     async (path: string) => {
       if (!project) return;
-      refresh(await addFolder(project.id, path));
+      const updated = await addFolder(project.id, path);
+      refresh(updated);
+      setTreeError(updated ? "" : t("tree.fileOpFailed"));
     },
-    [project, refresh],
+    [project, refresh, t],
   );
 
   const onDeleteFolder = useCallback(
@@ -177,23 +186,28 @@ export function Workspace({ projectId }: { projectId: string }) {
       if (!project) return;
       const updated = await deleteFolder(project.id, path);
       refresh(updated);
+      setTreeError(updated ? "" : t("tree.fileOpFailed"));
+      if (!updated) return;
       const prefix = `${path}/`;
       const next = openPaths.filter((p) => p !== path && !p.startsWith(prefix));
       setOpenPaths(next);
       if (!next.includes(activePath)) setActivePath(next[next.length - 1] ?? updated?.entry ?? "");
     },
-    [project, openPaths, activePath, refresh],
+    [project, openPaths, activePath, refresh, t],
   );
 
   const onRenameFile = useCallback(
     async (oldPath: string, newPath: string) => {
       if (!project) return;
       const clean = normalizePath(newPath) || newPath;
-      refresh(await renameFile(project.id, oldPath, newPath));
+      const updated = await renameFile(project.id, oldPath, newPath);
+      refresh(updated);
+      setTreeError(updated ? "" : t("tree.fileOpFailed"));
+      if (!updated) return;
       setOpenPaths((prev) => prev.map((p) => (p === oldPath ? clean : p)));
       setActivePath((p) => (p === oldPath ? clean : p));
     },
-    [project, refresh],
+    [project, refresh, t],
   );
 
   const onDeleteFile = useCallback(
@@ -201,11 +215,13 @@ export function Workspace({ projectId }: { projectId: string }) {
       if (!project) return;
       const updated = await deleteFile(project.id, path);
       refresh(updated);
+      setTreeError(updated ? "" : t("tree.fileOpFailed"));
+      if (!updated) return;
       const next = openPaths.filter((p) => p !== path);
       setOpenPaths(next);
       if (path === activePath) setActivePath(next[next.length - 1] ?? updated?.entry ?? "");
     },
-    [project, openPaths, activePath, refresh],
+    [project, openPaths, activePath, refresh, t],
   );
 
   const onRenameProject = useCallback(
@@ -221,6 +237,18 @@ export function Workspace({ projectId }: { projectId: string }) {
   const onApplyEdit = useCallback(
     async (path: string, content: string) => {
       if (!project) return;
+      // A debounced autosave may still hold pre-Apply keystrokes. For the SAME
+      // file the AI content supersedes them — letting that stale timer fire
+      // would silently overwrite the applied edit back in the DB. A pending
+      // edit to a DIFFERENT file is flushed as usual so nothing is lost.
+      if (pending.current) {
+        if (pending.current.path === path) {
+          pending.current = null;
+          clearTimeout(saveTimer.current);
+        } else {
+          flushSave();
+        }
+      }
       try {
         const exists = project.files.some((f) => f.path === path);
         if (exists) {
@@ -238,7 +266,7 @@ export function Workspace({ projectId }: { projectId: string }) {
       openFile(path);
       setEditorNonce((n) => n + 1);
     },
-    [project, refresh, openFile],
+    [project, refresh, openFile, flushSave],
   );
 
   const isLocked = (v: WorkView) => v !== "code" && !allows(CAP_FOR_VIEW[v as Exclude<WorkView, "code">]);
@@ -335,6 +363,7 @@ export function Workspace({ projectId }: { projectId: string }) {
             onDelete={onDeleteFile}
             onDeleteFolder={onDeleteFolder}
             name={project.name}
+            error={treeError}
           />
         </aside>
 
@@ -407,16 +436,22 @@ export function Workspace({ projectId }: { projectId: string }) {
           )}
         </div>
 
-        {chatOpen && (
-          <aside className="hidden w-[340px] shrink-0 border-l border-white/[0.06] bg-[#0A0B0F]/50 lg:block xl:w-[380px]">
-            <WorkspaceChat
-              project={project}
-              files={project.files}
-              onApplyEdit={onApplyEdit}
-              onCollapse={() => setChatOpen(false)}
-            />
-          </aside>
-        )}
+        {/* Kept mounted when collapsed (CSS-hidden): unmounting would wipe the
+            conversation and abort a mid-stream reply every time the user
+            toggles the panel for more editor room. */}
+        <aside
+          className={cn(
+            "w-[340px] shrink-0 border-l border-white/[0.06] bg-[#0A0B0F]/50 xl:w-[380px]",
+            chatOpen ? "hidden lg:block" : "hidden",
+          )}
+        >
+          <WorkspaceChat
+            project={project}
+            files={project.files}
+            onApplyEdit={onApplyEdit}
+            onCollapse={() => setChatOpen(false)}
+          />
+        </aside>
       </div>
 
       {runOpen && <RunGuideModal project={project} onClose={() => setRunOpen(false)} />}

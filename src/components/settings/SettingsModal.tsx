@@ -7,6 +7,7 @@ import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } 
 import { planMeta, type Plan } from "@/lib/plan";
 import { Close } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { LOCALES } from "@/lib/i18n/messages";
 import { cn } from "@/lib/utils";
 
 const LANGUAGES = ["", "English", "Русский", "Español", "Deutsch", "Français"];
@@ -35,7 +36,7 @@ export function SettingsModal({
   onOpenUpgrade: () => void;
   onClose: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang, setLang } = useI18n();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
@@ -74,11 +75,10 @@ export function SettingsModal({
   }, [onClose]);
 
   function update(patch: Partial<AssistantPreferences>) {
-    setPrefs((prev) => {
-      const next = { ...prev, ...patch };
-      savePrefs(next);
-      return next;
-    });
+    // Side effect stays outside the updater — StrictMode re-runs updaters.
+    const next = { ...prefs, ...patch };
+    savePrefs(next);
+    setPrefs(next);
   }
 
   const initials = (name || email).slice(0, 2).toUpperCase();
@@ -93,6 +93,7 @@ export function SettingsModal({
           <h2 className="text-sm font-semibold">{t("settings.title")}</h2>
           <button
             onClick={onClose}
+            aria-label={t("common.close")}
             className="ml-auto grid h-7 w-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Close className="h-4 w-4" />
@@ -131,6 +132,18 @@ export function SettingsModal({
                 >
                   {t(THEME_LABEL_KEY[th])}
                 </button>
+              ))}
+            </div>
+
+            {/* Interface language — the switcher only lived on the landing page
+                before, leaving a signed-in user stuck with the auto-detected
+                locale. Same LOCALES/setLang mechanism, modal-native look. */}
+            <label className="mb-1 mt-3 block text-xs text-muted-foreground">{t("settings.language")}</label>
+            <div className="flex flex-wrap gap-1.5">
+              {LOCALES.map((l) => (
+                <Chip key={l.code} active={lang === l.code} onClick={() => setLang(l.code)}>
+                  {l.flag} {l.label}
+                </Chip>
               ))}
             </div>
           </section>

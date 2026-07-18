@@ -54,11 +54,17 @@ interface FlyMachine {
   id: string;
   state: FlyMachineState;
   region?: string;
+  name?: string;
+  created_at?: string;
 }
 
 async function flyFetch(cfg: FlyConfig, path: string, init?: RequestInit): Promise<Response> {
   return fetch(`${FLY_API}${path}`, {
     ...init,
+    // One hung Fly call must not stall a whole reconcile sweep (or a Start)
+    // until the serverless timeout kills the function — fail fast instead;
+    // the next pass retries.
+    signal: AbortSignal.timeout(15_000),
     headers: {
       Authorization: `Bearer ${cfg.token}`,
       "Content-Type": "application/json",
@@ -99,14 +105,6 @@ export async function createRunMachine(
   return { id: machine.id, region: machine.region };
 }
 
-/** Stop a running Machine (keeps it around; does not destroy). Best-effort. */
-export async function stopMachine(cfg: FlyConfig, machineId: string): Promise<void> {
-  const res = await flyFetch(cfg, `/apps/${cfg.appName}/machines/${machineId}/stop`, { method: "POST" });
-  if (!res.ok && res.status !== 404) {
-    throw new Error(`Fly stop machine failed (${res.status}): ${(await res.text()).slice(0, 200)}`);
-  }
-}
-
 /** Destroy a Machine (force). Best-effort — used to clean up the previous run. */
 export async function destroyMachine(cfg: FlyConfig, machineId: string): Promise<void> {
   const res = await flyFetch(cfg, `/apps/${cfg.appName}/machines/${machineId}?force=true`, { method: "DELETE" });
@@ -122,4 +120,19 @@ export async function getMachineState(cfg: FlyConfig, machineId: string): Promis
   if (!res.ok) throw new Error(`Fly get machine failed (${res.status}).`);
   const machine = (await res.json()) as FlyMachine;
   return machine.state;
+}
+
+export interface FlyMachineSummary {
+  id: string;
+  name?: string;
+  state: FlyMachineState;
+  createdAt?: string;
+}
+
+/** Every Machine in the app, any state — used by the reconcile orphan reaper. */
+export async function listMachines(cfg: FlyConfig): Promise<FlyMachineSummary[]> {
+  const res = await flyFetch(cfg, `/apps/${cfg.appName}/machines`);
+  if (!res.ok) throw new Error(`Fly list machines failed (${res.status}).`);
+  const machines = (await res.json()) as FlyMachine[];
+  return machines.map((m) => ({ id: m.id, name: m.name, state: m.state, createdAt: m.created_at }));
 }

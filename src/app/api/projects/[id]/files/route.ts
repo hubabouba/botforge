@@ -2,16 +2,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProject } from "@/lib/workspace/serverStore";
+import { isSafeProjectPath } from "@/lib/workspace/paths";
 
 export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+const pathSchema = z.string().max(300).refine(isSafeProjectPath, "unsafe path");
 const schema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("write"), path: z.string().max(300), content: z.string().max(500000) }),
-  z.object({ action: z.literal("add"), path: z.string().max(300), content: z.string().max(500000).optional() }),
-  z.object({ action: z.literal("rename"), oldPath: z.string().max(300), newPath: z.string().max(300) }),
-  z.object({ action: z.literal("delete"), path: z.string().max(300) }),
+  z.object({ action: z.literal("write"), path: pathSchema, content: z.string().max(500000) }),
+  z.object({ action: z.literal("add"), path: pathSchema, content: z.string().max(500000).optional() }),
+  z.object({ action: z.literal("rename"), oldPath: pathSchema, newPath: pathSchema }),
+  z.object({ action: z.literal("delete"), path: pathSchema }),
 ]);
 
 // POST /api/projects/[id]/files — file operations (write | add | rename | delete).

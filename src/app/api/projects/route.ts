@@ -4,18 +4,24 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserPlan } from "@/lib/subscription";
 import { projectLimit } from "@/lib/plan";
 import { fetchProjectSummaries } from "@/lib/workspace/serverStore";
+import { isSafeProjectPath } from "@/lib/workspace/paths";
 
 export const runtime = "nodejs";
 
-const fileSchema = z.object({ path: z.string().max(300), content: z.string().max(500000) });
+const pathSchema = z.string().max(300).refine(isSafeProjectPath, "unsafe path");
+const fileSchema = z.object({ path: pathSchema, content: z.string().max(500000) });
 const createSchema = z.object({
   name: z.string().max(120),
   platform: z.string().max(20),
   language: z.string().max(20),
   description: z.string().max(4000).default(""),
-  entry: z.string().max(300).default(""),
+  entry: z
+    .string()
+    .max(300)
+    .refine((p) => p === "" || isSafeProjectPath(p), "unsafe path")
+    .default(""),
   files: z.array(fileSchema).max(200),
-  folders: z.array(z.string().max(300)).max(200).optional(),
+  folders: z.array(pathSchema).max(200).optional(),
 });
 
 // Pro's cap is Infinity, which Postgres can't take — send -1 for "unlimited".

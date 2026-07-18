@@ -13,6 +13,12 @@ on:
     - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
+# A manual dispatch must queue behind (not overlap) a scheduled run — two
+# concurrent sweeps would race each other over the same deployment rows.
+concurrency:
+  group: hosting-reconcile
+  cancel-in-progress: false
+
 jobs:
   reconcile:
     runs-on: ubuntu-latest

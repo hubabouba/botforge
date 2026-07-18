@@ -2,14 +2,21 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProject } from "@/lib/workspace/serverStore";
+import { isSafeProjectPath } from "@/lib/workspace/paths";
 
 export const runtime = "nodejs";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+// Folder paths may arrive with a trailing slash (stripped below) — validate the
+// stripped form.
+const pathSchema = z
+  .string()
+  .max(300)
+  .refine((p) => isSafeProjectPath(p.replace(/\/+$/, "")), "unsafe path");
 const schema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("add"), path: z.string().max(300) }),
-  z.object({ action: z.literal("delete"), path: z.string().max(300) }),
+  z.object({ action: z.literal("add"), path: pathSchema }),
+  z.object({ action: z.literal("delete"), path: pathSchema }),
 ]);
 
 // POST /api/projects/[id]/folders — folder operations (add | delete).

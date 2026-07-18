@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
+import * as Sentry from "@sentry/nextjs";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { flyConfig, type FlyConfig } from "@/lib/hosting/fly";
+import { destroyMachine, flyConfig, listMachines, type FlyConfig } from "@/lib/hosting/fly";
 import { getActiveDeployments, reconcileWithFly } from "@/lib/hosting/deployments";
 
 export const runtime = "nodejs";
@@ -55,8 +56,45 @@ export async function POST(req: Request) {
     }
   }
 
+  const reaped = await reapOrphanMachines(cfg, deployments.map((d) => d.provider_machine_id));
+
   return NextResponse.json(
-    { ok: true, checked: deployments.length, transitions, failures },
+    { ok: true, checked: deployments.length, transitions, failures, reaped },
     { headers: { "Cache-Control": "no-store" } },
   );
+}
+
+// A machine can outlive every DB record pointing at it: the start route killed
+// between create and the status write, or a failed launch whose compensating
+// destroy also failed. Row-driven reconcile never visits those — they'd bill
+// invisibly forever. Sweep the app's real machine list and destroy any bot
+// machine no active row claims. Safety rails: only our own naming scheme
+// ("bot-<proj>-<ts>"), and only machines old enough that an in-flight launch
+// (whose row we may have missed by racing the reservation) can't be caught.
+const REAP_MIN_AGE_MS = 10 * 60_000;
+
+async function reapOrphanMachines(cfg: FlyConfig, knownIds: (string | null)[]): Promise<number> {
+  let reaped = 0;
+  try {
+    const known = new Set(knownIds.filter(Boolean));
+    for (const m of await listMachines(cfg)) {
+      if (!m.name?.startsWith("bot-") || known.has(m.id)) continue;
+      if (m.state === "destroyed" || m.state === "destroying") continue;
+      // No created_at → can't prove it's not a just-launched machine; skip.
+      if (!m.createdAt || Date.now() - Date.parse(m.createdAt) < REAP_MIN_AGE_MS) continue;
+      try {
+        await destroyMachine(cfg, m.id);
+        reaped += 1;
+        Sentry.captureMessage("Reaped an orphaned hosting machine", {
+          level: "warning",
+          extra: { machineId: m.id, name: m.name, state: m.state, createdAt: m.createdAt },
+        });
+      } catch {
+        /* still alive — next sweep retries */
+      }
+    }
+  } catch {
+    /* listing failed (Fly blip) — next sweep retries */
+  }
+  return reaped;
 }

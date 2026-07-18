@@ -104,7 +104,10 @@ async function flusher() {
       }
     }
     if (stopping && logQueue.length === 0) return;
-    await sleep(FLUSH_INTERVAL_MS);
+    // A full batch means more is likely waiting — drain immediately (matches
+    // the Python runner); only idle-pace when the queue has gone short.
+    // Otherwise a chatty bot caps out at ~40 lines/sec and starts dropping.
+    if (batch.length < FLUSH_MAX_BATCH) await sleep(FLUSH_INTERVAL_MS);
   }
 }
 
@@ -126,9 +129,13 @@ function pump(stream, streamName) {
 
 // --- system log helper (goes to the "system" stream) ------------------------
 
+// Returns the delivery promise: mid-run callers may fire-and-forget, but the
+// exit path MUST await it (matches the Python runner's synchronous system()) —
+// otherwise the final "Process exited…" line races process termination and the
+// server nulling the run token, and can be lost.
 function system(msg) {
-  post("/api/internal/hosting/logs", { lines: [{ stream: "system", line: msg }] }).catch(() => {});
   console.log(`[botforge] ${msg}`);
+  return post("/api/internal/hosting/logs", { lines: [{ stream: "system", line: msg }] }).catch(() => {});
 }
 
 function reportExit(code) {
@@ -166,6 +173,9 @@ function installDependencies() {
   const result = spawnSync("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], {
     cwd: APP_DIR,
     encoding: "utf8",
+    // Default maxBuffer is 1MB; a real dependency tree's npm output can exceed
+    // it, which kills the child mid-install with status null — a false failure.
+    maxBuffer: 16 * 1024 * 1024,
   });
   for (const line of (result.stdout || "").split("\n").slice(-40)) if (line) enqueue("system", line);
   if (result.status !== 0) {
@@ -186,7 +196,7 @@ async function main() {
     await writeFiles();
     installDependencies();
   } catch (e) {
-    system(`Startup failed: ${e.message}`);
+    await system(`Startup failed: ${e.message}`);
     stopping = true;
     await flushDone;
     await reportExit(1);
@@ -195,7 +205,7 @@ async function main() {
 
   const entryPath = path.join(APP_DIR, ENTRY);
   if (!fs.existsSync(entryPath)) {
-    system(`Entry file '${ENTRY}' not found.`);
+    await system(`Entry file '${ENTRY}' not found.`);
     stopping = true;
     await flushDone;
     await reportExit(1);
@@ -222,7 +232,7 @@ async function main() {
   const code = await new Promise((resolve) => {
     child.on("close", (exitCode) => resolve(exitCode ?? 0));
   });
-  system(`Process exited with code ${code}.`);
+  await system(`Process exited with code ${code}.`);
 
   stopping = true;
   await flushDone;

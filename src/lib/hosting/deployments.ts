@@ -201,7 +201,11 @@ export function redactSecrets(line: string): string {
     // Telegram bot token: <digits>:<35+ url-safe chars> (also matches inside /bot<token>/)
     .replace(/\d{6,12}:[A-Za-z0-9_-]{30,}/g, "[REDACTED]")
     // Discord bot token: base64.base64.base64-ish, dot-separated
-    .replace(/[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}/g, "[REDACTED]");
+    .replace(/[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}/g, "[REDACTED]")
+    // OpenAI-style keys (sk-…, sk-proj-…) — bots calling third-party APIs log these too
+    .replace(/\bsk-[A-Za-z0-9_-]{20,}\b/g, "[REDACTED]")
+    // Any long bearer credential in a dumped request header
+    .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/-]{20,}={0,2}/gi, "$1[REDACTED]");
 }
 
 export async function appendLogs(
@@ -231,16 +235,21 @@ export async function reconcileWithFly(
 
   if (dep.status !== "starting" && dep.status !== "running" && dep.status !== "stopping") return dep.status;
 
-  if (!dep.provider_machine_id) {
-    // Slot reserved but no machine ever recorded — the start route died
-    // mid-flight. After a grace window, release the slot as a crash so the
-    // user isn't stuck with "already running" forever.
+  if (dep.status === "starting") {
+    // A fresh reservation still carries the PREVIOUS run's machine id (the SQL
+    // reserve doesn't clear it; launchMachine destroys that machine as its
+    // first step). Judging the old/gone machine here would misread an in-flight
+    // launch as a crash — and recordCrash nulls run_token_hash, 401-ing the new
+    // machine's callbacks. So during the grace window: hands off entirely.
     const attempted = dep.last_start_attempt_at ? Date.parse(dep.last_start_attempt_at) : 0;
-    if (dep.status === "starting" && Date.now() - attempted > 3 * 60_000) {
-      return recordCrash(admin, dep);
-    }
-    return dep.status;
+    if (Date.now() - attempted <= START_GRACE_MS) return dep.status;
+    // Past grace with no machine recorded — the start route died mid-flight.
+    // Release the slot as a crash so the user isn't stuck with "already running".
+    if (!dep.provider_machine_id) return recordCrash(admin, dep);
+    // Past grace WITH a machine id: fall through to the live-state check.
   }
+
+  if (!dep.provider_machine_id) return dep.status;
 
   let state: FlyMachineState | null;
   try {
@@ -271,11 +280,15 @@ export async function reconcileWithFly(
 // running bot costs at most one RPC per minute, not one per poll.
 const ACCRUE_MIN_SECONDS = 60;
 
+// How long a 'starting' row is left alone before reconcile may judge it (see
+// reconcileWithFly) — covers the create→setRunning window of a normal launch.
+const START_GRACE_MS = 3 * 60_000;
+
 /**
  * Credit the runtime since the last checkpoint to the owner's current month.
  * Returns the month's new running total in seconds, or null when nothing was
- * accrued (checkpoint too fresh, or the RPC failed — next pass retries, since
- * the checkpoint only advances after a successful bump).
+ * accrued (checkpoint too fresh, another reconcile claimed the interval, or
+ * the RPC failed).
  */
 async function accrueRuntime(admin: SupabaseClient, dep: DeploymentRow): Promise<number | null> {
   const since = dep.last_accrued_at ?? dep.last_started_at;
@@ -284,12 +297,24 @@ async function accrueRuntime(admin: SupabaseClient, dep: DeploymentRow): Promise
   const elapsed = Math.floor((now - Date.parse(since)) / 1000);
   if (elapsed < ACCRUE_MIN_SECONDS) return null;
 
-  const { data, error } = await admin.rpc("bump_hosting_usage", { p_user_id: dep.user_id, p_seconds: elapsed });
-  if (error) return null;
-  await admin
+  // Claim the interval FIRST via compare-and-swap on the checkpoint: of N
+  // concurrent reconciles holding the same snapshot (two tabs polling, the
+  // cron overlapping a poll) only the one that flips last_accrued_at bumps
+  // usage — the same interval can never be billed twice. If the bump then
+  // fails, that slice goes unmetered (undercount ≤ one slice — the honest
+  // direction to err in).
+  const claimQuery = admin
     .from("project_deployments")
     .update({ last_accrued_at: new Date(now).toISOString(), updated_at: new Date().toISOString() })
     .eq("project_id", dep.project_id);
+  const { data: claimed, error: claimError } = await (dep.last_accrued_at === null
+    ? claimQuery.is("last_accrued_at", null)
+    : claimQuery.eq("last_accrued_at", dep.last_accrued_at)
+  ).select("project_id");
+  if (claimError || !claimed?.length) return null;
+
+  const { data, error } = await admin.rpc("bump_hosting_usage", { p_user_id: dep.user_id, p_seconds: elapsed });
+  if (error) return null;
   return typeof data === "number" ? data : Number(data);
 }
 
@@ -335,8 +360,8 @@ async function stopIfOverBudget(
   return true;
 }
 
-/** Decide our status from (current status, live Fly state). null = no change. */
-function mapFlyState(current: DeploymentStatus, state: FlyMachineState | null): DeploymentStatus | null {
+/** Decide our status from (current status, live Fly state). null = no change. Exported for tests. */
+export function mapFlyState(current: DeploymentStatus, state: FlyMachineState | null): DeploymentStatus | null {
   // "started" = healthy: never a transition here. Promotion to 'running' is
   // setRunning's job — routing it through the setStopped writer would wipe
   // run_token_hash and break the live run's log/exit callbacks.

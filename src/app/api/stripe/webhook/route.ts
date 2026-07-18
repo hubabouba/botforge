@@ -111,8 +111,19 @@ function periodEndIso(sub: Stripe.Subscription): string | null {
 async function upsert(sub: Stripe.Subscription, userId?: string | null) {
   if (!userId) return; // nothing to key on
   const priceId = sub.items?.data?.[0]?.price?.id;
-  const plan = planForPriceId(priceId) ?? "free";
+  const mapped = planForPriceId(priceId);
   const canceled = sub.status === "canceled" || sub.status === "incomplete_expired";
+  // An ACTIVE subscription whose price doesn't map to a plan means the
+  // STRIPE_PRICE_* env is missing/rotated out of sync — the customer paid and
+  // would silently land on free. Fail toward free (safe for the platform) but
+  // make the misconfiguration impossible to miss.
+  if (mapped === null && !canceled) {
+    Sentry.captureMessage("Stripe price id doesn't map to a plan — paying subscriber written as free", {
+      level: "error",
+      extra: { priceId, subscriptionId: sub.id, status: sub.status, userId },
+    });
+  }
+  const plan = mapped ?? "free";
 
   const admin = createAdminClient();
   await admin.from("subscriptions").upsert(

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { assistantChatStream } from "@/lib/ai/claude";
@@ -76,7 +77,14 @@ export async function POST(req: Request) {
       p_limit: limit,
     });
     if (usageError) {
+      // Deliberately fail-open (a missing table must not take the assistant
+      // down pre-launch) — but unlimited paid model calls is a money path, so
+      // ops must hear about every occurrence.
       console.warn("[ai/chat] usage counter unavailable, skipping rate limit:", usageError.message);
+      Sentry.captureMessage("AI usage counter unavailable — daily limit not enforced", {
+        level: "error",
+        extra: { message: usageError.message, plan },
+      });
     } else if (count === -1) {
       const hint =
         plan === "pro"

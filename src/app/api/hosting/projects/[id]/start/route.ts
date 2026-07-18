@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchProject } from "@/lib/workspace/serverStore";
@@ -116,6 +117,9 @@ export async function POST(req: Request, { params }: Ctx) {
     });
     return NextResponse.json({ ok: true, status: "running" });
   } catch (e) {
+    // The user sees a 502 in their panel; without this, a systemic Fly outage
+    // would be invisible to ops.
+    Sentry.captureException(e);
     try {
       await setStopped(admin, id, "stopped");
       await appendLogs(admin, id, [{ stream: "system", line: `Failed to launch: ${(e as Error).message}` }]);

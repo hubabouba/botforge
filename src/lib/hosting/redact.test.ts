@@ -27,4 +27,22 @@ describe("redactSecrets", () => {
     expect(out).not.toContain(t1);
     expect(out).not.toContain(t2);
   });
+
+  it("redacts an OpenAI-style key", () => {
+    const key = "sk-proj-Fake1234567890abcdefFake1234567890";
+    expect(redactSecrets(`calling OpenAI with ${key}`)).not.toContain(key);
+    expect(redactSecrets(`calling OpenAI with ${key}`)).toContain("[REDACTED]");
+  });
+
+  it("redacts a dumped bearer credential but keeps the header shape", () => {
+    const cred = "abcdefghijklmnopqrstuvwxyz123456";
+    const out = redactSecrets(`Authorization: Bearer ${cred}`);
+    expect(out).not.toContain(cred);
+    expect(out).toContain("Bearer [REDACTED]");
+  });
+
+  it("does not over-redact short or ordinary words after Bearer-less text", () => {
+    const line = "risk of a skeleton bug in the parser";
+    expect(redactSecrets(line)).toBe(line);
+  });
 });

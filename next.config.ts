@@ -4,18 +4,24 @@ import { withSentryConfig } from "@sentry/nextjs";
 const isDev = process.env.NODE_ENV !== "production";
 
 /**
- * Content-Security-Policy. Scripts still allow 'unsafe-inline' (Next injects an
- * inline bootstrap without a nonce) and 'unsafe-eval' in dev only (HMR). The
- * frame-ancestors/base-uri/form-action/object-src directives are strict wins
- * that cost nothing. Tightening script-src with nonces is a later hardening step.
+ * Content-Security-Policy. Scripts allow 'unsafe-inline' (Next injects an
+ * inline bootstrap without a nonce, and PostHog injects nonce-less inline
+ * scripts — a per-request-nonce CSP was tried and reverted: a nonce in the
+ * policy makes browsers IGNORE 'unsafe-inline', which breaks PostHog outright)
+ * plus PostHog's asset hosts (it script-loads its remote config/array.js;
+ * connect-src alone only covers event fetch()es, which is why basic capture
+ * worked while remote config was silently blocked). worker-src allows the
+ * blob: worker PostHog spawns for session-recording compression.
+ * 'unsafe-eval' is dev-only (HMR).
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://*.posthog.com https://*.i.posthog.com${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.i.posthog.com https://*.sentry.io https://*.ingest.sentry.io",
+  "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

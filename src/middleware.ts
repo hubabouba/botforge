@@ -8,20 +8,19 @@ const isDev = process.env.NODE_ENV !== "production";
 /**
  * Per-request Content-Security-Policy with a fresh script nonce.
  *
- * script-src = nonce (for the inline scripts we/Next render — next-themes'
- * anti-flash snippet and Next's bootstrap, both auto-nonced because we echo
- * this header on the REQUEST) + an explicit host allow-list for the only
- * external scripts loaded at runtime: PostHog's remote config/array assets.
- * We deliberately do NOT use 'strict-dynamic' — it makes browsers ignore
- * host-based sources, which blocks PostHog's own <script> injection. Sentry is
- * bundled and tunnels via same-origin (see connect-src), so it needs no script
- * host. 'unsafe-inline' stays only as a CSP1 fallback (ignored once a nonce is
- * present); 'unsafe-eval' is dev-only (HMR).
+ * script-src is nonce + 'strict-dynamic': modern browsers trust only Next's
+ * own bootstrap (auto-nonced because we echo this header on the REQUEST) and
+ * whatever that trusted chain loads (the app chunks, and the bundled
+ * PostHog/Sentry SDKs' own dynamic script injections) — no 'unsafe-inline'.
+ * 'unsafe-inline' + https: stay only as a fallback that CSP3 browsers ignore
+ * once a nonce/strict-dynamic is present, so old browsers still work.
+ * 'unsafe-eval' is dev-only (HMR). The one inline script we render ourselves
+ * (next-themes' anti-flash snippet) is nonced via the layout.
  */
 function buildCsp(nonce: string): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' https://*.posthog.com https://*.i.posthog.com${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https: 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",

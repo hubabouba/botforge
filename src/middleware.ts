@@ -53,6 +53,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Run on everything except static assets and Sentry's tunnel route.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|monitoring|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // Run on everything except static assets and the Sentry/PostHog proxy routes
+  // (an auth-session refresh per analytics beacon would be pure waste).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|monitoring|ingest|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

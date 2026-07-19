@@ -38,10 +38,27 @@ const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
 ];
 
+// PostHog region host (eu.i / us.i); its asset CDN is the same host with an
+// "-assets" infix (eu.i.posthog.com → eu-assets.i.posthog.com).
+const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com";
+const posthogAssets = posthogHost.replace(".i.posthog.com", "-assets.i.posthog.com");
+
 const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // First-party PostHog proxy — tracker blockers (Firefox ETP, uBlock, …)
+  // block *.posthog.com by DOMAIN, which silently kills analytics for every
+  // visitor running one. Routing through our own /ingest sails past them —
+  // the exact same reasoning as Sentry's tunnelRoute below.
+  async rewrites() {
+    return [
+      { source: "/ingest/static/:path*", destination: `${posthogAssets}/static/:path*` },
+      { source: "/ingest/:path*", destination: `${posthogHost}/:path*` },
+    ];
+  },
+  // PostHog's API paths use trailing slashes; Next would otherwise 308 them.
+  skipTrailingSlashRedirect: true,
 };
 
 export default withSentryConfig(nextConfig, {

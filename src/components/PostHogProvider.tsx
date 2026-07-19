@@ -17,7 +17,11 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!KEY) return; // analytics disabled until a key is provided
     posthog.init(KEY, {
-      api_host: HOST,
+      // First-party proxy (next.config.ts rewrites): tracker blockers block
+      // *.posthog.com by domain — same-origin /ingest gets through. ui_host
+      // keeps toolbar/app links pointing at the real PostHog UI.
+      api_host: "/ingest",
+      ui_host: HOST.replace(".i.posthog.com", ".posthog.com"),
       person_profiles: "identified_only",
       capture_pageview: true,
     });

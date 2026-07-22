@@ -3,12 +3,22 @@
 import { useMemo, useRef, useState } from "react";
 import { highlightToLines, TOKEN_COLORS } from "@/lib/workspace/highlight";
 import { langOf, type Lang, type ProjectFile } from "@/lib/workspace/types";
+import { Copy, Check } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { plural } from "@/lib/i18n/plural";
 import { cn } from "@/lib/utils";
 
 const PAIRS: Record<string, string> = { "(": ")", "[": "]", "{": "}", '"': '"', "'": "'", "`": "`" };
 const CLOSERS = new Set([")", "]", "}", '"', "'", "`"]);
+
+/** Line-comment token per language (absent = no line comment, e.g. json). */
+const LINE_COMMENT: Partial<Record<Lang, string>> = {
+  python: "#",
+  env: "#",
+  javascript: "//",
+  typescript: "//",
+};
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const LANG_LABEL: Record<Lang, string> = {
   python: "Python",
@@ -38,6 +48,8 @@ export function CodeEditor({
   const ref = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState(file.content);
   const [caret, setCaret] = useState({ line: 1, col: 1 });
+  const [selLen, setSelLen] = useState(0);
+  const [copied, setCopied] = useState(false);
   const lang = langOf(file.path);
   const lines = useMemo(() => highlightToLines(value, lang), [value, lang]);
 
@@ -62,7 +74,25 @@ export function CodeEditor({
 
   function syncCaret() {
     const el = ref.current;
-    if (el) updateCaret(value, el.selectionStart);
+    if (el) {
+      updateCaret(value, el.selectionStart);
+      setSelLen(el.selectionEnd - el.selectionStart);
+    }
+  }
+
+  function copyFile() {
+    navigator.clipboard?.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    });
+  }
+
+  /** Full-line bounds covering the current selection (offsets into `value`). */
+  function blockBounds(s: number, en: number): [number, number] {
+    const start = value.lastIndexOf("\n", s - 1) + 1;
+    let end = value.indexOf("\n", en);
+    if (end === -1) end = value.length;
+    return [start, end];
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -75,6 +105,62 @@ export function CodeEditor({
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") {
       e.preventDefault();
       onSave?.();
+      return;
+    }
+
+    // Toggle line comment (Ctrl/Cmd + /) across the touched lines.
+    if ((e.ctrlKey || e.metaKey) && k === "/") {
+      const token = LINE_COMMENT[lang];
+      if (!token) return; // languages without a line comment (json) — no-op
+      e.preventDefault();
+      const [bStart, bEnd] = blockBounds(s, en);
+      const blockLines = value.slice(bStart, bEnd).split("\n");
+      const meaningful = blockLines.filter((l) => l.trim());
+      const allOn = meaningful.length > 0 && meaningful.every((l) => l.trimStart().startsWith(token));
+      const strip = new RegExp(`^(\\s*)${escapeRe(token)} ?`);
+      const out = blockLines
+        .map((l) => {
+          if (!l.trim()) return l;
+          if (allOn) return l.replace(strip, "$1");
+          const indent = (l.match(/^\s*/) ?? [""])[0];
+          return indent + token + " " + l.slice(indent.length);
+        })
+        .join("\n");
+      commit(value.slice(0, bStart) + out + value.slice(bEnd), bStart, bStart + out.length);
+      return;
+    }
+
+    // Duplicate the current line / selected block (Shift+Alt+Up/Down).
+    if (e.altKey && e.shiftKey && (k === "ArrowUp" || k === "ArrowDown")) {
+      e.preventDefault();
+      const [bStart, bEnd] = blockBounds(s, en);
+      const block = value.slice(bStart, bEnd);
+      const selStart = k === "ArrowDown" ? bStart + block.length + 1 : bStart;
+      commit(value.slice(0, bStart) + block + "\n" + block + value.slice(bEnd), selStart, selStart + block.length);
+      return;
+    }
+
+    // Move the current line / selected block (Alt+Up/Down).
+    if (e.altKey && !e.shiftKey && (k === "ArrowUp" || k === "ArrowDown")) {
+      const [bStart, bEnd] = blockBounds(s, en);
+      if (k === "ArrowUp") {
+        if (bStart === 0) return; // already at the top
+        e.preventDefault();
+        const prevStart = value.lastIndexOf("\n", bStart - 2) + 1;
+        const prevLine = value.slice(prevStart, bStart - 1);
+        const block = value.slice(bStart, bEnd);
+        const delta = bStart - prevStart;
+        commit(value.slice(0, prevStart) + block + "\n" + prevLine + value.slice(bEnd), s - delta, en - delta);
+      } else {
+        if (bEnd >= value.length) return; // no line below to swap with
+        e.preventDefault();
+        const nextEnd0 = value.indexOf("\n", bEnd + 1);
+        const nextEnd = nextEnd0 === -1 ? value.length : nextEnd0;
+        const nextLine = value.slice(bEnd + 1, nextEnd);
+        const block = value.slice(bStart, bEnd);
+        const delta = nextLine.length + 1;
+        commit(value.slice(0, bStart) + nextLine + "\n" + block + value.slice(nextEnd), s + delta, en + delta);
+      }
       return;
     }
 
@@ -209,12 +295,28 @@ export function CodeEditor({
       </div>
 
       {/* Status bar */}
-      <div className="flex h-6 shrink-0 items-center gap-4 border-t border-ink-800 bg-ink-950 px-3 text-[11px] text-neutral-500">
+      <div className="flex h-6 shrink-0 items-center gap-3 border-t border-ink-800 bg-ink-950 px-3 text-[11px] text-neutral-500">
         <span>
           {t("editor.ln")} {caret.line}, {t("editor.col")} {caret.col}
         </span>
         <span>{t("editor.spaces")}</span>
-        <span className="ml-auto">
+        {selLen > 0 && <span className="text-neutral-400">{selLen} {t("editor.selected")}</span>}
+
+        <span
+          title={t("editor.shortcutsHint")}
+          className="ml-auto cursor-help select-none rounded border border-ink-700 px-1 text-[10px] text-neutral-500 hover:text-neutral-300"
+        >
+          ?
+        </span>
+        <button
+          onClick={copyFile}
+          title={t("editor.copyFile")}
+          className="inline-flex items-center gap-1 rounded px-1 text-neutral-500 transition-colors hover:text-neutral-200"
+        >
+          {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+          {copied ? t("editor.copied") : t("editor.copy")}
+        </button>
+        <span>
           {lines.length} {plural(uiLang, lines.length, { en: ["line", "lines"], ru: ["строка", "строки", "строк"] })}
         </span>
         <span className="text-neutral-400">{LANG_LABEL[lang]}</span>

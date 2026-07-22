@@ -27,6 +27,9 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  // Absolute base for OG/twitter image URLs — Facebook et al. require absolute
+  // URLs, and without this Next emits relative ones (and warns at build).
+  metadataBase: new URL(process.env.BOTFORGE_PUBLIC_URL ?? "https://botforge-snowy.vercel.app"),
   title: {
     default: `${brand.name} — the AI lab for building bots`,
     template: `%s · ${brand.name}`,
@@ -36,6 +39,14 @@ export const metadata: Metadata = {
     title: `${brand.name} — the AI lab for building bots`,
     description: brand.description,
     type: "website",
+    siteName: brand.name,
+  },
+  // The opengraph-image route supplies the picture; make the card the large,
+  // image-forward variant so shared links show a full-width preview.
+  twitter: {
+    card: "summary_large_image",
+    title: `${brand.name} — the AI lab for building bots`,
+    description: brand.description,
   },
 };
 

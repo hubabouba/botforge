@@ -28,7 +28,9 @@ interface Msg {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const SUGGESTION_KEYS = ["chat.suggestion1", "chat.suggestion2", "chat.suggestion3"];
-const MODEL_LABEL: Record<Provider, string> = { gemini: "Gemini", claude: "Claude" };
+// White-labelled model names — users see the tier, not the underlying provider
+// (lets us swap the engine later without changing the product's language).
+const MODEL_LABEL: Record<Provider, string> = { gemini: "Standard", claude: "Advanced" };
 const MODEL_KEY = "bf:assistant-model";
 
 export function WorkspaceChat({

@@ -141,14 +141,14 @@ export const PLANS: PlanMeta[] = [
     name: "Free",
     price: 0,
     tagline: "Try it out and ship a simple bot.",
-    highlights: ["Basic AI assistant (Gemini)", "3 assistant messages/day", "2 projects", "Download & run locally"],
+    highlights: ["Standard AI assistant", "3 assistant messages/day", "2 projects", "Download & run locally"],
   },
   {
     id: "basic",
     name: "Basic",
     price: 9,
     tagline: "A serious assistant for real bots.",
-    highlights: ["Smart assistant (Claude)", "10 assistant messages/day", "Logs & AI planning panels", "15 projects"],
+    highlights: ["Advanced AI assistant", "10 assistant messages/day", "Logs & AI planning panels", "15 projects"],
   },
   {
     id: "pro",

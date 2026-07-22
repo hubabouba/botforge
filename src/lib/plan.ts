@@ -15,14 +15,14 @@ export type Provider = "gemini" | "claude";
 export const PLAN_RANK: Record<Plan, number> = { free: 0, basic: 1, pro: 2 };
 
 /** Max number of projects per plan (Infinity = unlimited). */
-export const PROJECT_LIMIT: Record<Plan, number> = { free: 3, basic: 15, pro: Infinity };
+export const PROJECT_LIMIT: Record<Plan, number> = { free: 2, basic: 15, pro: Infinity };
 
 export function projectLimit(plan: Plan): number {
   return PROJECT_LIMIT[plan];
 }
 
 /** Daily AI-assistant message cap per plan (enforced in /api/ai/chat). */
-export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 5, basic: 10, pro: 40 };
+export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 3, basic: 10, pro: 40 };
 
 export function aiDailyLimit(plan: Plan): number {
   return AI_DAILY_MESSAGES[plan];
@@ -141,7 +141,7 @@ export const PLANS: PlanMeta[] = [
     name: "Free",
     price: 0,
     tagline: "Try it out and ship a simple bot.",
-    highlights: ["Basic AI assistant (Gemini)", "5 assistant messages/day", "3 projects", "Download & run locally"],
+    highlights: ["Basic AI assistant (Gemini)", "3 assistant messages/day", "2 projects", "Download & run locally"],
   },
   {
     id: "basic",
@@ -184,4 +184,26 @@ export function providerForPlan(plan: Plan): Provider {
   const forced = process.env.AI_FORCE_PROVIDER;
   if (forced === "gemini" || forced === "claude") return forced;
   return planAllows(plan, "assistant.claude") ? "claude" : "gemini";
+}
+
+/**
+ * Which providers a plan is allowed to pick. Free is locked to Gemini; paid
+ * tiers may choose either the fast free model or Claude. Pure (no env) so the
+ * client can use it to build the model selector. `resolveProvider` below is the
+ * server-side enforcement — never trust the client to unlock Claude.
+ */
+export function providersForPlan(plan: Plan): Provider[] {
+  return planAllows(plan, "assistant.claude") ? ["gemini", "claude"] : ["gemini"];
+}
+
+/**
+ * The provider to actually use for a request: honor the user's explicit choice
+ * only if their plan allows it, else fall back to the plan default. AI_FORCE_
+ * PROVIDER still overrides everything (local testing).
+ */
+export function resolveProvider(plan: Plan, requested?: Provider | null): Provider {
+  const forced = process.env.AI_FORCE_PROVIDER;
+  if (forced === "gemini" || forced === "claude") return forced;
+  if (requested && providersForPlan(plan).includes(requested)) return requested;
+  return providerForPlan(plan);
 }

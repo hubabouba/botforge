@@ -33,7 +33,7 @@ export interface PricingTier {
 const PRICING_COPY: Record<PricingTier["id"], Omit<PricingTier, "id" | "name">> = {
   free: {
     tagline: "Try it and build your first bots.",
-    features: ["3 projects", "Basic AI model", "5 AI messages/day", "Run in sandbox", "Download code (ZIP)"],
+    features: ["2 projects", "Basic AI model", "3 AI messages/day", "Run in sandbox", "Download code (ZIP)"],
     cta: "Start free",
   },
   basic: {

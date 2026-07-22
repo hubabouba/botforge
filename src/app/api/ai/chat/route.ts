@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { assistantChatStream } from "@/lib/ai/claude";
 import { assistantChatGeminiStream } from "@/lib/ai/gemini";
 import type { AssistantStreamEvent } from "@/lib/ai/types";
-import { aiDailyLimit, isAiLimitExempt, providerForPlan } from "@/lib/plan";
+import { aiDailyLimit, isAiLimitExempt, resolveProvider } from "@/lib/plan";
 import { getUserPlan } from "@/lib/subscription";
 
 export const runtime = "nodejs";
@@ -33,10 +33,14 @@ const bodySchema = z.object({
     })
     .optional(),
   intent: z.enum(["chat", "plan"]).optional(),
+  // The model the user picked in the workspace. Only honored if their plan
+  // allows it (resolveProvider) — the client can't unlock Claude.
+  provider: z.enum(["gemini", "claude"]).optional(),
 });
 
 // POST /api/ai/chat — the in-workspace coding assistant.
-// Provider is chosen by the user's plan: free → Gemini, paid → Claude.
+// Provider defaults to the plan (free → Gemini, paid → Claude) but a paid user
+// may override it via the workspace model selector.
 export async function POST(req: Request) {
   const supabase = await createClient();
   const {
@@ -51,7 +55,7 @@ export async function POST(req: Request) {
   }
 
   const plan = await getUserPlan(supabase, user.id, user.email);
-  const provider = providerForPlan(plan);
+  const provider = resolveProvider(plan, parsed.data.provider);
 
   // Guard: the chosen provider must be configured.
   if (provider === "claude" && !process.env.ANTHROPIC_API_KEY) {

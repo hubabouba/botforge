@@ -24,7 +24,10 @@ export function Hero() {
             {t("hero.kicker")}
           </div>
 
-          <h1 className="mt-6 font-display text-5xl font-bold leading-[1.02] tracking-tight sm:text-6xl lg:text-7xl">
+          {/* break-words + a smaller mobile base so long single-word lines
+              (e.g. RU "Автоматизируй.") can't overflow the viewport, which the
+              page's overflow-x-clip would otherwise hide off-screen. */}
+          <h1 className="mt-6 break-words font-display text-4xl font-bold leading-[1.04] tracking-tight sm:text-6xl lg:text-7xl">
             <span className="animate-rise block text-white" style={{ "--i": 1 } as React.CSSProperties}>
               {t("hero.l1")}
             </span>

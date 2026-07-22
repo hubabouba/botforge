@@ -37,7 +37,7 @@ const en: Dict = {
   "hero.ctaBuild": "Build a bot for free",
   "hero.ctaOpenDashboard": "Open your dashboard",
   "hero.ctaHow": "See how it works",
-  "hero.freeNote": "No credit card · 3 projects free",
+  "hero.freeNote": "No credit card · 2 projects free",
   "hero.welcomeBack": "Welcome back — pick up where you left off",
   "nav.services": "Services",
   "nav.cases": "Case studies",
@@ -279,6 +279,9 @@ const en: Dict = {
   "chat.assistant": "Assistant",
   "chat.basicUpgrade": "Basic · Upgrade",
   "chat.freeUpgrade": "Free · Upgrade",
+  "chat.selectModel": "Choose AI model",
+  "chat.modelFast": "fast",
+  "chat.modelSmart": "smart",
   "chat.assistantSettings": "Assistant settings",
   "chat.hideAssistant": "Hide assistant",
   "chat.introHint": "Ask me to add features, fix bugs, or explain the code. I can edit files directly — you approve each change.",
@@ -389,7 +392,7 @@ const ru: Dict = {
   "hero.ctaBuild": "Создать бота бесплатно",
   "hero.ctaOpenDashboard": "Открыть кабинет",
   "hero.ctaHow": "Как это работает",
-  "hero.freeNote": "Без карты · 3 проекта бесплатно",
+  "hero.freeNote": "Без карты · 2 проекта бесплатно",
   "hero.welcomeBack": "С возвращением — продолжай с того же места",
   "nav.services": "Сервисы",
   "nav.cases": "Кейсы",
@@ -631,6 +634,9 @@ const ru: Dict = {
   "chat.assistant": "Ассистент",
   "chat.basicUpgrade": "Basic · Улучшить",
   "chat.freeUpgrade": "Free · Улучшить",
+  "chat.selectModel": "Выбрать модель ИИ",
+  "chat.modelFast": "быстро",
+  "chat.modelSmart": "умнее",
   "chat.assistantSettings": "Настройки ассистента",
   "chat.hideAssistant": "Скрыть ассистента",
   "chat.introHint": "Попроси меня добавить функции, исправить баги или объяснить код. Я могу редактировать файлы напрямую — ты одобряешь каждое изменение.",
@@ -741,7 +747,7 @@ const pl: Dict = {
   "hero.ctaBuild": "Zbuduj bota za darmo",
   "hero.ctaOpenDashboard": "Otwórz panel",
   "hero.ctaHow": "Zobacz, jak to działa",
-  "hero.freeNote": "Bez karty · 3 projekty za darmo",
+  "hero.freeNote": "Bez karty · 2 projekty za darmo",
   "hero.welcomeBack": "Witaj z powrotem — kontynuuj tam, gdzie skończyłeś",
 };
 
@@ -763,7 +769,7 @@ const es: Dict = {
   "hero.ctaBuild": "Crea un bot gratis",
   "hero.ctaOpenDashboard": "Abrir tu panel",
   "hero.ctaHow": "Ver cómo funciona",
-  "hero.freeNote": "Sin tarjeta · 3 proyectos gratis",
+  "hero.freeNote": "Sin tarjeta · 2 proyectos gratis",
   "hero.welcomeBack": "Bienvenido de nuevo: continúa donde lo dejaste",
 };
 
@@ -785,7 +791,7 @@ const de: Dict = {
   "hero.ctaBuild": "Kostenlos einen Bot bauen",
   "hero.ctaOpenDashboard": "Dashboard öffnen",
   "hero.ctaHow": "So funktioniert's",
-  "hero.freeNote": "Keine Kreditkarte · 3 Projekte gratis",
+  "hero.freeNote": "Keine Kreditkarte · 2 Projekte gratis",
   "hero.welcomeBack": "Willkommen zurück — mach weiter, wo du aufgehört hast",
 };
 
@@ -807,7 +813,7 @@ const fr: Dict = {
   "hero.ctaBuild": "Créer un bot gratuitement",
   "hero.ctaOpenDashboard": "Ouvrir le tableau de bord",
   "hero.ctaHow": "Voir comment ça marche",
-  "hero.freeNote": "Sans carte · 3 projets gratuits",
+  "hero.freeNote": "Sans carte · 2 projets gratuits",
   "hero.welcomeBack": "Bon retour — reprenez où vous en étiez",
 };
 

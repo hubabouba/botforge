@@ -23,13 +23,13 @@ describe("planAllows", () => {
 
 describe("per-plan numeric caps", () => {
   it("project limits, unlimited for pro", () => {
-    expect(projectLimit("free")).toBe(3);
+    expect(projectLimit("free")).toBe(2);
     expect(projectLimit("basic")).toBe(15);
     expect(projectLimit("pro")).toBe(Infinity);
   });
 
   it("daily AI message caps", () => {
-    expect(aiDailyLimit("free")).toBe(5);
+    expect(aiDailyLimit("free")).toBe(3);
     expect(aiDailyLimit("basic")).toBe(10);
     expect(aiDailyLimit("pro")).toBe(40);
   });

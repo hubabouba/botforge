@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Project, ProjectFile } from "@/lib/workspace/types";
-import { Bot, Check, FileIcon, Close, Settings, Lock } from "@/components/icons";
+import { Bot, Check, FileIcon, Close, Settings, Lock, ChevronRight } from "@/components/icons";
 import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
 import { track } from "@/lib/analytics";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
-import { planMeta } from "@/lib/plan";
+import { planMeta, providersForPlan, type Provider } from "@/lib/plan";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { plural } from "@/lib/i18n/plural";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,8 @@ interface Msg {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const SUGGESTION_KEYS = ["chat.suggestion1", "chat.suggestion2", "chat.suggestion3"];
+const MODEL_LABEL: Record<Provider, string> = { gemini: "Gemini", claude: "Claude" };
+const MODEL_KEY = "bf:assistant-model";
 
 export function WorkspaceChat({
   project,
@@ -48,6 +50,8 @@ export function WorkspaceChat({
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [quota, setQuota] = useState<{ used: number; limit: number } | null>(null);
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
+  const [model, setModel] = useState<Provider>("gemini");
+  const [modelMenu, setModelMenu] = useState(false);
   const { plan } = usePlan();
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -56,6 +60,38 @@ export function WorkspaceChat({
   useEffect(() => {
     setPrefs(loadPrefs());
   }, []);
+
+  // Resolve the selected model from storage, clamped to what the plan allows —
+  // a saved "claude" from a lapsed subscription must fall back to Gemini. Runs
+  // when the plan resolves so a free account never sends a locked model.
+  useEffect(() => {
+    const allowed = providersForPlan(plan);
+    let saved: string | null = null;
+    try {
+      saved = localStorage.getItem(MODEL_KEY);
+    } catch {
+      /* storage blocked — use the plan default */
+    }
+    const fallback: Provider = allowed.includes("claude") ? "claude" : "gemini";
+    const initial: Provider = saved === "claude" || saved === "gemini" ? saved : fallback;
+    setModel(allowed.includes(initial) ? initial : "gemini");
+  }, [plan]);
+
+  // Pick a model; a locked one (not in the plan) opens the upgrade modal
+  // instead of switching. The server re-checks — this is UX, not the gate.
+  function pickModel(m: Provider) {
+    setModelMenu(false);
+    if (!providersForPlan(plan).includes(m)) {
+      setUpgradeOpen(true);
+      return;
+    }
+    setModel(m);
+    try {
+      localStorage.setItem(MODEL_KEY, m);
+    } catch {
+      /* non-fatal */
+    }
+  }
 
   // Abort an in-flight stream if the panel unmounts (e.g. chat collapsed).
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -109,6 +145,7 @@ export function WorkspaceChat({
           files,
           messages: payload.map((m) => ({ role: m.role, content: m.text })),
           preferences: prefs,
+          provider: model,
         }),
         signal: controller.signal,
       });
@@ -184,19 +221,48 @@ export function WorkspaceChat({
           <Bot className="h-3.5 w-3.5" />
         </span>
         <span className="text-sm font-medium text-neutral-200">{t("chat.assistant")}</span>
-        {plan === "pro" ? (
-          <span className="ml-auto rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent">
-            Pro
-          </span>
-        ) : (
+
+        {/* Model selector — paid tiers switch Gemini/Claude; free sees Claude
+            locked and a click routes to the upgrade modal. */}
+        <div className="relative ml-auto">
           <button
-            onClick={() => setUpgradeOpen(true)}
-            className="ml-auto inline-flex items-center gap-1 rounded-full border border-ink-700 px-2 py-0.5 text-[10px] font-medium text-neutral-400 transition-colors hover:border-accent/50 hover:text-neutral-200"
+            onClick={() => setModelMenu((v) => !v)}
+            aria-label={t("chat.selectModel")}
+            aria-expanded={modelMenu}
+            className="inline-flex items-center gap-1 rounded-full border border-ink-700 px-2 py-0.5 text-[11px] font-medium text-neutral-300 transition-colors hover:border-accent/50 hover:text-neutral-100"
           >
-            <Lock className="h-3 w-3" />
-            {plan === "basic" ? t("chat.basicUpgrade") : t("chat.freeUpgrade")}
+            {MODEL_LABEL[model]}
+            <ChevronRight className={cn("h-3 w-3 text-neutral-500 transition-transform", modelMenu && "rotate-90")} />
           </button>
-        )}
+          {modelMenu && (
+            <>
+              <button className="fixed inset-0 z-10 cursor-default" aria-hidden onClick={() => setModelMenu(false)} />
+              <div className="absolute right-0 top-7 z-20 w-44 overflow-hidden rounded-xl border border-ink-700 bg-ink-950 py-1 shadow-lift">
+                {(["gemini", "claude"] as Provider[]).map((m) => {
+                  const locked = !providersForPlan(plan).includes(m);
+                  const active = model === m && !locked;
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => pickModel(m)}
+                      className={cn(
+                        "flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-white/[0.06]",
+                        active ? "text-neutral-100" : "text-neutral-400",
+                      )}
+                    >
+                      <span className="flex-1">{MODEL_LABEL[m]}</span>
+                      <span className="text-[10px] text-neutral-600">
+                        {m === "gemini" ? t("chat.modelFast") : t("chat.modelSmart")}
+                      </span>
+                      {active && <Check className="h-3.5 w-3.5 text-emerald-400" />}
+                      {locked && <Lock className="h-3 w-3 text-neutral-500" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
         <button
           onClick={() => setSettingsOpen((v) => !v)}
           aria-label={t("chat.assistantSettings")}

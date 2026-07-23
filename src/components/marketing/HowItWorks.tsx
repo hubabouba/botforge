@@ -1,29 +1,22 @@
-const steps = [
-  {
-    n: "01",
-    title: "Describe your bot in words",
-    body: "“A bot that sends the BTC price every morning and on the /price command.” No flowcharts, no docs to read.",
-  },
-  {
-    n: "02",
-    title: "AI writes the code and fixes errors",
-    body: "Botforge generates a full project file by file, explains its choices, and repairs failures from the logs itself.",
-  },
-  {
-    n: "03",
-    title: "Run it or download it",
-    body: "Test the bot in a sandbox right in your browser, or grab the source as a ZIP and deploy it anywhere.",
-  },
-];
+"use client";
+
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 export function HowItWorks() {
+  const { t } = useI18n();
+  const steps = [
+    { n: "01", title: t("howItWorks.s0.t"), body: t("howItWorks.s0.d") },
+    { n: "02", title: t("howItWorks.s1.t"), body: t("howItWorks.s1.d") },
+    { n: "03", title: t("howItWorks.s2.t"), body: t("howItWorks.s2.d") },
+  ];
+
   return (
     <section id="how" className="scroll-mt-20 border-t border-border bg-muted/40 py-24">
       <div className="container-x">
         <div className="max-w-2xl">
-          <p className="font-mono text-xs uppercase tracking-widest text-accent">How it works</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-accent">{t("howItWorks.kicker")}</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Three steps from idea to a live bot
+            {t("howItWorks.title")}
           </h2>
         </div>
 

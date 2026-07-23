@@ -1,38 +1,25 @@
-const faqs = [
-  {
-    q: "Do I need to know how to code?",
-    a: "No. You describe the bot in plain words and the AI writes the code. But if you are a developer, the code is open and you can edit it right in the editor.",
-  },
-  {
-    q: "Is the code really mine?",
-    a: "Yes. Botforge generates a standard project (Python/Node) with no hidden dependencies. Download the ZIP and deploy it anywhere.",
-  },
-  {
-    q: "Which platforms are supported?",
-    a: "Telegram and Discord at launch. The architecture is built to add new platforms without rewriting your projects.",
-  },
-  {
-    q: "What if the bot breaks?",
-    a: "Built-in auto-fixing reads the logs, finds the cause, and proposes corrected code — usually in one click.",
-  },
-  {
-    q: "Can I cancel my subscription?",
-    a: "Anytime, from your account. Access stays until the end of the paid period.",
-  },
-];
+"use client";
+
+import { useI18n } from "@/lib/i18n/I18nProvider";
+
+const FAQ_COUNT = 5;
 
 export function FAQ() {
+  const { t } = useI18n();
+  const faqs = Array.from({ length: FAQ_COUNT }, (_, i) => ({
+    q: t(`faq.q${i}`),
+    a: t(`faq.a${i}`),
+  }));
+
   return (
     <section id="faq" className="relative scroll-mt-24 py-24">
       <div className="container-x grid gap-12 md:grid-cols-[1fr_1.4fr]">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-[#818CF8]">FAQ</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-[#818CF8]">{t("faq.kicker")}</p>
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Frequently asked questions
+            {t("faq.title")}
           </h2>
-          <p className="mt-4 text-sm text-white/50">
-            Didn’t find an answer? Write to us — we reply within a day.
-          </p>
+          <p className="mt-4 text-sm text-white/50">{t("faq.subtitle")}</p>
         </div>
 
         <div className="flex flex-col gap-3">

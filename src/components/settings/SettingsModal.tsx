@@ -206,7 +206,7 @@ export function SettingsModal({
             <div className="flex items-center justify-between rounded-xl border border-border p-3">
               <div>
                 <div className="text-sm font-medium">{planMeta(plan).name} {t("settings.plan")}</div>
-                <div className="text-xs text-muted-foreground">{planMeta(plan).tagline}</div>
+                <div className="text-xs text-muted-foreground">{t(`plan.${plan}.tagline`)}</div>
               </div>
               <button
                 onClick={onOpenUpgrade}

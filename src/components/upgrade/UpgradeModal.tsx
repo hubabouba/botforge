@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { PLANS, PLAN_RANK, planMeta, type Plan } from "@/lib/plan";
+import { PLANS, PLAN_RANK, type Plan } from "@/lib/plan";
 import { track } from "@/lib/analytics";
 import { Close, Check, Lock } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -134,12 +134,12 @@ export function UpgradeModal({
                   <span className="text-2xl font-semibold tracking-tight">${p.price}</span>
                   <span className="text-xs text-muted-foreground">{t("upgrade.perMonth")}</span>
                 </div>
-                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{p.tagline}</p>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t(`plan.${p.id}.tagline`)}</p>
                 <ul className="mt-3 space-y-1.5">
-                  {p.highlights.map((h) => (
+                  {p.highlights.map((h, i) => (
                     <li key={h} className="flex items-start gap-2 text-xs text-foreground/80">
                       <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent" />
-                      <span>{h}</span>
+                      <span>{t(`plan.${p.id}.h${i}`)}</span>
                     </li>
                   ))}
                 </ul>
@@ -205,9 +205,4 @@ export function UpgradeModal({
   );
 
   return mounted ? createPortal(content, document.body) : null;
-}
-
-/** Small helper so callers don't need to import Plan just to name a tier. */
-export function upgradeReasonFor(plan: Plan): string {
-  return `This feature needs the ${planMeta(plan).name} plan.`;
 }

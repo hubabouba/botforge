@@ -1,18 +1,22 @@
+"use client";
+
 import Link from "next/link";
 import { pricingTiers } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 import { Check } from "@/components/icons";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 export function Pricing() {
+  const { t } = useI18n();
   return (
     <section id="pricing" className="relative scroll-mt-24 py-24">
       <div className="container-x">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-xs uppercase tracking-[0.22em] text-[#818CF8]">Pricing</p>
+          <p className="text-xs uppercase tracking-[0.22em] text-[#818CF8]">{t("pricing.kicker")}</p>
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">
-            Start free. Scale when you need to.
+            {t("pricing.title")}
           </h2>
-          <p className="mt-4 text-white/55">Monthly subscription. Cancel anytime.</p>
+          <p className="mt-4 text-white/55">{t("pricing.subtitle")}</p>
         </div>
 
         <div className="mx-auto mt-14 grid max-w-5xl gap-6 md:grid-cols-3">
@@ -34,11 +38,11 @@ export function Pricing() {
                 <h3 className="font-display font-semibold text-white">{tier.name}</h3>
                 {tier.highlighted && (
                   <span className="rounded-full bg-gradient-to-r from-[#6366F1] to-[#22D3EE] px-2.5 py-0.5 text-xs font-medium text-white">
-                    Popular
+                    {t("pricing.popular")}
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-sm text-white/50">{tier.tagline}</p>
+              <p className="mt-1 text-sm text-white/50">{t(`pricing.${tier.id}.tagline`)}</p>
 
               <div className="mt-5 flex items-baseline gap-1">
                 <span className="font-mono text-4xl font-bold tracking-tight text-white">
@@ -56,14 +60,14 @@ export function Pricing() {
                     : "border border-white/12 bg-white/[0.03] text-white hover:bg-white/[0.07]",
                 )}
               >
-                {tier.cta}
+                {t(`pricing.${tier.id}.cta`)}
               </Link>
 
               <ul className="mt-6 space-y-3 text-sm">
-                {tier.features.map((f) => (
+                {tier.features.map((f, i) => (
                   <li key={f} className="flex gap-2.5 text-white/60">
                     <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#22D3EE]" />
-                    <span>{f}</span>
+                    <span>{t(`pricing.${tier.id}.feature.${i}`)}</span>
                   </li>
                 ))}
               </ul>

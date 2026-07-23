@@ -1,32 +1,10 @@
+"use client";
+
 import Link from "next/link";
 import { brand } from "@/lib/brand";
 import { Logo } from "@/components/marketing/Logo";
 import { GitHub, Mail } from "@/components/icons";
-
-const columns = [
-  {
-    title: "Product",
-    links: [
-      { label: "Services", href: "#services" },
-      { label: "Pricing", href: "#pricing" },
-      { label: "Case studies", href: "#cases" },
-    ],
-  },
-  {
-    title: "Company",
-    links: [
-      { label: "FAQ", href: "#faq" },
-      { label: "Contact", href: `mailto:${brand.email}` },
-    ],
-  },
-  {
-    title: "Legal",
-    links: [
-      { label: "Privacy Policy", href: "/privacy" },
-      { label: "Terms of Service", href: "/terms" },
-    ],
-  },
-];
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function Social({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
   return (
@@ -41,6 +19,31 @@ function Social({ href, label, children }: { href: string; label: string; childr
 }
 
 export function Footer() {
+  const { t } = useI18n();
+  const columns = [
+    {
+      title: t("footer.product"),
+      links: [
+        { label: t("nav.services"), href: "#services" },
+        { label: t("nav.pricing"), href: "#pricing" },
+        { label: t("nav.cases"), href: "#cases" },
+      ],
+    },
+    {
+      title: t("footer.company"),
+      links: [
+        { label: t("nav.faq"), href: "#faq" },
+        { label: t("footer.contact"), href: `mailto:${brand.email}` },
+      ],
+    },
+    {
+      title: t("footer.legal"),
+      links: [
+        { label: t("footer.privacyPolicy"), href: "/privacy" },
+        { label: t("footer.termsOfService"), href: "/terms" },
+      ],
+    },
+  ];
   return (
     <footer className="relative border-t border-white/[0.08] py-14">
       <div className="container-x grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
@@ -78,9 +81,9 @@ export function Footer() {
 
       <div className="container-x mt-12 flex flex-col items-center justify-between gap-3 border-t border-white/[0.08] pt-6 text-sm text-white/45 sm:flex-row">
         <span>
-          © {new Date().getFullYear()} {brand.name}. All rights reserved.
+          © {new Date().getFullYear()} {brand.name}. {t("footer.rights")}
         </span>
-        <span className="font-mono text-xs">Built in the lab · {brand.domain}</span>
+        <span className="font-mono text-xs">{t("footer.builtInLab")} · {brand.domain}</span>
       </div>
     </footer>
   );

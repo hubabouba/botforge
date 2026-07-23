@@ -9,6 +9,7 @@
 import posthog from "posthog-js";
 
 export type AnalyticsEvent =
+  | "signup_started" // user began sign-up (email magic link requested, or OAuth redirect)
   | "project_created" // a new bot project was created (template or wizard)
   | "ai_message_sent" // user sent a message to the in-editor assistant
   | "hosting_started" // user started a bot on Botforge hosting

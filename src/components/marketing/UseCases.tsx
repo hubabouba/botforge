@@ -1,4 +1,7 @@
+"use client";
+
 import type { ReactNode } from "react";
+import { useI18n } from "@/lib/i18n/I18nProvider";
 
 function Icon({ path }: { path: ReactNode }) {
   return (
@@ -8,56 +11,35 @@ function Icon({ path }: { path: ReactNode }) {
   );
 }
 
-const cases = [
-  {
-    tag: "/price BTC",
-    title: "Crypto price alerts",
-    body: "Live prices on demand and a daily digest pushed to every subscriber.",
-    icon: <Icon path={<><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></>} />,
-  },
-  {
-    tag: "auto-mod",
-    title: "Server moderation",
-    body: "Removes spam, warns, and bans by your rules across a Discord server.",
-    icon: <Icon path={<><path d="M12 3 4 6v6c0 5 3.5 7.5 8 9 4.5-1.5 8-4 8-9V6Z" /><path d="m9 12 2 2 4-4" /></>} />,
-  },
-  {
-    tag: "/quiz",
-    title: "Quizzes & polls",
-    body: "Runs interactive quizzes, tallies scores, and shows a live leaderboard.",
-    icon: <Icon path={<><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.9.4-1 1-1 1.7" /><path d="M12 17h.01" /></>} />,
-  },
-  {
-    tag: "/remind",
-    title: "Reminders & schedules",
-    body: "“Remind me in 2h” or recurring pings — delivered right on time.",
-    icon: <Icon path={<><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2 2" /><path d="M5 3 2 6" /><path d="m19 3 3 3" /></>} />,
-  },
-  {
-    tag: "AI reply",
-    title: "AI support desk",
-    body: "Answers FAQs with AI and hands off to a human when it’s needed.",
-    icon: <Icon path={<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" /></>} />,
-  },
-  {
-    tag: "RSS → channel",
-    title: "News & RSS feeds",
-    body: "Posts new articles from any feed straight into your channel.",
-    icon: <Icon path={<><path d="M4 11a9 9 0 0 1 9 9" /><path d="M4 4a16 16 0 0 1 16 16" /><circle cx="5" cy="19" r="1" /></>} />,
-  },
+// Tags are short bot commands / proper nouns — kept as-is across languages.
+const meta: { tag: string; icon: ReactNode }[] = [
+  { tag: "/price BTC", icon: <Icon path={<><path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></>} /> },
+  { tag: "auto-mod", icon: <Icon path={<><path d="M12 3 4 6v6c0 5 3.5 7.5 8 9 4.5-1.5 8-4 8-9V6Z" /><path d="m9 12 2 2 4-4" /></>} /> },
+  { tag: "/quiz", icon: <Icon path={<><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.9.4-1 1-1 1.7" /><path d="M12 17h.01" /></>} /> },
+  { tag: "/remind", icon: <Icon path={<><circle cx="12" cy="13" r="8" /><path d="M12 9v4l2 2" /><path d="M5 3 2 6" /><path d="m19 3 3 3" /></>} /> },
+  { tag: "AI reply", icon: <Icon path={<><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" /></>} /> },
+  { tag: "RSS → channel", icon: <Icon path={<><path d="M4 11a9 9 0 0 1 9 9" /><path d="M4 4a16 16 0 0 1 16 16" /><circle cx="5" cy="19" r="1" /></>} /> },
 ];
 
 export function UseCases() {
+  const { t } = useI18n();
+  const cases = meta.map((m, i) => ({
+    tag: m.tag,
+    icon: m.icon,
+    title: t(`useCases.c${i}.t`),
+    body: t(`useCases.c${i}.d`),
+  }));
+
   return (
     <section className="py-24">
       <div className="container-x">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="font-mono text-xs uppercase tracking-widest text-accent">Use cases</p>
+          <p className="font-mono text-xs uppercase tracking-widest text-accent">{t("useCases.kicker")}</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
-            What you can build tonight
+            {t("useCases.title")}
           </h2>
           <p className="mt-4 text-muted-foreground">
-            Start from a sentence. These are the kinds of bots people ship with Botforge.
+            {t("useCases.subtitle")}
           </p>
         </div>
 

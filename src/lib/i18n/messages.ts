@@ -528,6 +528,24 @@ const en: Dict = {
   "plan.pro.h1": "40 assistant messages/day",
   "plan.pro.h2": "Metrics panel",
   "plan.pro.h3": "Assistant inspects your logs",
+
+  // ---- 404 / error pages ----
+  "notFound.title": "Page not found",
+  "notFound.desc": "The page you're looking for doesn't exist or has moved.",
+  "notFound.back": "Back to home",
+  "appError.title": "Something went wrong",
+  "appError.desc": "We've logged the error and are looking into it. Try again.",
+  "appError.retry": "Try again",
+
+  // ---- Dashboard onboarding + sort ----
+  "onboard.title": "New here? Build your first bot in 3 steps",
+  "onboard.step1": "Describe your bot in plain words",
+  "onboard.step2": "AI writes the code — you approve each change",
+  "onboard.step3": "Run it in the browser or download the source",
+  "onboard.dismiss": "Got it",
+  "dash.sortRecent": "Recent",
+  "dash.sortName": "Name",
+  "dash.sortLabel": "Sort",
 };
 
 const ru: Dict = {
@@ -1039,6 +1057,24 @@ const ru: Dict = {
   "plan.pro.h1": "40 сообщений ассистенту в день",
   "plan.pro.h2": "Панель метрик",
   "plan.pro.h3": "Ассистент анализирует твои логи",
+
+  // ---- 404 / ошибки ----
+  "notFound.title": "Страница не найдена",
+  "notFound.desc": "Страницы, которую ты ищешь, не существует или она была перемещена.",
+  "notFound.back": "На главную",
+  "appError.title": "Что-то пошло не так",
+  "appError.desc": "Мы записали ошибку и уже разбираемся. Попробуй ещё раз.",
+  "appError.retry": "Попробовать снова",
+
+  // ---- Онбординг и сортировка на дашборде ----
+  "onboard.title": "Впервые здесь? Собери первого бота за 3 шага",
+  "onboard.step1": "Опиши бота обычными словами",
+  "onboard.step2": "ИИ пишет код — ты одобряешь каждое изменение",
+  "onboard.step3": "Запусти в браузере или скачай исходник",
+  "onboard.dismiss": "Понятно",
+  "dash.sortRecent": "Недавние",
+  "dash.sortName": "По имени",
+  "dash.sortLabel": "Сортировка",
 };
 
 const pl: Dict = {

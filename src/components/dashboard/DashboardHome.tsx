@@ -33,6 +33,7 @@ import {
   MoreVertical,
   Bot,
   ArrowRight,
+  Close,
 } from "@/components/icons";
 import { cn } from "@/lib/utils";
 
@@ -88,6 +89,27 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
   const [creating, setCreating] = useState(false);
   const [upgrade, setUpgrade] = useState(false);
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<"recent" | "name">("recent");
+  // Start hidden so the server render matches; reveal on mount if not dismissed
+  // (avoids a hydration mismatch on the localStorage-backed flag).
+  const [showOnboard, setShowOnboard] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("bf:onboarded") !== "1") setShowOnboard(true);
+    } catch {
+      /* private mode — just skip the hint */
+    }
+  }, []);
+
+  function dismissOnboard() {
+    setShowOnboard(false);
+    try {
+      localStorage.setItem("bf:onboarded", "1");
+    } catch {
+      /* ignore */
+    }
+  }
 
   const reload = useCallback(async () => setProjects(await listProjects()), []);
 
@@ -125,10 +147,13 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
   // Don't gate until the plan is known, or a paid user briefly sees the free cap.
   const atLimit = !planLoading && projects.length >= limit;
 
-  // Only surface search once the grid is big enough to be worth filtering.
+  // Only surface search + sort once the grid is big enough to be worth it.
   const showSearch = projects.length > 6;
   const q = query.trim().toLowerCase();
-  const visible = q ? projects.filter((p) => p.name.toLowerCase().includes(q)) : projects;
+  const filtered = q ? projects.filter((p) => p.name.toLowerCase().includes(q)) : projects;
+  const visible = [...filtered].sort((a, b) =>
+    sort === "name" ? a.name.localeCompare(b.name) : b.updatedAt - a.updatedAt,
+  );
 
   /** Run a create action, or prompt to upgrade if the plan's project cap is hit. */
   function guardedCreate(fn: () => void) {
@@ -169,6 +194,35 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
         </Magnetic>
       </div>
 
+      {/* First-visit onboarding hint (dismissible, remembered) */}
+      {showOnboard && (
+        <div className="animate-fade-up rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
+          <div className="flex items-start justify-between gap-4">
+            <h2 className="text-sm font-semibold text-white">{t("onboard.title")}</h2>
+            <button
+              onClick={dismissOnboard}
+              aria-label={t("onboard.dismiss")}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white"
+            >
+              <Close className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+            {[t("onboard.step1"), t("onboard.step2"), t("onboard.step3")].map((step, i) => (
+              <div
+                key={i}
+                className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"
+              >
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6366F1] to-[#4F46E5] text-xs font-semibold text-white">
+                  {i + 1}
+                </span>
+                <span className="text-sm text-white/70">{step}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Your projects / empty state */}
       {loaded && projects.length > 0 ? (
         <section>
@@ -198,14 +252,25 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
             </span>
           </div>
           {showSearch && (
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("dash.searchPlaceholder")}
-              aria-label={t("dash.searchPlaceholder")}
-              className="mt-3 w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#6366F1]/50 sm:max-w-xs"
-            />
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("dash.searchPlaceholder")}
+                aria-label={t("dash.searchPlaceholder")}
+                className="w-full rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none focus:border-[#6366F1]/50 sm:max-w-xs"
+              />
+              <select
+                value={sort}
+                onChange={(e) => setSort(e.target.value as "recent" | "name")}
+                aria-label={t("dash.sortLabel")}
+                className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white outline-none focus:border-[#6366F1]/50"
+              >
+                <option value="recent">{t("dash.sortRecent")}</option>
+                <option value="name">{t("dash.sortName")}</option>
+              </select>
+            </div>
           )}
           {visible.length > 0 ? (
             <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

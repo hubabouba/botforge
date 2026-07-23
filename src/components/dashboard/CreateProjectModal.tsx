@@ -156,8 +156,8 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
                         <Icon className="h-4 w-4" />
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-sm font-medium">{meta.label}</span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{meta.blurb}</span>
+                        <span className="block text-sm font-medium">{t(`botType.${meta.id}.label`)}</span>
+                        <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{t(`botType.${meta.id}.blurb`)}</span>
                       </span>
                     </button>
                   );
@@ -216,8 +216,8 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
                         audience === a.id ? "border-accent bg-accent-soft/50" : "border-border hover:border-accent/40",
                       )}
                     >
-                      <div className="text-sm font-medium">{a.label}</div>
-                      <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{a.note}</div>
+                      <div className="text-sm font-medium">{t(`audience.${a.id}.label`)}</div>
+                      <div className="mt-0.5 text-[11px] leading-snug text-muted-foreground">{t(`audience.${a.id}.note`)}</div>
                     </button>
                   ))}
                 </div>
@@ -248,21 +248,24 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
                   className="mt-2 w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/25"
                 />
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  {PERSONALITY_PRESETS.map((p) => (
-                    <button
-                      key={p}
-                      type="button"
-                      onClick={() => setPersonality(p)}
-                      className={cn(
-                        "rounded-full border px-2.5 py-1 text-xs transition-colors",
-                        personality === p
-                          ? "border-accent bg-accent-soft/60 text-foreground"
-                          : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground",
-                      )}
-                    >
-                      {p}
-                    </button>
-                  ))}
+                  {PERSONALITY_PRESETS.map((preset, i) => {
+                    const label = t(`personaPreset.${i}`);
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setPersonality(label)}
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-xs transition-colors",
+                          personality === label
+                            ? "border-accent bg-accent-soft/60 text-foreground"
+                            : "border-border text-muted-foreground hover:border-accent/40 hover:text-foreground",
+                        )}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
                 <p className="mt-1.5 text-[11px] text-muted-foreground">
                   {t("create.personalityHintPre")} <code className="font-mono">PERSONA</code> {t("create.personalityHintPost")}

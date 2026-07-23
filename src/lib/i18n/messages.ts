@@ -141,6 +141,35 @@ const en: Dict = {
   "create.errorGeneric": "Couldn't create the project. Please try again.",
   "create.platformHint": "Telegram & Discord supported",
 
+  // ---- Bot types (create wizard step 1) ----
+  "botType.assistant.label": "Assistant / FAQ",
+  "botType.assistant.blurb": "Answers questions and greets users with a small knowledge base.",
+  "botType.notifications.label": "Notifications",
+  "botType.notifications.blurb": "Sends scheduled updates and alerts to subscribers.",
+  "botType.moderation.label": "Moderation",
+  "botType.moderation.blurb": "Keeps a community tidy — warn, mute, clear messages.",
+  "botType.commerce.label": "Shop / Orders",
+  "botType.commerce.blurb": "Lists products and takes simple orders from a chat.",
+  "botType.utility.label": "Utility / Tools",
+  "botType.utility.blurb": "Handy commands — time, echo, small helpers.",
+  "botType.blank.label": "Blank",
+  "botType.blank.blurb": "A minimal /start bot — build it your way.",
+
+  // ---- Audiences (create wizard step 2) ----
+  "audience.personal.label": "Personal",
+  "audience.personal.note": "A bot for yourself or a hobby project.",
+  "audience.team.label": "Community",
+  "audience.team.note": "A bot for a group, server, or community.",
+  "audience.business.label": "Business",
+  "audience.business.note": "A production bot for a company or product.",
+
+  // ---- Personality presets ----
+  "personaPreset.0": "Friendly and warm",
+  "personaPreset.1": "Professional and concise",
+  "personaPreset.2": "Playful and witty",
+  "personaPreset.3": "Calm and reassuring",
+  "personaPreset.4": "Direct, no fluff",
+
   // ---- Account menu ----
   "account.upgrade": "Upgrade",
   "account.accountMenu": "Account menu",
@@ -661,6 +690,35 @@ const ru: Dict = {
   "create.createProject": "Создать проект",
   "create.errorGeneric": "Не удалось создать проект. Попробуй ещё раз.",
   "create.platformHint": "Поддерживаются Telegram и Discord",
+
+  // ---- Типы ботов (мастер, шаг 1) ----
+  "botType.assistant.label": "Ассистент / FAQ",
+  "botType.assistant.blurb": "Отвечает на вопросы и приветствует пользователей с небольшой базой знаний.",
+  "botType.notifications.label": "Уведомления",
+  "botType.notifications.blurb": "Присылает запланированные обновления и оповещения подписчикам.",
+  "botType.moderation.label": "Модерация",
+  "botType.moderation.blurb": "Поддерживает порядок в сообществе — предупреждения, муты, очистка сообщений.",
+  "botType.commerce.label": "Магазин / Заказы",
+  "botType.commerce.blurb": "Показывает товары и принимает простые заказы прямо в чате.",
+  "botType.utility.label": "Утилиты / Инструменты",
+  "botType.utility.blurb": "Удобные команды — время, эхо, небольшие помощники.",
+  "botType.blank.label": "С нуля",
+  "botType.blank.blurb": "Минимальный бот с /start — собери его по-своему.",
+
+  // ---- Аудитории (мастер, шаг 2) ----
+  "audience.personal.label": "Личный",
+  "audience.personal.note": "Бот для себя или хобби-проекта.",
+  "audience.team.label": "Сообщество",
+  "audience.team.note": "Бот для группы, сервера или сообщества.",
+  "audience.business.label": "Бизнес",
+  "audience.business.note": "Боевой бот для компании или продукта.",
+
+  // ---- Пресеты характера ----
+  "personaPreset.0": "Дружелюбный и тёплый",
+  "personaPreset.1": "Профессиональный и лаконичный",
+  "personaPreset.2": "Игривый и остроумный",
+  "personaPreset.3": "Спокойный и ободряющий",
+  "personaPreset.4": "Прямой, без воды",
 
   // ---- Меню аккаунта ----
   "account.upgrade": "Улучшить",

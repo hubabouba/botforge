@@ -5,7 +5,6 @@ import { LogosStrip } from "@/components/marketing/LogosStrip";
 import { Services } from "@/components/marketing/Services";
 import { Stats } from "@/components/marketing/Stats";
 import { Infrastructure } from "@/components/marketing/Infrastructure";
-import { CaseStudies } from "@/components/marketing/CaseStudies";
 import { Pricing } from "@/components/marketing/Pricing";
 import { FAQ } from "@/components/marketing/FAQ";
 import { CTA } from "@/components/marketing/CTA";
@@ -25,7 +24,6 @@ export default function LandingPage() {
         <Reveal><Services /></Reveal>
         <Reveal><Stats /></Reveal>
         <Reveal><Infrastructure /></Reveal>
-        <Reveal><CaseStudies /></Reveal>
         <Reveal><Pricing /></Reveal>
         <Reveal><FAQ /></Reveal>
         <Reveal><CTA /></Reveal>

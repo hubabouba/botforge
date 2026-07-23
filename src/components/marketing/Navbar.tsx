@@ -14,7 +14,6 @@ const NAV_KEY: Record<string, string> = {
   "#features": "nav.features",
   "#services": "nav.services",
   "#pricing": "nav.pricing",
-  "#cases": "nav.cases",
   "#faq": "nav.faq",
 };
 

@@ -73,6 +73,5 @@ export const pricingTiers: (PricingTier & { price: number })[] = PLANS.map((p) =
 export const navLinks = [
   { label: "Services", href: "#services" },
   { label: "Pricing", href: "#pricing" },
-  { label: "Case studies", href: "#cases" },
   { label: "FAQ", href: "#faq" },
 ];

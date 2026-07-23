@@ -233,6 +233,7 @@ const en: Dict = {
   "top.showAssistant": "Show assistant",
   "top.assistant": "Assistant",
   "top.downloadZip": "Download ZIP",
+  "top.run": "Run",
   "top.runLocally": "Run locally",
 
   // ---- File tree ----
@@ -278,6 +279,8 @@ const en: Dict = {
   "chat.modelStandardDesc": "Fast — great for everyday coding",
   "chat.modelAdvancedDesc": "Sharper reasoning and cleaner edits",
   "chat.upgradeShort": "Upgrade",
+  "chat.autoApply": "Auto-apply",
+  "chat.autoApplyHint": "Apply AI edits automatically, without the Apply button",
   "chat.assistantSettings": "Assistant settings",
   "chat.hideAssistant": "Hide assistant",
   "chat.introHint": "Ask me to add features, fix bugs, or explain the code. I can edit files directly — you approve each change.",
@@ -350,6 +353,8 @@ const en: Dict = {
   "panel.runtime": "Runtime",
   "panel.of": "of",
   "panel.comingLater": "coming later",
+  "panel.runtimeBudget": "Monthly runtime budget",
+  "panel.budgetLeft": "left",
   "panel.liveMetricsHint": "Status, uptime, restarts and runtime are live. Active-users and message counts need your bot to report its own events — that instrumentation is coming in a later update, not faked here.",
   "panel.planningHint": "Describe what you want your bot to do — the assistant drafts a concrete, step-by-step build plan you can then hand to the chat to implement.",
   "panel.planningPlaceholder": "e.g. A bot that takes food orders, confirms them, and notifies an admin channel.",
@@ -749,6 +754,7 @@ const ru: Dict = {
   "top.showAssistant": "Показать ассистента",
   "top.assistant": "Ассистент",
   "top.downloadZip": "Скачать ZIP",
+  "top.run": "Запустить",
   "top.runLocally": "Запустить локально",
 
   // ---- Файловое дерево ----
@@ -794,6 +800,8 @@ const ru: Dict = {
   "chat.modelStandardDesc": "Быстрая — для повседневного кода",
   "chat.modelAdvancedDesc": "Точнее рассуждает и чище правит",
   "chat.upgradeShort": "Тариф",
+  "chat.autoApply": "Авто-правки",
+  "chat.autoApplyHint": "Применять правки ИИ автоматически, без кнопки Apply",
   "chat.assistantSettings": "Настройки ассистента",
   "chat.hideAssistant": "Скрыть ассистента",
   "chat.introHint": "Попроси меня добавить функции, исправить баги или объяснить код. Я могу редактировать файлы напрямую — ты одобряешь каждое изменение.",
@@ -866,6 +874,8 @@ const ru: Dict = {
   "panel.runtime": "Время работы",
   "panel.of": "из",
   "panel.comingLater": "скоро",
+  "panel.runtimeBudget": "Месячный бюджет работы",
+  "panel.budgetLeft": "осталось",
   "panel.liveMetricsHint": "Статус, аптайм, перезапуски и время работы — реальные, вживую. Число активных пользователей и сообщений требует, чтобы бот сам репортил события — это появится в одном из следующих обновлений, а не подделывается здесь.",
   "panel.planningHint": "Опиши, что должен делать твой бот — ассистент составит конкретный пошаговый план разработки, который затем можно передать в чат для реализации.",
   "panel.planningPlaceholder": "например: бот, принимающий заказы еды, подтверждающий их и уведомляющий канал администратора.",

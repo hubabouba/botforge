@@ -230,7 +230,7 @@ export function HostingPanel({ project }: { project: Project }) {
             </button>
           )}
         </div>
-        <div ref={logBox} className="max-h-72 min-h-[8rem] overflow-y-auto p-3 font-mono text-[12px] leading-relaxed">
+        <div ref={logBox} className="max-h-[60vh] min-h-[20rem] overflow-y-auto p-3 font-mono text-[12px] leading-relaxed">
           {logs.length === 0 ? (
             <p className="text-neutral-600">{loaded ? t("hosting.noLogsYet") : t("hosting.loadingLogs")}</p>
           ) : (

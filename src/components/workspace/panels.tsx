@@ -5,6 +5,7 @@ import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { loadPrefs } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
 import { HostingPanel, formatRuntime, STATUS_META } from "./HostingPanel";
+import { MermaidDiagram } from "./MermaidDiagram";
 import { useHostingStatus } from "@/hooks/useHostingStatus";
 import { CodeIcon, Terminal, ListChecks, Chart, Lock, Play, Bot } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -65,14 +66,16 @@ function PanelShell({
   icon: Icon,
   title,
   children,
+  wide,
 }: {
   icon: (p: { className?: string }) => ReactElement;
   title: string;
   children: ReactNode;
+  wide?: boolean;
 }) {
   return (
     <div className="h-full overflow-y-auto p-6">
-      <div className="mx-auto max-w-2xl">
+      <div className={cn("mx-auto", wide ? "max-w-4xl" : "max-w-2xl")}>
         <div className="mb-4 flex items-center gap-2 text-neutral-300">
           <Icon className="h-4 w-4 text-neutral-400" />
           <h2 className="text-sm font-medium">{title}</h2>
@@ -99,7 +102,7 @@ export function LogsPanel({
   // "run locally" path (also a good fallback if hosting ever has an incident).
   if (hostingAvailable) {
     return (
-      <PanelShell icon={Terminal} title={t("panel.runAndLogs")}>
+      <PanelShell icon={Terminal} title={t("panel.runAndLogs")} wide>
         <HostingPanel project={project} />
         <button
           onClick={onRun}
@@ -176,25 +179,50 @@ export function MetricsPanel({
     );
   }
 
+  const usage = status?.usage ?? null;
+  const hasBudget = !!usage && usage.limitSeconds >= 0;
+  const budgetPct =
+    hasBudget && usage!.limitSeconds > 0 ? Math.min(100, Math.round((usage!.usedSeconds / usage!.limitSeconds) * 100)) : 0;
+  const budgetLeft = hasBudget ? Math.max(0, usage!.limitSeconds - usage!.usedSeconds) : 0;
+
   return (
-    <PanelShell icon={Chart} title={t("panel.viewMetrics")}>
+    <PanelShell icon={Chart} title={t("panel.viewMetrics")} wide>
       {/* Real process health (cheap — straight from the deployment record). */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Tile label={t("panel.status")} value={t(STATUS_META[status?.status ?? "stopped"].labelKey)} hint={t("panel.live")} />
         <Tile label={t("panel.uptime")} value={uptimeLabel(status?.startedAt ?? null, running)} hint={t("panel.sinceStart")} />
         <Tile label={t("panel.restarts")} value={String(status?.restartCount ?? 0)} hint={t("panel.thisDeployment")} />
-      </div>
-      {/* Honestly-labelled "coming later" — needs the bot to report its own events. */}
-      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Tile
           label={t("panel.runtime")}
-          value={status?.usage ? formatRuntime(status.usage.usedSeconds) : "—"}
-          hint={
-            status?.usage && status.usage.limitSeconds >= 0
-              ? `${t("panel.of")} ${formatRuntime(status.usage.limitSeconds)} ${t("hosting.thisMonth")}`
-              : t("hosting.thisMonth")
-          }
+          value={usage ? formatRuntime(usage.usedSeconds) : "—"}
+          hint={hasBudget ? `${t("panel.of")} ${formatRuntime(usage!.limitSeconds)} ${t("hosting.thisMonth")}` : t("hosting.thisMonth")}
         />
+      </div>
+
+      {/* Monthly runtime budget — real, straight from hosting_usage. */}
+      {hasBudget && (
+        <div className="mt-3 rounded-xl border border-ink-800 bg-ink-900/50 p-4">
+          <div className="flex items-center justify-between text-[11px] uppercase tracking-wide text-neutral-500">
+            <span>{t("panel.runtimeBudget")}</span>
+            <span className={cn(budgetPct >= 90 && "text-rose-400")}>{budgetPct}%</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink-800">
+            <div
+              className={cn(
+                "h-full rounded-full transition-all",
+                budgetPct >= 90 ? "bg-rose-500" : "bg-gradient-to-r from-[#6366F1] to-[#22D3EE]",
+              )}
+              style={{ width: `${budgetPct}%` }}
+            />
+          </div>
+          <div className="mt-1.5 text-[11px] text-neutral-500">
+            {formatRuntime(usage!.usedSeconds)} / {formatRuntime(usage!.limitSeconds)} {t("hosting.thisMonth")} · {t("panel.budgetLeft")}: {formatRuntime(budgetLeft)}
+          </div>
+        </div>
+      )}
+
+      {/* Honestly-labelled "coming later" — needs the bot to report its own events. */}
+      <div className="mt-3 grid grid-cols-2 gap-3">
         <Tile label={t("panel.activeUsers")} value="—" hint={t("panel.comingLater")} muted />
         <Tile label={t("panel.messages")} value="—" hint={t("panel.comingLater")} muted />
       </div>
@@ -204,6 +232,15 @@ export function MetricsPanel({
 }
 
 // ---- Planning (real, AI-driven) ------------------------------------------
+
+// Pull a ```mermaid fenced block out of the plan so it can be drawn as a
+// diagram; whatever's left stays as the text plan.
+const MERMAID_RE = /```mermaid\s*([\s\S]*?)```/i;
+function splitPlan(s: string): { diagram: string | null; text: string } {
+  const m = s.match(MERMAID_RE);
+  if (!m) return { diagram: null, text: s.trim() };
+  return { diagram: m[1].trim(), text: s.replace(m[0], "").trim() };
+}
 
 export function PlanningPanel({ project, files }: { project: Project; files: ProjectFile[] }) {
   const { t } = useI18n();
@@ -268,8 +305,10 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
     }
   }
 
+  const { diagram, text } = splitPlan(plan);
+
   return (
-    <PanelShell icon={ListChecks} title={t("ws.viewPlanning")}>
+    <PanelShell icon={ListChecks} title={t("ws.viewPlanning")} wide>
       <p className="mb-3 text-[13px] leading-relaxed text-neutral-400">{t("panel.planningHint")}</p>
       <textarea
         value={goal}
@@ -289,11 +328,23 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
 
       {error && <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-300">{error}</div>}
 
-      {plan && (
-        <div className="mt-4 whitespace-pre-wrap rounded-xl border border-ink-800 bg-ink-900/50 p-4 text-[13px] leading-relaxed text-neutral-300">
-          {plan}
-        </div>
-      )}
+      {plan &&
+        (busy ? (
+          // While streaming, show the raw text (the diagram block may be
+          // half-written); render the real diagram once generation finishes.
+          <div className="mt-4 whitespace-pre-wrap rounded-xl border border-ink-800 bg-ink-900/50 p-4 text-[13px] leading-relaxed text-neutral-300">
+            {plan}
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {diagram && <MermaidDiagram code={diagram} />}
+            {text && (
+              <div className="whitespace-pre-wrap rounded-xl border border-ink-800 bg-ink-900/50 p-4 text-[13px] leading-relaxed text-neutral-300">
+                {text}
+              </div>
+            )}
+          </div>
+        ))}
     </PanelShell>
   );
 }

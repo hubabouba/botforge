@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Project, ProjectFile } from "@/lib/workspace/types";
-import { Bot, Check, FileIcon, Close, Settings, Lock, ChevronRight } from "@/components/icons";
-import { loadPrefs, savePrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
+import { Bot, Check, FileIcon, Close, Lock, ChevronRight } from "@/components/icons";
+import { loadPrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
 import { track } from "@/lib/analytics";
 import { usePlan } from "@/hooks/usePlan";
@@ -36,6 +36,7 @@ const MODEL_META: Record<Provider, { dot: string; descKey: string }> = {
   claude: { dot: "bg-gradient-to-r from-[#818CF8] to-[#22D3EE]", descKey: "chat.modelAdvancedDesc" },
 };
 const MODEL_KEY = "bf:assistant-model";
+const AUTO_APPLY_KEY = "bf:auto-apply";
 
 export function WorkspaceChat({
   project,
@@ -52,7 +53,9 @@ export function WorkspaceChat({
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  // Auto-apply: AI edits land in the project immediately, no Apply click. On by
+  // default (user asked for "always able to make edits"); toggle persists.
+  const [autoApply, setAutoApply] = useState(true);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [quota, setQuota] = useState<{ used: number; limit: number } | null>(null);
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
@@ -62,9 +65,15 @@ export function WorkspaceChat({
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  // Load saved persona preferences once on mount (localStorage is client-only).
+  // Load saved persona preferences (still editable in Settings) + the auto-apply
+  // choice once on mount (localStorage is client-only).
   useEffect(() => {
     setPrefs(loadPrefs());
+    try {
+      if (localStorage.getItem(AUTO_APPLY_KEY) === "0") setAutoApply(false);
+    } catch {
+      /* storage blocked — keep the default */
+    }
   }, []);
 
   // Resolve the selected model from storage, clamped to what the plan allows —
@@ -102,11 +111,16 @@ export function WorkspaceChat({
   // Abort an in-flight stream if the panel unmounts (e.g. chat collapsed).
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  function updatePrefs(patch: Partial<AssistantPreferences>) {
-    // Side effect stays outside the updater — StrictMode re-runs updaters.
-    const next = { ...prefs, ...patch };
-    savePrefs(next);
-    setPrefs(next);
+  function toggleAutoApply() {
+    setAutoApply((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem(AUTO_APPLY_KEY, next ? "1" : "0");
+      } catch {
+        /* non-fatal */
+      }
+      return next;
+    });
   }
 
   useEffect(() => {
@@ -194,6 +208,13 @@ export function WorkspaceChat({
       // budget) — never leave a permanently blank message.
       if (!hadError && !accText.trim() && !accEdits.length) {
         patch((m) => ({ ...m, text: t("chat.emptyReplyError"), error: true }));
+      }
+
+      // Auto-apply: write every proposed edit straight to the project and mark
+      // it applied. Off → the user still approves each edit with Apply below.
+      if (autoApply && !hadError && accEdits.length) {
+        accEdits.forEach((e) => onApplyEdit(e.path, e.content));
+        patch((m) => ({ ...m, edits: (m.edits ?? []).map((e) => ({ ...e, applied: true })) }));
       }
     } catch (e) {
       if ((e as Error).name === "AbortError") return; // superseded / unmounted
@@ -285,15 +306,18 @@ export function WorkspaceChat({
           )}
         </div>
         <button
-          onClick={() => setSettingsOpen((v) => !v)}
-          aria-label={t("chat.assistantSettings")}
-          aria-pressed={settingsOpen}
+          onClick={toggleAutoApply}
+          aria-pressed={autoApply}
+          title={t("chat.autoApplyHint")}
           className={cn(
-            "grid h-6 w-6 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200",
-            settingsOpen && "bg-white/10 text-neutral-200",
+            "inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
+            autoApply
+              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+              : "border-ink-700 bg-ink-900/60 text-neutral-400 hover:text-neutral-200",
           )}
         >
-          <Settings className="h-4 w-4" />
+          <span className={cn("h-1.5 w-1.5 rounded-full", autoApply ? "bg-emerald-400" : "bg-neutral-600")} />
+          {t("chat.autoApply")}
         </button>
         <button
           onClick={onCollapse}
@@ -303,18 +327,6 @@ export function WorkspaceChat({
           <Close className="h-4 w-4" />
         </button>
       </div>
-
-      {settingsOpen && (
-        <AssistantSettings
-          prefs={prefs}
-          onChange={updatePrefs}
-          onReset={() => {
-            savePrefs(DEFAULT_PREFERENCES);
-            setPrefs(DEFAULT_PREFERENCES);
-          }}
-          onClose={() => setSettingsOpen(false)}
-        />
-      )}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-3.5 overflow-y-auto p-4">
@@ -445,102 +457,3 @@ export function WorkspaceChat({
   );
 }
 
-const LANGUAGES = ["", "English", "Русский", "Español", "Deutsch", "Français"];
-const STYLES: { value: NonNullable<AssistantPreferences["style"]>; labelKey: string }[] = [
-  { value: "concise", labelKey: "settings.styleConcise" },
-  { value: "balanced", labelKey: "settings.styleBalanced" },
-  { value: "detailed", labelKey: "settings.styleDetailed" },
-];
-
-function AssistantSettings({
-  prefs,
-  onChange,
-  onReset,
-  onClose,
-}: {
-  prefs: AssistantPreferences;
-  onChange: (patch: Partial<AssistantPreferences>) => void;
-  onReset: () => void;
-  onClose: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <div className="border-b border-ink-800 bg-ink-900/60 px-4 py-3.5 text-[13px]">
-      <div className="mb-3 flex items-center">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-neutral-500">{t("settings.assistantPersona")}</span>
-        <button
-          onClick={onClose}
-          className="ml-auto text-[11px] text-neutral-500 hover:text-neutral-300"
-        >
-          {t("chat.done")}
-        </button>
-      </div>
-
-      {/* Reply language */}
-      <label className="mb-1 block text-[12px] text-neutral-400">{t("settings.replyLanguage")}</label>
-      <div className="mb-3 flex flex-wrap gap-1.5">
-        {LANGUAGES.map((lang) => (
-          <button
-            key={lang || "auto"}
-            onClick={() => onChange({ language: lang })}
-            className={cn(
-              "rounded-full border px-2.5 py-1 text-[12px] transition-colors",
-              (prefs.language ?? "") === lang
-                ? "border-accent/60 bg-accent/15 text-neutral-100"
-                : "border-ink-800 bg-ink-900 text-neutral-400 hover:text-neutral-200",
-            )}
-          >
-            {lang || t("settings.matchMe")}
-          </button>
-        ))}
-      </div>
-
-      {/* Verbosity */}
-      <label className="mb-1 block text-[12px] text-neutral-400">{t("settings.style")}</label>
-      <div className="mb-3 flex gap-1.5">
-        {STYLES.map((s) => (
-          <button
-            key={s.value}
-            onClick={() => onChange({ style: s.value })}
-            className={cn(
-              "flex-1 rounded-lg border px-2 py-1.5 text-[12px] transition-colors",
-              prefs.style === s.value
-                ? "border-accent/60 bg-accent/15 text-neutral-100"
-                : "border-ink-800 bg-ink-900 text-neutral-400 hover:text-neutral-200",
-            )}
-          >
-            {t(s.labelKey)}
-          </button>
-        ))}
-      </div>
-
-      {/* Persona / character */}
-      <label className="mb-1 block text-[12px] text-neutral-400">{t("settings.character")}</label>
-      <input
-        value={prefs.persona ?? ""}
-        onChange={(e) => onChange({ persona: e.target.value })}
-        maxLength={400}
-        placeholder={t("settings.characterPlaceholder")}
-        className="mb-3 w-full rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-[12px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-accent/50"
-      />
-
-      {/* Custom instructions */}
-      <label className="mb-1 block text-[12px] text-neutral-400">{t("settings.customInstructions")}</label>
-      <textarea
-        value={prefs.custom ?? ""}
-        onChange={(e) => onChange({ custom: e.target.value })}
-        maxLength={1000}
-        rows={2}
-        placeholder={t("settings.customInstructionsPlaceholder")}
-        className="w-full resize-none rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1.5 text-[12px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-accent/50"
-      />
-
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-[11px] text-neutral-600">{t("chat.savedForAllProjects")}</span>
-        <button onClick={onReset} className="text-[11px] text-neutral-500 hover:text-neutral-300">
-          {t("chat.reset")}
-        </button>
-      </div>
-    </div>
-  );
-}

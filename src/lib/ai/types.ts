@@ -89,7 +89,11 @@ export function buildSystemPrompt(params: AssistantParams): string {
     params.intent === "plan"
       ? `
 
-PLANNING MODE: Do NOT modify files or call write_file. Produce a concise, practical build plan for this project as a numbered list. For each step name the feature, what to do, and which file(s) to create or change. Keep it specific and buildable — no fluff.`
+PLANNING MODE: Do NOT modify files or call write_file. Reply with TWO parts, in this order:
+
+1) An architecture diagram of how the bot works, as a Mermaid \`flowchart TD\` inside a fenced code block that starts with \`\`\`mermaid and ends with \`\`\`. Keep it to about 5–9 nodes (e.g. the platform/user → the bot entrypoint → command/event handlers → any external APIs or storage). Use short ASCII node ids (A, B, cmd, api…) and short labels. IMPORTANT for the renderer: put every label in square brackets like A[Start], keep labels plain (letters, digits, spaces only — no parentheses, quotes, slashes, colons or punctuation inside labels), and use only simple \`-->\` or \`-->|label|\` edges.
+
+2) After the diagram, a concise, practical numbered build plan. For each step name the feature, what to do, and which file(s) to create or change. Keep it specific and buildable — no fluff.`
       : "";
 
   return `You are Botforge's coding assistant. You help the user build a ${params.project.platform} bot written in ${params.project.language}. The project is called "${params.project.name}".

@@ -141,7 +141,7 @@ export function TopBar({
           className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-medium text-white shadow-[0_8px_24px_-8px_rgba(16,185,129,0.75)] transition-transform hover:-translate-y-px"
         >
           <Play className="h-3.5 w-3.5" />
-          {t("top.runLocally")}
+          {t("top.run")}
         </button>
       </div>
     </header>

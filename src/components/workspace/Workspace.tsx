@@ -347,7 +347,9 @@ export function Workspace({ projectId }: { projectId: string }) {
         onToggleChat={() => setChatOpen((v) => !v)}
         onRename={onRenameProject}
         onDownload={() => downloadZip(project.name, project.files)}
-        onRun={() => setRunOpen(true)}
+        // Green "Run" = run on Botforge hosting: jump to the Logs/Hosting panel
+        // for anyone whose plan can host; free users fall back to the local guide.
+        onRun={() => (hostingAvailable ? selectView("logs") : setRunOpen(true))}
       />
 
       <div className="flex min-h-0 flex-1">

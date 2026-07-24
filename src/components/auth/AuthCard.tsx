@@ -13,6 +13,16 @@ import { track } from "@/lib/analytics";
 
 type Provider = "google" | "github";
 
+// Supabase's email OTP length (Auth → Providers → Email → OTP length). The code
+// is shown grouped with a dash in the middle for readability; the dash is
+// display-only and stripped before verifying. Bump this if the setting changes.
+const CODE_LENGTH = 8;
+const CODE_SPLIT = Math.ceil(CODE_LENGTH / 2);
+const CODE_PLACEHOLDER = `${"0".repeat(CODE_SPLIT)}-${"0".repeat(CODE_LENGTH - CODE_SPLIT)}`;
+function formatCode(digits: string): string {
+  return digits.length > CODE_SPLIT ? `${digits.slice(0, CODE_SPLIT)}-${digits.slice(CODE_SPLIT)}` : digits;
+}
+
 export function AuthCard({ mode }: { mode: "login" | "signup" }) {
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -149,14 +159,14 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   autoFocus
-                  maxLength={6}
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="000000"
+                  maxLength={CODE_LENGTH + 1}
+                  value={formatCode(code)}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, CODE_LENGTH))}
+                  placeholder={CODE_PLACEHOLDER}
                   aria-label={t("auth.codeLabel")}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-center font-mono text-lg tracking-[0.4em] outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/30"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-center font-mono text-lg tracking-[0.25em] outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/30"
                 />
-                <Button type="submit" className="w-full" disabled={verifying || code.length < 6}>
+                <Button type="submit" className="w-full" disabled={verifying || code.length < CODE_LENGTH}>
                   {verifying ? t("auth.verifying") : t("auth.verify")}
                 </Button>
               </form>

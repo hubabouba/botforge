@@ -26,7 +26,28 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
   const [error, setError] = useState<string | null>(
     searchParams.get("error") === "auth" ? "auth-callback" : null,
   );
+  // 6-digit code the user can type instead of chasing the magic link across
+  // devices — the whole flow stays on whatever device they're sitting at.
+  const [code, setCode] = useState("");
+  const [verifying, setVerifying] = useState(false);
   const isSignup = mode === "signup";
+
+  async function verifyCode(e: React.FormEvent) {
+    e.preventDefault();
+    const token = code.trim();
+    if (token.length < 6 || verifying) return;
+    setError(null);
+    setVerifying(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token, type: "email" });
+    if (error) {
+      setError("code");
+      setVerifying(false);
+    } else {
+      // Session cookie is now set — hard-navigate so middleware sees it.
+      window.location.href = "/dashboard";
+    }
+  }
 
   async function signInWithEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -114,17 +135,43 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
           </p>
 
           {status === "sent" ? (
-            <div className="mt-8 rounded-xl border border-border bg-muted/50 p-5 text-center">
+            <div className="mt-8 rounded-xl border border-border bg-muted/50 p-5">
               <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-accent-soft text-accent">
                 <Mail className="h-5 w-5" />
               </div>
-              <p className="mt-3 font-medium">{t("auth.checkEmail")}</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {t("auth.magicLinkPre")}<span className="font-medium text-foreground">{email}</span>{t("auth.magicLinkPost")}
+              <p className="mt-3 text-center font-medium">{t("auth.checkEmail")}</p>
+              <p className="mt-1 text-center text-sm text-muted-foreground">
+                {t("auth.codeSentPre")}<span className="font-medium text-foreground">{email}</span>{t("auth.codeSentPost")}
               </p>
+              <form onSubmit={verifyCode} className="mt-4 space-y-3">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  autoFocus
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="000000"
+                  aria-label={t("auth.codeLabel")}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-center font-mono text-lg tracking-[0.4em] outline-none focus:border-accent focus-visible:ring-2 focus-visible:ring-accent/30"
+                />
+                <Button type="submit" className="w-full" disabled={verifying || code.length < 6}>
+                  {verifying ? t("auth.verifying") : t("auth.verify")}
+                </Button>
+              </form>
+              {error && (
+                <p className="mt-3 rounded-lg bg-rose-500/10 px-3 py-2 text-center text-xs text-rose-500">
+                  {error === "code" ? t("auth.codeError") : error}
+                </p>
+              )}
               <button
-                onClick={() => setStatus("idle")}
-                className="mt-4 text-sm font-medium text-accent hover:underline"
+                onClick={() => {
+                  setStatus("idle");
+                  setCode("");
+                  setError(null);
+                }}
+                className="mt-4 block w-full text-center text-sm font-medium text-accent hover:underline"
               >
                 {t("auth.useDifferentEmail")}
               </button>

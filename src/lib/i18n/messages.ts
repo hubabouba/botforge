@@ -533,6 +533,12 @@ const en: Dict = {
   "auth.and": "and",
   "auth.privacyPolicy": "Privacy Policy",
   "auth.callbackFailed": "That sign-in link didn't work — it may have expired, already been used, or been opened in a different browser than the one you requested it from (common with in-app mail browsers). Please try again below.",
+  "auth.codeSentPre": "We sent a 6-digit code and a sign-in link to ",
+  "auth.codeSentPost": ". Enter the code below, or tap the link in the email.",
+  "auth.codeLabel": "6-digit code",
+  "auth.verify": "Sign in",
+  "auth.verifying": "Verifying…",
+  "auth.codeError": "That code is wrong or has expired. Check it and try again, or request a new one.",
 
   // ---- Plan cards (upgrade / settings) ----
   "plan.free.tagline": "Try it out and ship a simple bot.",
@@ -1084,6 +1090,12 @@ const ru: Dict = {
   "auth.and": "и",
   "auth.privacyPolicy": "Политикой конфиденциальности",
   "auth.callbackFailed": "Ссылка для входа не сработала — возможно, она устарела, уже использована, или была открыта в другом браузере, а не в том, где ты её запрашивал (частый случай со встроенным браузером почтовых приложений). Попробуй ещё раз ниже.",
+  "auth.codeSentPre": "Мы отправили 6-значный код и ссылку для входа на ",
+  "auth.codeSentPost": ". Введи код ниже или нажми на ссылку в письме.",
+  "auth.codeLabel": "6-значный код",
+  "auth.verify": "Войти",
+  "auth.verifying": "Проверяем…",
+  "auth.codeError": "Код неверный или устарел. Проверь его и попробуй снова или запроси новый.",
 
   // ---- Карточки тарифов (апгрейд / настройки) ----
   "plan.free.tagline": "Попробуй и запусти простого бота.",

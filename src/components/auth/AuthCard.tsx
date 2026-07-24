@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { brand } from "@/lib/brand";
 import { Logo } from "@/components/marketing/Logo";
 import { Button } from "@/components/ui/Button";
@@ -14,10 +15,17 @@ type Provider = "google" | "github";
 
 export function AuthCard({ mode }: { mode: "login" | "signup" }) {
   const { t } = useI18n();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "sent">("idle");
   const [busy, setBusy] = useState<Provider | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // /auth/callback redirects here with ?error=auth if the code exchange failed
+  // (expired/used link, or opened in a different browser context than the one
+  // that requested it — no code_verifier cookie, common with in-app mail
+  // browsers). Surface it instead of silently landing back on a blank form.
+  const [error, setError] = useState<string | null>(
+    searchParams.get("error") === "auth" ? "auth-callback" : null,
+  );
   const isSignup = mode === "signup";
 
   async function signInWithEmail(e: React.FormEvent) {
@@ -161,7 +169,9 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
               </form>
 
               {error && (
-                <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-500">{error}</p>
+                <p className="mt-4 rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-500">
+                  {error === "auth-callback" ? t("auth.callbackFailed") : error}
+                </p>
               )}
             </>
           )}

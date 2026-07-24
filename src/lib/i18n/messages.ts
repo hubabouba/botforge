@@ -532,6 +532,7 @@ const en: Dict = {
   "auth.terms": "Terms",
   "auth.and": "and",
   "auth.privacyPolicy": "Privacy Policy",
+  "auth.callbackFailed": "That sign-in link didn't work — it may have expired, already been used, or been opened in a different browser than the one you requested it from (common with in-app mail browsers). Please try again below.",
 
   // ---- Plan cards (upgrade / settings) ----
   "plan.free.tagline": "Try it out and ship a simple bot.",
@@ -1082,6 +1083,7 @@ const ru: Dict = {
   "auth.terms": "Условиями",
   "auth.and": "и",
   "auth.privacyPolicy": "Политикой конфиденциальности",
+  "auth.callbackFailed": "Ссылка для входа не сработала — возможно, она устарела, уже использована, или была открыта в другом браузере, а не в том, где ты её запрашивал (частый случай со встроенным браузером почтовых приложений). Попробуй ещё раз ниже.",
 
   // ---- Карточки тарифов (апгрейд / настройки) ----
   "plan.free.tagline": "Попробуй и запусти простого бота.",

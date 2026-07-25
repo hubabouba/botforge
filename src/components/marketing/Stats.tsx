@@ -9,7 +9,7 @@ export function Stats() {
   // "99.9% uptime"). Values are brand/technical tokens (same in every
   // language); only the labels are translated.
   const items = [
-    { node: <span className="font-display">Claude</span>, label: t("stat.assistant") },
+    { node: <span className="font-display">Frontier&nbsp;AI</span>, label: t("stat.assistant") },
     { node: <span className="font-mono">24/7</span>, label: t("stat.hosting") },
     { node: <span className="font-mono">AES-256</span>, label: t("stat.secrets") },
     { node: <span className="font-mono">1-click</span>, label: t("stat.flow") },

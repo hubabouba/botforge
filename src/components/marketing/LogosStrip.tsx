@@ -11,7 +11,7 @@ const items = [
   "Discord",
   "Stripe",
   "OpenAI",
-  "Claude",
+  "Fly.io",
   "Python",
   "TypeScript",
   "Vercel",

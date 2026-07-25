@@ -65,9 +65,9 @@ const PRICING_COPY: Record<PricingTier["id"], Omit<PricingTier, "id" | "name">> 
     tagline: "For demanding builds and pro developers.",
     features: [
       "Everything in Pro",
-      "Opus — smartest AI model",
+      "Most advanced AI model",
       "80 AI messages/day",
-      "Priority Opus generation",
+      "Priority generation",
       "Unlimited projects",
       "Priority support",
     ],

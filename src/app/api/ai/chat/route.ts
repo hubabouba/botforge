@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   // Guard: the chosen provider must be configured.
   if (provider === "claude" && !process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
-      { error: "The Pro assistant (Claude) isn't configured yet (missing ANTHROPIC_API_KEY)." },
+      { error: "The Pro assistant isn't configured yet (missing ANTHROPIC_API_KEY)." },
       { status: 503 },
     );
   }

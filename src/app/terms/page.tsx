@@ -31,6 +31,15 @@ export default function TermsPage() {
         for the keys and tokens you add to them.
       </p>
 
+      <h2>AI providers</h2>
+      <p>
+        {brand.name} generates code and assistant responses using third-party AI models, including
+        Google Gemini and Anthropic’s Claude. When you use the assistant, your prompts and the
+        relevant project files are sent to the applicable provider to produce a response, and are
+        handled under that provider’s terms and privacy policy. Which model runs depends on your
+        plan.
+      </p>
+
       <h2>Plans and pricing</h2>
       <p>
         We offer a free plan and paid plans: {priceList}. Prices are shown in US dollars and do not

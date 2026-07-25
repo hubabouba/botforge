@@ -173,8 +173,8 @@ export const PLANS: PlanMeta[] = [
     id: "max",
     name: "Max",
     price: 49,
-    tagline: "The most capable AI — Opus, for demanding builds.",
-    highlights: ["Everything in Pro", "Opus — our smartest model", "80 assistant messages/day", "Priority Opus generation"],
+    tagline: "The most capable AI, for demanding builds.",
+    highlights: ["Everything in Pro", "Our most advanced AI model", "80 assistant messages/day", "Priority generation"],
   },
 ];
 

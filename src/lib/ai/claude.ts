@@ -10,7 +10,7 @@ function getClient(): Anthropic {
   return client;
 }
 
-/** Model powering the in-workspace coding assistant (paid plans). */
+/** Default model for the in-workspace coding assistant; Max overrides to Opus. */
 const ASSISTANT_MODEL = "claude-sonnet-5";
 
 /**
@@ -73,6 +73,7 @@ You are running as a coding agent with tools, in a loop — not a single reply:
 export async function* assistantChatStream(params: AssistantParams): AsyncGenerator<AssistantStreamEvent> {
   const anthropic = getClient();
   const planning = params.intent === "plan";
+  const model = params.model || ASSISTANT_MODEL;
   const system = buildSystemPrompt(params) + (planning ? "" : AGENT_NOTE);
 
   // A server-side working copy of the project, seeded with the FULL (untruncated)
@@ -107,13 +108,17 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     const stream = anthropic.messages.stream({
-      model: ASSISTANT_MODEL,
-      // max_tokens must comfortably exceed the thinking budget (Anthropic
-      // requires it); thinking tokens bill as output — a deliberate quality/cost
-      // trade only paid users hit. Temperature stays unset (thinking needs the
-      // API default).
-      max_tokens: 8000,
-      thinking: { type: "enabled", budget_tokens: 2048 },
+      model,
+      // Adaptive thinking: the model plans + self-reviews internally, deciding
+      // how much to think per turn. We deliberately DON'T set the old
+      // `budget_tokens` — it's rejected with a 400 on Sonnet 5 / Opus 5, and
+      // omitting `thinking` runs adaptive on both by default. The reasoning
+      // never reaches the client (the loop only forwards `text_delta`) and its
+      // blocks are echoed back across turns, as the API requires. max_tokens
+      // caps thinking + output together, so it's sized to leave room for a full
+      // file write after the model thinks; thinking tokens bill as output — a
+      // quality/cost trade only paid users hit, and larger on Max's Opus.
+      max_tokens: 16000,
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       ...(tools ? { tools } : {}),
       messages,

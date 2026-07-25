@@ -20,12 +20,14 @@ export function stripeEnabled(): boolean {
 export function priceIdForPlan(plan: Plan): string | null {
   if (plan === "basic") return process.env.STRIPE_PRICE_BASIC ?? null;
   if (plan === "pro") return process.env.STRIPE_PRICE_PRO ?? null;
+  if (plan === "max") return process.env.STRIPE_PRICE_MAX ?? null;
   return null;
 }
 
 /** Reverse map: which plan a Stripe Price ID corresponds to. */
 export function planForPriceId(priceId: string | null | undefined): Plan | null {
   if (!priceId) return null;
+  if (priceId === process.env.STRIPE_PRICE_MAX) return "max";
   if (priceId === process.env.STRIPE_PRICE_PRO) return "pro";
   if (priceId === process.env.STRIPE_PRICE_BASIC) return "basic";
   return null;

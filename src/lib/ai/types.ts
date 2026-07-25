@@ -55,6 +55,8 @@ export interface AssistantParams {
   preferences?: AssistantPreferences;
   /** "chat" edits files; "plan" returns a build plan and never edits. */
   intent?: "chat" | "plan";
+  /** Claude model id to run (plan-derived; Max → Opus). Ignored by Gemini. */
+  model?: string;
 }
 
 /** Turns the user's persona settings into extra system-prompt lines. */

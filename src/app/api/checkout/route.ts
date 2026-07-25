@@ -5,7 +5,7 @@ import { stripe, stripeEnabled, priceIdForPlan } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
-const bodySchema = z.object({ plan: z.enum(["basic", "pro"]) });
+const bodySchema = z.object({ plan: z.enum(["basic", "pro", "max"]) });
 
 // POST /api/checkout — start a Stripe Checkout session for a paid plan.
 export async function POST(req: Request) {

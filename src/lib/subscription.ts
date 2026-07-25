@@ -40,7 +40,7 @@ export async function getUserPlan(
     const notExpired =
       !data.current_period_end || new Date(data.current_period_end as string).getTime() > Date.now();
 
-    if (active && notExpired && (data.plan === "basic" || data.plan === "pro")) {
+    if (active && notExpired && (data.plan === "basic" || data.plan === "pro" || data.plan === "max")) {
       return data.plan as Plan;
     }
   } catch (e) {

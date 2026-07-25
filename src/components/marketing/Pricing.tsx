@@ -19,7 +19,7 @@ export function Pricing() {
           <p className="mt-4 text-white/55">{t("pricing.subtitle")}</p>
         </div>
 
-        <div className="mx-auto mt-14 grid max-w-5xl gap-6 md:grid-cols-3">
+        <div className="mx-auto mt-14 grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {pricingTiers.map((tier) => (
             <div
               key={tier.id}

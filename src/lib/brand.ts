@@ -21,7 +21,7 @@ export const brand = {
 } as const;
 
 export interface PricingTier {
-  id: "free" | "basic" | "pro";
+  id: "free" | "basic" | "pro" | "max";
   name: string;
   tagline: string;
   features: string[];
@@ -60,6 +60,18 @@ const PRICING_COPY: Record<PricingTier["id"], Omit<PricingTier, "id" | "name">> 
     ],
     cta: "Get Pro",
     highlighted: true,
+  },
+  max: {
+    tagline: "For demanding builds and pro developers.",
+    features: [
+      "Everything in Pro",
+      "Opus — smartest AI model",
+      "50 AI messages/day",
+      "Priority Opus generation",
+      "Unlimited projects",
+      "Priority support",
+    ],
+    cta: "Get Max",
   },
 };
 

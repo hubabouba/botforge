@@ -439,6 +439,14 @@ const en: Dict = {
   "pricing.pro.feature.3": "Priority generation",
   "pricing.pro.feature.4": "Analytics & logs",
   "pricing.pro.feature.5": "Priority support",
+  "pricing.max.tagline": "For demanding builds and pro developers.",
+  "pricing.max.cta": "Get Max",
+  "pricing.max.feature.0": "Everything in Pro",
+  "pricing.max.feature.1": "Opus — smartest AI model",
+  "pricing.max.feature.2": "50 AI messages/day",
+  "pricing.max.feature.3": "Priority Opus generation",
+  "pricing.max.feature.4": "Unlimited projects",
+  "pricing.max.feature.5": "Priority support",
 
   // ---- Landing: FAQ ----
   "faq.kicker": "FAQ",
@@ -564,6 +572,11 @@ const en: Dict = {
   "plan.pro.h1": "40 assistant messages/day",
   "plan.pro.h2": "Metrics panel",
   "plan.pro.h3": "Assistant inspects your logs",
+  "plan.max.tagline": "The most capable AI — Opus, for demanding builds.",
+  "plan.max.h0": "Everything in Pro",
+  "plan.max.h1": "Opus — our smartest model",
+  "plan.max.h2": "50 assistant messages/day",
+  "plan.max.h3": "Priority Opus generation",
 
   // ---- 404 / error pages ----
   "notFound.title": "Page not found",
@@ -1006,6 +1019,14 @@ const ru: Dict = {
   "pricing.pro.feature.3": "Приоритетная генерация",
   "pricing.pro.feature.4": "Аналитика и логи",
   "pricing.pro.feature.5": "Приоритетная поддержка",
+  "pricing.max.tagline": "Для сложных проектов и профи-разработчиков.",
+  "pricing.max.cta": "Выбрать Max",
+  "pricing.max.feature.0": "Всё из Pro",
+  "pricing.max.feature.1": "Opus — самая умная ИИ-модель",
+  "pricing.max.feature.2": "50 сообщений ИИ/день",
+  "pricing.max.feature.3": "Приоритетная генерация на Opus",
+  "pricing.max.feature.4": "Безлимит проектов",
+  "pricing.max.feature.5": "Приоритетная поддержка",
 
   // ---- Лендинг: Вопросы ----
   "faq.kicker": "Вопросы",
@@ -1131,6 +1152,11 @@ const ru: Dict = {
   "plan.pro.h1": "40 сообщений ассистенту в день",
   "plan.pro.h2": "Панель метрик",
   "plan.pro.h3": "Ассистент анализирует твои логи",
+  "plan.max.tagline": "Самый мощный ИИ — Opus, для сложных задач.",
+  "plan.max.h0": "Всё из Pro",
+  "plan.max.h1": "Opus — наша самая умная модель",
+  "plan.max.h2": "50 сообщений ассистента/день",
+  "plan.max.h3": "Приоритетная генерация на Opus",
 
   // ---- 404 / ошибки ----
   "notFound.title": "Страница не найдена",
@@ -1573,6 +1599,14 @@ const pl: Dict = {
   "pricing.pro.feature.3": "Priorytetowe generowanie",
   "pricing.pro.feature.4": "Analityka i logi",
   "pricing.pro.feature.5": "Priorytetowe wsparcie",
+  "pricing.max.tagline": "Do wymagających projektów i zawodowych programistów.",
+  "pricing.max.cta": "Wybierz Max",
+  "pricing.max.feature.0": "Wszystko z Pro",
+  "pricing.max.feature.1": "Opus — najinteligentniejszy model AI",
+  "pricing.max.feature.2": "50 wiadomości AI/dzień",
+  "pricing.max.feature.3": "Priorytetowe generowanie na Opus",
+  "pricing.max.feature.4": "Nielimitowane projekty",
+  "pricing.max.feature.5": "Priorytetowe wsparcie",
 
   // ---- Landing: FAQ ----
   "faq.kicker": "FAQ",
@@ -1698,6 +1732,11 @@ const pl: Dict = {
   "plan.pro.h1": "40 wiadomości asystenta/dzień",
   "plan.pro.h2": "Panel metryk",
   "plan.pro.h3": "Asystent analizuje Twoje logi",
+  "plan.max.tagline": "Najbardziej wydajny AI — Opus, do wymagających zadań.",
+  "plan.max.h0": "Wszystko z Pro",
+  "plan.max.h1": "Opus — nasz najinteligentniejszy model",
+  "plan.max.h2": "50 wiadomości asystenta/dzień",
+  "plan.max.h3": "Priorytetowe generowanie na Opus",
 
   // ---- 404 / error pages ----
   "notFound.title": "Nie znaleziono strony",
@@ -2140,6 +2179,14 @@ const es: Dict = {
   "pricing.pro.feature.3": "Generación prioritaria",
   "pricing.pro.feature.4": "Analítica y registros",
   "pricing.pro.feature.5": "Soporte prioritario",
+  "pricing.max.tagline": "Para proyectos exigentes y desarrolladores profesionales.",
+  "pricing.max.cta": "Elegir Max",
+  "pricing.max.feature.0": "Todo lo de Pro",
+  "pricing.max.feature.1": "Opus — el modelo de IA más inteligente",
+  "pricing.max.feature.2": "50 mensajes de IA/día",
+  "pricing.max.feature.3": "Generación prioritaria con Opus",
+  "pricing.max.feature.4": "Proyectos ilimitados",
+  "pricing.max.feature.5": "Soporte prioritario",
 
   // ---- Landing: FAQ ----
   "faq.kicker": "FAQ",
@@ -2265,6 +2312,11 @@ const es: Dict = {
   "plan.pro.h1": "40 mensajes del asistente/día",
   "plan.pro.h2": "Panel de métricas",
   "plan.pro.h3": "El asistente revisa tus registros",
+  "plan.max.tagline": "La IA más capaz — Opus, para proyectos exigentes.",
+  "plan.max.h0": "Todo lo de Pro",
+  "plan.max.h1": "Opus — nuestro modelo más inteligente",
+  "plan.max.h2": "50 mensajes del asistente/día",
+  "plan.max.h3": "Generación prioritaria con Opus",
 
   // ---- 404 / error pages ----
   "notFound.title": "Página no encontrada",

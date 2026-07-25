@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { assistantChatStream } from "@/lib/ai/claude";
 import { assistantChatGeminiStream } from "@/lib/ai/gemini";
 import type { AssistantStreamEvent } from "@/lib/ai/types";
-import { aiDailyLimit, isAiLimitExempt, resolveProvider } from "@/lib/plan";
+import { aiDailyLimit, assistantModelForPlan, isAiLimitExempt, resolveProvider } from "@/lib/plan";
 import { getUserPlan } from "@/lib/subscription";
 
 export const runtime = "nodejs";
@@ -111,7 +111,9 @@ export async function POST(req: Request) {
   // protocol; a failure that happens *after* the 200 has been committed can't
   // change the status, so it's surfaced as an in-stream `error` event instead.
   const gen: AsyncGenerator<AssistantStreamEvent> =
-    provider === "claude" ? assistantChatStream(parsed.data) : assistantChatGeminiStream(parsed.data);
+    provider === "claude"
+      ? assistantChatStream({ ...parsed.data, model: assistantModelForPlan(plan) })
+      : assistantChatGeminiStream(parsed.data);
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

@@ -1,7 +1,8 @@
 /**
  * Plans, capabilities, and AI-provider routing.
  *
- * Three tiers: free → Gemini (deliberately limited), basic & pro → Claude.
+ * Tiers: free → Gemini (deliberately limited), basic & pro → Claude Sonnet,
+ * max → Claude Opus (our most capable model).
  * Higher tiers unlock capabilities (panels, deeper assistant powers). Until
  * Stripe + a subscription store exist, a user's plan is derived from env
  * allow-lists so the owner can test each tier:
@@ -9,20 +10,29 @@
  *   - AI_FORCE_PROVIDER: "gemini" | "claude" to override provider routing
  */
 
-export type Plan = "free" | "basic" | "pro";
+export type Plan = "free" | "basic" | "pro" | "max";
 export type Provider = "gemini" | "claude";
 
-export const PLAN_RANK: Record<Plan, number> = { free: 0, basic: 1, pro: 2 };
+export const PLAN_RANK: Record<Plan, number> = { free: 0, basic: 1, pro: 2, max: 3 };
 
 /** Max number of projects per plan (Infinity = unlimited). */
-export const PROJECT_LIMIT: Record<Plan, number> = { free: 2, basic: 15, pro: Infinity };
+export const PROJECT_LIMIT: Record<Plan, number> = { free: 2, basic: 15, pro: Infinity, max: Infinity };
 
 export function projectLimit(plan: Plan): number {
   return PROJECT_LIMIT[plan];
 }
 
 /** Daily AI-assistant message cap per plan (enforced in /api/ai/chat). */
-export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 3, basic: 10, pro: 40 };
+export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 3, basic: 10, pro: 40, max: 50 };
+
+/**
+ * The Claude model each plan's assistant runs. Max unlocks Opus (our most
+ * capable model, ~2.5–3x the token cost of Sonnet — hence the higher price);
+ * every other Claude tier stays on Sonnet. Free runs Gemini and never reads this.
+ */
+export function assistantModelForPlan(plan: Plan): string {
+  return plan === "max" ? "claude-opus-5" : "claude-sonnet-5";
+}
 
 export function aiDailyLimit(plan: Plan): number {
   return AI_DAILY_MESSAGES[plan];
@@ -56,7 +66,9 @@ export function isHostingBetaEmail(email?: string | null): boolean {
 
 /** The next plan up that raises the project limit (for upgrade prompts). */
 export function nextPlanUp(plan: Plan): Plan {
-  return plan === "free" ? "basic" : "pro";
+  if (plan === "free") return "basic";
+  if (plan === "basic") return "pro";
+  return "max";
 }
 
 /** Gated features. Each maps to the minimum plan that unlocks it. */
@@ -87,14 +99,14 @@ export const CAPABILITY_MIN_PLAN: Record<Capability, Plan> = {
 // before Stage 2 turns real plan-gating on.
 
 /** Max bots a plan may have running at once (0 = hosting not available). */
-export const HOSTING_CONCURRENT_RUNS: Record<Plan, number> = { free: 0, basic: 1, pro: 3 };
+export const HOSTING_CONCURRENT_RUNS: Record<Plan, number> = { free: 0, basic: 1, pro: 3, max: 5 };
 
 export function hostingConcurrentLimit(plan: Plan): number {
   return HOSTING_CONCURRENT_RUNS[plan];
 }
 
 /** Monthly bot-runtime budget per plan, in hours (Infinity = unlimited). */
-export const HOSTING_MONTHLY_RUNTIME_HOURS: Record<Plan, number> = { free: 0, basic: 100, pro: 400 };
+export const HOSTING_MONTHLY_RUNTIME_HOURS: Record<Plan, number> = { free: 0, basic: 100, pro: 400, max: 800 };
 
 /** The monthly runtime budget in seconds for begin_project_run (-1 = unlimited). */
 export function hostingRuntimeBudgetSeconds(plan: Plan): number {
@@ -157,6 +169,13 @@ export const PLANS: PlanMeta[] = [
     tagline: "Everything, including insight into your bot.",
     highlights: ["Everything in Basic", "40 assistant messages/day", "Metrics panel", "Assistant inspects your logs"],
   },
+  {
+    id: "max",
+    name: "Max",
+    price: 49,
+    tagline: "The most capable AI — Opus, for demanding builds.",
+    highlights: ["Everything in Pro", "Opus — our smartest model", "50 assistant messages/day", "Priority Opus generation"],
+  },
 ];
 
 export function planMeta(plan: Plan): PlanMeta {
@@ -165,6 +184,7 @@ export function planMeta(plan: Plan): PlanMeta {
 
 export function getPlan(email?: string | null): Plan {
   const e = email?.toLowerCase();
+  if (e && envEmailList("BOTFORGE_MAX_EMAILS").includes(e)) return "max";
   if (e && envEmailList("BOTFORGE_PRO_EMAILS").includes(e)) return "pro";
   if (e && envEmailList("BOTFORGE_BASIC_EMAILS").includes(e)) return "basic";
   return "free";

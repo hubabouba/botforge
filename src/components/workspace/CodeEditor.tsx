@@ -562,7 +562,7 @@ export function CodeEditor({
             className={cn("sticky left-0 z-10 select-none border-r border-ink-800 bg-ink-950 px-3 py-3 text-right", shared)}
           >
             {lines.map((_, i) => (
-              <div key={i} className={cn("tabular-nums", i === activeLine ? "text-neutral-300" : "text-neutral-600")}>
+              <div key={i} className={cn("tabular-nums", i === activeLine ? "text-accent" : "text-neutral-600")}>
                 {i + 1}
               </div>
             ))}

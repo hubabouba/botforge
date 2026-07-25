@@ -38,6 +38,21 @@ export const FolderIcon = (p: IconProps) => (
   </Base>
 );
 
+export const FilePlus = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+    <path d="M5 3h9l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+    <path d="M12 12v6M9 15h6" />
+  </Base>
+);
+
+export const FolderPlus = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    <path d="M12 11v5M9.5 13.5h5" />
+  </Base>
+);
+
 export const ChevronRight = (p: IconProps) => (
   <Base {...p}>
     <path d="m9 6 6 6-6 6" />

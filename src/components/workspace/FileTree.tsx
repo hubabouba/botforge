@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { buildTree, langOf, type ProjectFile, type TreeNode } from "@/lib/workspace/types";
-import { ChevronRight, Plus, Pencil, Trash, FolderIcon } from "@/components/icons";
+import { ChevronRight, Plus, Pencil, Trash, FolderIcon, FilePlus, FolderPlus } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
@@ -54,12 +54,64 @@ function dirOf(path: string): string {
   return i === -1 ? "" : path.slice(0, i);
 }
 
+const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1);
+
+type Creating = { parent: string; type: "file" | "folder" };
+
 interface NodeHandlers {
   activePath: string;
   onOpen: (path: string) => void;
   onRename: (oldPath: string, newPath: string) => void;
+  /** Move a file to a new folder (a rename under the hood). */
+  onMove: (oldPath: string, newPath: string) => void;
   onDelete: (path: string) => void;
   onDeleteFolder: (path: string) => void;
+  /** Open the inline creator scoped to `parent` ("" = project root). */
+  requestCreate: (parent: string, type: "file" | "folder") => void;
+  // Inline creator — controlled at the tree root so only one is open at a time.
+  creating: Creating | null;
+  draft: string;
+  setDraft: (s: string) => void;
+  commitCreate: () => void;
+  cancelCreate: () => void;
+  // Drag & drop — the path currently being dragged (a file), shared so drop
+  // targets can decide whether they'd accept it before the drop happens.
+  dragging: string | null;
+  setDragging: (p: string | null) => void;
+}
+
+/** The inline "new file / new folder" input, reused at root and inside folders. */
+function CreatorInput({ depth, h }: { depth: number; h: NodeHandlers }) {
+  const { t } = useI18n();
+  if (!h.creating) return null;
+  const { type, parent } = h.creating;
+  const nested = parent !== "";
+  const placeholder =
+    type === "folder"
+      ? t(nested ? "tree.folderNameInFolderPlaceholder" : "tree.folderPlaceholder")
+      : t(nested ? "tree.nameInFolderPlaceholder" : "tree.filePlaceholder");
+  return (
+    <div style={{ paddingLeft: `${depth * 12 + 8}px` }} className="flex items-center gap-1.5 py-0.5 pr-2">
+      <span className="w-3.5 shrink-0" />
+      {type === "folder" ? (
+        <FolderPlus className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
+      ) : (
+        <FilePlus className="h-3.5 w-3.5 shrink-0 text-neutral-500" />
+      )}
+      <input
+        autoFocus
+        value={h.draft}
+        onChange={(e) => h.setDraft(e.target.value)}
+        onBlur={h.commitCreate}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") h.commitCreate();
+          if (e.key === "Escape") h.cancelCreate();
+        }}
+        placeholder={placeholder}
+        className="w-full rounded border border-accent/50 bg-ink-900 px-1.5 py-0.5 text-[13px] text-neutral-100 outline-none placeholder:text-neutral-600"
+      />
+    </div>
+  );
 }
 
 function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandlers }) {
@@ -72,34 +124,91 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
   // the cancellation win regardless of event order.
   const renameCancelled = useRef(false);
   const [armed, fireDelete] = useArmedDelete();
+  const [dragOver, setDragOver] = useState(false);
   const pad = { paddingLeft: `${depth * 12 + 8}px` };
 
   if (node.type === "dir") {
+    // A drop is valid when we're dragging a file that isn't already in here.
+    const wouldAccept = h.dragging != null && dirOf(h.dragging) !== node.path;
     return (
       <div>
         <div
           style={pad}
-          className="group/dir flex items-center gap-1.5 py-1 pr-1.5 text-[13px] text-neutral-300 transition-colors hover:bg-white/[0.04]"
+          onDragOver={(e) => {
+            if (!wouldAccept) return;
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = "move";
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            setDragOver(false);
+            const src = h.dragging;
+            if (src && dirOf(src) !== node.path) h.onMove(src, `${node.path}/${baseName(src)}`);
+            h.setDragging(null);
+          }}
+          className={cn(
+            "group/dir flex items-center gap-1.5 py-1 pr-1.5 text-[13px] text-neutral-300 transition-colors",
+            dragOver ? "bg-accent/15 ring-1 ring-inset ring-accent/40" : "hover:bg-white/[0.04]",
+          )}
         >
           <button onClick={() => setOpen((v) => !v)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-            <ChevronRight className={cn("h-3.5 w-3.5 shrink-0 text-neutral-500 transition-transform", open && "rotate-90")} />
+            <ChevronRight
+              className={cn("h-3.5 w-3.5 shrink-0 text-neutral-500 transition-transform", open && "rotate-90")}
+            />
+            <FolderIcon className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
             <span className="truncate font-medium">{node.name}</span>
           </button>
-          <button
-            aria-label={armed ? t("tree.clickAgainToDelete") : t("tree.deleteFolder")}
-            title={armed ? t("tree.clickAgainToDelete") : t("tree.deleteFolder")}
-            onClick={() => fireDelete(() => h.onDeleteFolder(node.path))}
+          <div
             className={cn(
-              "grid h-5 w-5 shrink-0 place-items-center rounded transition-opacity group-hover/dir:opacity-100",
-              armed
-                ? "bg-rose-500/20 text-rose-300 opacity-100"
-                : "text-neutral-500 opacity-0 hover:bg-white/10 hover:text-rose-300",
+              "flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/dir:opacity-100",
+              armed && "opacity-100",
             )}
           >
-            <Trash className="h-3 w-3" />
-          </button>
+            <button
+              aria-label={t("tree.newFileHere")}
+              title={t("tree.newFileHere")}
+              onClick={() => {
+                setOpen(true);
+                h.requestCreate(node.path, "file");
+              }}
+              className="grid h-5 w-5 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200"
+            >
+              <FilePlus className="h-3 w-3" />
+            </button>
+            <button
+              aria-label={t("tree.newFolderHere")}
+              title={t("tree.newFolderHere")}
+              onClick={() => {
+                setOpen(true);
+                h.requestCreate(node.path, "folder");
+              }}
+              className="grid h-5 w-5 place-items-center rounded text-neutral-500 hover:bg-white/10 hover:text-neutral-200"
+            >
+              <FolderPlus className="h-3 w-3" />
+            </button>
+            <button
+              aria-label={armed ? t("tree.clickAgainToDelete") : t("tree.deleteFolder")}
+              title={armed ? t("tree.clickAgainToDelete") : t("tree.deleteFolder")}
+              onClick={() => fireDelete(() => h.onDeleteFolder(node.path))}
+              className={cn(
+                "grid h-5 w-5 place-items-center rounded transition-colors",
+                armed ? "bg-rose-500/20 text-rose-300" : "text-neutral-500 hover:bg-white/10 hover:text-rose-300",
+              )}
+            >
+              <Trash className="h-3 w-3" />
+            </button>
+          </div>
         </div>
-        {open && node.children?.map((c) => <Node key={c.path} node={c} depth={depth + 1} h={h} />)}
+        {open && (
+          <>
+            {h.creating?.parent === node.path && <CreatorInput depth={depth + 1} h={h} />}
+            {node.children?.map((c) => <Node key={c.path} node={c} depth={depth + 1} h={h} />)}
+          </>
+        )}
       </div>
     );
   }
@@ -139,12 +248,21 @@ function Node({ node, depth, h }: { node: TreeNode; depth: number; h: NodeHandle
   }
 
   const active = node.path === h.activePath;
+  const isDragging = h.dragging === node.path;
   return (
     <div
       style={pad}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData("text/plain", node.path);
+        e.dataTransfer.effectAllowed = "move";
+        h.setDragging(node.path);
+      }}
+      onDragEnd={() => h.setDragging(null)}
       className={cn(
         "group/file flex items-center gap-2 py-1 pr-1.5 text-[13px] transition-colors",
         active ? "bg-accent/15 text-white" : "text-neutral-400 hover:bg-white/[0.04] hover:text-neutral-200",
+        isDragging && "opacity-40",
       )}
     >
       <button onClick={() => h.onOpen(node.path)} className="flex min-w-0 flex-1 items-center gap-2 text-left">
@@ -206,16 +324,46 @@ export function FileTree({
   error?: string;
 }) {
   const { t } = useI18n();
-  const [adding, setAdding] = useState<null | "file" | "folder">(null);
+  const [creating, setCreating] = useState<Creating | null>(null);
   const [draft, setDraft] = useState("");
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [rootDragOver, setRootDragOver] = useState(false);
   const tree = buildTree(files, folders);
 
-  function commitAdd() {
-    const path = draft.trim();
-    if (path) (adding === "folder" ? onAddFolder : onAddFile)(path);
+  function requestCreate(parent: string, type: "file" | "folder") {
     setDraft("");
-    setAdding(null);
+    setCreating({ parent, type });
   }
+  function commitCreate() {
+    const nm = draft.trim();
+    if (nm && creating) {
+      const full = creating.parent ? `${creating.parent}/${nm}` : nm;
+      (creating.type === "folder" ? onAddFolder : onAddFile)(full);
+    }
+    setDraft("");
+    setCreating(null);
+  }
+  function cancelCreate() {
+    setDraft("");
+    setCreating(null);
+  }
+
+  const h: NodeHandlers = {
+    activePath,
+    onOpen,
+    onRename,
+    onMove: onRename,
+    onDelete,
+    onDeleteFolder,
+    requestCreate,
+    creating,
+    draft,
+    setDraft,
+    commitCreate,
+    cancelCreate,
+    dragging,
+    setDragging,
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -225,10 +373,7 @@ export function FileTree({
           <button
             aria-label={t("tree.newFile")}
             title={t("tree.newFile")}
-            onClick={() => {
-              setDraft("");
-              setAdding("file");
-            }}
+            onClick={() => requestCreate("", "file")}
             className="grid h-5 w-5 place-items-center rounded text-neutral-500 transition-colors hover:bg-white/10 hover:text-neutral-200"
           >
             <Plus className="h-3.5 w-3.5" />
@@ -236,10 +381,7 @@ export function FileTree({
           <button
             aria-label={t("tree.newFolder")}
             title={t("tree.newFolder")}
-            onClick={() => {
-              setDraft("");
-              setAdding("folder");
-            }}
+            onClick={() => requestCreate("", "folder")}
             className="grid h-5 w-5 place-items-center rounded text-neutral-500 transition-colors hover:bg-white/10 hover:text-neutral-200"
           >
             <FolderIcon className="h-3.5 w-3.5" />
@@ -254,34 +396,30 @@ export function FileTree({
 
       {error && <div className="px-3 pb-1.5 text-[11px] leading-snug text-rose-300">{error}</div>}
 
-      {adding && (
-        <div className="px-3 pb-1 pl-6">
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commitAdd}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitAdd();
-              if (e.key === "Escape") {
-                setDraft("");
-                setAdding(null);
-              }
-            }}
-            placeholder={adding === "folder" ? t("tree.folderPlaceholder") : t("tree.filePlaceholder")}
-            className="w-full rounded border border-accent/50 bg-ink-900 px-1.5 py-0.5 text-[13px] text-neutral-100 outline-none placeholder:text-neutral-600"
-          />
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto pb-3">
+      {/* The tree body doubles as the "move to project root" drop target. Folder
+          rows stop propagation on their own drop, so a drop reaches here only
+          when it lands on empty space or a root-level file. */}
+      <div
+        className={cn("flex-1 overflow-y-auto pb-3", rootDragOver && "bg-accent/[0.06]")}
+        onDragOver={(e) => {
+          if (!dragging || dirOf(dragging) === "") return; // already at root
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          setRootDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          if (e.currentTarget === e.target) setRootDragOver(false);
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setRootDragOver(false);
+          if (dragging && dirOf(dragging) !== "") onRename(dragging, baseName(dragging));
+          setDragging(null);
+        }}
+      >
+        {creating?.parent === "" && <CreatorInput depth={0} h={h} />}
         {tree.map((node) => (
-          <Node
-            key={node.path}
-            node={node}
-            depth={0}
-            h={{ activePath, onOpen, onRename, onDelete, onDeleteFolder }}
-          />
+          <Node key={node.path} node={node} depth={0} h={h} />
         ))}
       </div>
     </div>

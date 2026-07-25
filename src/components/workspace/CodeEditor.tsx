@@ -53,7 +53,6 @@ export function CodeEditor({
   // ---- Find / replace ----
   const findRef = useRef<HTMLInputElement>(null);
   const activeMatchRef = useRef<HTMLSpanElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [replaceMode, setReplaceMode] = useState(false);
   const [query, setQuery] = useState("");
@@ -155,20 +154,16 @@ export function CodeEditor({
     requestAnimationFrame(() => findRef.current?.select());
   }, []);
 
-  // Ctrl/Cmd+F (find) and Ctrl/Cmd+H (replace) work anywhere in the editor view,
-  // not only when the textarea itself has focus (opening a file doesn't focus
-  // it). But we never hijack while the user is typing in some other field
-  // (chat composer, a rename box) — that keeps their native find there.
+  // Ctrl/Cmd+F (find) and Ctrl/Cmd+H (replace). Bound at the window level while
+  // the editor is mounted (only on the code view), so it works regardless of
+  // where focus sits — opening a file doesn't focus the textarea, and focus may
+  // be in the chat composer. On the code view, find-in-code always wins over
+  // the browser's native find.
   useEffect(() => {
     const onWinKey = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();
       if (key !== "f" && key !== "h") return;
-      const ae = document.activeElement as HTMLElement | null;
-      const inEditor = !!rootRef.current?.contains(ae);
-      const inOtherField =
-        !inEditor && !!ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable);
-      if (inOtherField) return;
       e.preventDefault();
       openFind(key === "h");
     };
@@ -396,7 +391,7 @@ export function CodeEditor({
   const activeLine = caret.line - 1;
 
   return (
-    <div ref={rootRef} className="relative flex h-full flex-col bg-ink-950">
+    <div className="relative flex h-full flex-col bg-ink-950">
       {findOpen && (
         <div className="absolute right-3 top-2 z-20 rounded-lg border border-ink-700 bg-ink-900/95 p-1.5 shadow-lift backdrop-blur">
           <div className="flex items-center gap-1">

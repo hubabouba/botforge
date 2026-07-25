@@ -443,7 +443,7 @@ const en: Dict = {
   "pricing.max.cta": "Get Max",
   "pricing.max.feature.0": "Everything in Pro",
   "pricing.max.feature.1": "Opus — smartest AI model",
-  "pricing.max.feature.2": "50 AI messages/day",
+  "pricing.max.feature.2": "100 AI messages/day",
   "pricing.max.feature.3": "Priority Opus generation",
   "pricing.max.feature.4": "Unlimited projects",
   "pricing.max.feature.5": "Priority support",
@@ -575,7 +575,7 @@ const en: Dict = {
   "plan.max.tagline": "The most capable AI — Opus, for demanding builds.",
   "plan.max.h0": "Everything in Pro",
   "plan.max.h1": "Opus — our smartest model",
-  "plan.max.h2": "50 assistant messages/day",
+  "plan.max.h2": "100 assistant messages/day",
   "plan.max.h3": "Priority Opus generation",
 
   // ---- 404 / error pages ----
@@ -1023,7 +1023,7 @@ const ru: Dict = {
   "pricing.max.cta": "Выбрать Max",
   "pricing.max.feature.0": "Всё из Pro",
   "pricing.max.feature.1": "Opus — самая умная ИИ-модель",
-  "pricing.max.feature.2": "50 сообщений ИИ/день",
+  "pricing.max.feature.2": "100 сообщений ИИ/день",
   "pricing.max.feature.3": "Приоритетная генерация на Opus",
   "pricing.max.feature.4": "Безлимит проектов",
   "pricing.max.feature.5": "Приоритетная поддержка",
@@ -1155,7 +1155,7 @@ const ru: Dict = {
   "plan.max.tagline": "Самый мощный ИИ — Opus, для сложных задач.",
   "plan.max.h0": "Всё из Pro",
   "plan.max.h1": "Opus — наша самая умная модель",
-  "plan.max.h2": "50 сообщений ассистента/день",
+  "plan.max.h2": "100 сообщений ассистента/день",
   "plan.max.h3": "Приоритетная генерация на Opus",
 
   // ---- 404 / ошибки ----
@@ -1603,7 +1603,7 @@ const pl: Dict = {
   "pricing.max.cta": "Wybierz Max",
   "pricing.max.feature.0": "Wszystko z Pro",
   "pricing.max.feature.1": "Opus — najinteligentniejszy model AI",
-  "pricing.max.feature.2": "50 wiadomości AI/dzień",
+  "pricing.max.feature.2": "100 wiadomości AI/dzień",
   "pricing.max.feature.3": "Priorytetowe generowanie na Opus",
   "pricing.max.feature.4": "Nielimitowane projekty",
   "pricing.max.feature.5": "Priorytetowe wsparcie",
@@ -1735,7 +1735,7 @@ const pl: Dict = {
   "plan.max.tagline": "Najbardziej wydajny AI — Opus, do wymagających zadań.",
   "plan.max.h0": "Wszystko z Pro",
   "plan.max.h1": "Opus — nasz najinteligentniejszy model",
-  "plan.max.h2": "50 wiadomości asystenta/dzień",
+  "plan.max.h2": "100 wiadomości asystenta/dzień",
   "plan.max.h3": "Priorytetowe generowanie na Opus",
 
   // ---- 404 / error pages ----
@@ -2183,7 +2183,7 @@ const es: Dict = {
   "pricing.max.cta": "Elegir Max",
   "pricing.max.feature.0": "Todo lo de Pro",
   "pricing.max.feature.1": "Opus — el modelo de IA más inteligente",
-  "pricing.max.feature.2": "50 mensajes de IA/día",
+  "pricing.max.feature.2": "100 mensajes de IA/día",
   "pricing.max.feature.3": "Generación prioritaria con Opus",
   "pricing.max.feature.4": "Proyectos ilimitados",
   "pricing.max.feature.5": "Soporte prioritario",
@@ -2315,7 +2315,7 @@ const es: Dict = {
   "plan.max.tagline": "La IA más capaz — Opus, para proyectos exigentes.",
   "plan.max.h0": "Todo lo de Pro",
   "plan.max.h1": "Opus — nuestro modelo más inteligente",
-  "plan.max.h2": "50 mensajes del asistente/día",
+  "plan.max.h2": "100 mensajes del asistente/día",
   "plan.max.h3": "Generación prioritaria con Opus",
 
   // ---- 404 / error pages ----

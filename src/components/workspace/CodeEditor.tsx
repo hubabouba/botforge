@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { highlightToLines, TOKEN_COLORS } from "@/lib/workspace/highlight";
 import { langOf, type Lang, type ProjectFile } from "@/lib/workspace/types";
-import { Copy, Check } from "@/components/icons";
+import { Copy, Check, Close, ChevronRight } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { plural } from "@/lib/i18n/plural";
 import { cn } from "@/lib/utils";
@@ -50,6 +50,14 @@ export function CodeEditor({
   const [caret, setCaret] = useState({ line: 1, col: 1 });
   const [selLen, setSelLen] = useState(0);
   const [copied, setCopied] = useState(false);
+  // ---- Find / replace ----
+  const findRef = useRef<HTMLInputElement>(null);
+  const activeMatchRef = useRef<HTMLSpanElement>(null);
+  const [findOpen, setFindOpen] = useState(false);
+  const [replaceMode, setReplaceMode] = useState(false);
+  const [query, setQuery] = useState("");
+  const [replaceValue, setReplaceValue] = useState("");
+  const [activeMatch, setActiveMatch] = useState(-1);
   const lang = langOf(file.path);
   const lines = useMemo(() => highlightToLines(value, lang), [value, lang]);
 
@@ -95,11 +103,143 @@ export function CodeEditor({
     return [start, end];
   }
 
+  // ---- Find / replace ------------------------------------------------------
+  // Case-insensitive plain-substring matches (no regex — matches the file's
+  // deliberately simple style). Only computed while the find bar is open.
+  const matches = useMemo(() => {
+    if (!findOpen || !query) return [];
+    const out: number[] = [];
+    const hay = value.toLowerCase();
+    const needle = query.toLowerCase();
+    let i = hay.indexOf(needle);
+    while (i !== -1) {
+      out.push(i);
+      i = hay.indexOf(needle, i + needle.length);
+    }
+    return out;
+  }, [findOpen, query, value]);
+
+  // When the match set changes, land on the first match at/after the caret.
+  useEffect(() => {
+    if (matches.length === 0) {
+      setActiveMatch(-1);
+      return;
+    }
+    const caretPos = ref.current?.selectionStart ?? 0;
+    const idx = matches.findIndex((m) => m >= caretPos);
+    setActiveMatch(idx === -1 ? 0 : idx);
+  }, [matches]);
+
+  // Select + scroll the active match into view whenever it (or the set) moves.
+  useEffect(() => {
+    if (activeMatch < 0 || activeMatch >= matches.length) return;
+    const el = ref.current;
+    const pos = matches[activeMatch];
+    if (el) {
+      el.selectionStart = pos;
+      el.selectionEnd = pos + query.length;
+      updateCaret(value, pos);
+    }
+    activeMatchRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeMatch, matches]);
+
+  function openFind(withReplace: boolean) {
+    const el = ref.current;
+    const sel = el && el.selectionEnd > el.selectionStart ? value.slice(el.selectionStart, el.selectionEnd) : "";
+    if (sel && !sel.includes("\n")) setQuery(sel);
+    setFindOpen(true);
+    setReplaceMode(withReplace);
+    requestAnimationFrame(() => findRef.current?.select());
+  }
+
+  function closeFind() {
+    setFindOpen(false);
+    requestAnimationFrame(() => ref.current?.focus());
+  }
+
+  function step(dir: 1 | -1) {
+    if (matches.length === 0) return;
+    setActiveMatch((prev) => {
+      const base = prev < 0 ? 0 : prev;
+      return (base + dir + matches.length) % matches.length;
+    });
+  }
+
+  function replaceOne() {
+    if (activeMatch < 0 || activeMatch >= matches.length) return;
+    const pos = matches[activeMatch];
+    commit(value.slice(0, pos) + replaceValue + value.slice(pos + query.length), pos + replaceValue.length);
+  }
+
+  function replaceAll() {
+    if (!query || matches.length === 0) return;
+    let out = "";
+    let cur = 0;
+    for (const m of matches) {
+      out += value.slice(cur, m) + replaceValue;
+      cur = m + query.length;
+    }
+    out += value.slice(cur);
+    commit(out, out.length);
+  }
+
+  function onFindKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      step(e.shiftKey ? -1 : 1);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      closeFind();
+    }
+  }
+
+  /** One overlay line: transparent text with match ranges given a highlight bg. */
+  function renderMatchLine(lineText: string, lineStart: number): React.ReactNode {
+    const q = query.length;
+    const lineEnd = lineStart + lineText.length;
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+    for (let mi = 0; mi < matches.length; mi++) {
+      const m = matches[mi];
+      if (m + q <= lineStart) continue;
+      if (m >= lineEnd) break;
+      const relS = m - lineStart;
+      if (relS > cursor) nodes.push(<span key={cursor} className="text-transparent">{lineText.slice(cursor, relS)}</span>);
+      nodes.push(
+        <span
+          key={"m" + m}
+          ref={mi === activeMatch ? activeMatchRef : undefined}
+          className={cn("rounded-[2px] text-transparent", mi === activeMatch ? "bg-amber-400/60" : "bg-amber-400/25")}
+        >
+          {lineText.slice(relS, relS + q)}
+        </span>,
+      );
+      cursor = relS + q;
+    }
+    if (nodes.length === 0) return <span className="text-transparent">{lineText || " "}</span>;
+    if (cursor < lineText.length) nodes.push(<span key="tail" className="text-transparent">{lineText.slice(cursor)}</span>);
+    return nodes;
+  }
+
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     const el = e.currentTarget;
     const s = el.selectionStart;
     const en = el.selectionEnd;
     const k = e.key;
+
+    // Find / replace (Ctrl/Cmd+F, Ctrl/Cmd+H) — overrides the browser's native
+    // find. Escape closes the bar when it's open.
+    if ((e.ctrlKey || e.metaKey) && (k.toLowerCase() === "f" || k.toLowerCase() === "h")) {
+      e.preventDefault();
+      openFind(k.toLowerCase() === "h");
+      return;
+    }
+    if (k === "Escape" && findOpen) {
+      e.preventDefault();
+      closeFind();
+      return;
+    }
 
     // Save
     if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "s") {
@@ -239,7 +379,91 @@ export function CodeEditor({
   const activeLine = caret.line - 1;
 
   return (
-    <div className="flex h-full flex-col bg-ink-950">
+    <div className="relative flex h-full flex-col bg-ink-950">
+      {findOpen && (
+        <div className="absolute right-3 top-2 z-20 rounded-lg border border-ink-700 bg-ink-900/95 p-1.5 shadow-lift backdrop-blur">
+          <div className="flex items-center gap-1">
+            <input
+              ref={findRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onFindKeyDown}
+              placeholder={t("editor.findPlaceholder")}
+              className="w-40 rounded bg-ink-950 px-2 py-1 font-mono text-[12px] text-neutral-100 outline-none placeholder:font-sans placeholder:text-neutral-600"
+            />
+            <span className="min-w-[3.25rem] shrink-0 text-center text-[11px] tabular-nums text-neutral-500">
+              {matches.length ? `${Math.max(activeMatch, 0) + 1}/${matches.length}` : "0/0"}
+            </span>
+            <button
+              onClick={() => step(-1)}
+              disabled={!matches.length}
+              title={t("editor.findPrev")}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100 disabled:opacity-30"
+            >
+              ↑
+            </button>
+            <button
+              onClick={() => step(1)}
+              disabled={!matches.length}
+              title={t("editor.findNext")}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100 disabled:opacity-30"
+            >
+              ↓
+            </button>
+            <button
+              onClick={() => setReplaceMode((v) => !v)}
+              aria-pressed={replaceMode}
+              title={t("editor.replace")}
+              className={cn(
+                "grid h-6 w-6 shrink-0 place-items-center rounded transition-colors hover:bg-white/10 hover:text-neutral-100",
+                replaceMode ? "text-neutral-100" : "text-neutral-400",
+              )}
+            >
+              <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", replaceMode && "rotate-90")} />
+            </button>
+            <button
+              onClick={closeFind}
+              title={t("ws.close")}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded text-neutral-400 transition-colors hover:bg-white/10 hover:text-neutral-100"
+            >
+              <Close className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          {replaceMode && (
+            <div className="mt-1 flex items-center gap-1">
+              <input
+                value={replaceValue}
+                onChange={(e) => setReplaceValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    replaceOne();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    closeFind();
+                  }
+                }}
+                placeholder={t("editor.replacePlaceholder")}
+                className="w-40 rounded bg-ink-950 px-2 py-1 font-mono text-[12px] text-neutral-100 outline-none placeholder:font-sans placeholder:text-neutral-600"
+              />
+              <button
+                onClick={replaceOne}
+                disabled={!matches.length}
+                className="shrink-0 rounded px-2 py-1 text-[11px] text-neutral-300 transition-colors hover:bg-white/10 hover:text-neutral-100 disabled:opacity-30"
+              >
+                {t("editor.replace")}
+              </button>
+              <button
+                onClick={replaceAll}
+                disabled={!matches.length}
+                className="shrink-0 rounded px-2 py-1 text-[11px] text-neutral-300 transition-colors hover:bg-white/10 hover:text-neutral-100 disabled:opacity-30"
+              >
+                {t("editor.replaceAll")}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       <div className="relative min-h-0 flex-1 overflow-auto">
         <div className="flex min-h-full min-w-max">
           {/* Gutter */}
@@ -269,6 +493,20 @@ export function CodeEditor({
                 </div>
               ))}
             </pre>
+            {/* Find highlight overlay: transparent text so the code shows
+                through from the <pre> below; only match backgrounds paint. */}
+            {findOpen && query && (
+              <div aria-hidden className={cn("pointer-events-none absolute inset-0 px-4 py-3", shared)}>
+                {(() => {
+                  let off = 0;
+                  return value.split("\n").map((lineText, i) => {
+                    const start = off;
+                    off += lineText.length + 1;
+                    return <div key={i}>{renderMatchLine(lineText, start)}</div>;
+                  });
+                })()}
+              </div>
+            )}
             <textarea
               ref={ref}
               value={value}

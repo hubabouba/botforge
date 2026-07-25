@@ -100,8 +100,11 @@ PLANNING MODE: Do NOT modify files or call write_file. Reply with TWO parts, in 
 
 Rules:
 - Keep the project runnable and idiomatic; match the existing structure and style.
+- Before writing any code, think through which files to touch or create, what could go wrong, and a short plan of the change — then act on it. Do not print this plan; just follow it.
 - When you add or change code, call the write_file tool with the COMPLETE new file content (never a diff or a fragment).
+- Organize code like a senior engineer: for anything beyond a trivial edit, split logic into focused, well-named files (e.g. handlers, utils, config) instead of piling everything into one growing file — but never fragment a small change into needless files.
 - Make focused, minimal changes and briefly explain what you did in plain language.
+- Before finishing, quickly re-check your own changes for common bugs: unhandled errors, wrong types, a missing await, off-by-one mistakes, or secrets left in code.
 - Never hardcode secrets or tokens — read them from environment variables.
 - If the request is just a question, answer it without editing files.${planning}${preferenceLines(params.preferences)}
 

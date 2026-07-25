@@ -295,7 +295,13 @@ const en: Dict = {
   "editor.copy": "Copy",
   "editor.copied": "Copied",
   "editor.copyFile": "Copy file contents",
-  "editor.shortcutsHint": "Alt+↑/↓ move line · Shift+Alt+↑/↓ duplicate · Ctrl+/ comment · Ctrl+S save",
+  "editor.shortcutsHint": "Ctrl+F find · Alt+↑/↓ move line · Shift+Alt+↑/↓ duplicate · Ctrl+/ comment · Ctrl+S save",
+  "editor.findPlaceholder": "Find",
+  "editor.replacePlaceholder": "Replace",
+  "editor.replace": "Replace",
+  "editor.replaceAll": "All",
+  "editor.findNext": "Next (Enter)",
+  "editor.findPrev": "Previous (Shift+Enter)",
 
   // ---- Assistant chat ----
   "chat.assistant": "Assistant",
@@ -852,7 +858,13 @@ const ru: Dict = {
   "editor.copy": "Копировать",
   "editor.copied": "Скопировано",
   "editor.copyFile": "Скопировать содержимое файла",
-  "editor.shortcutsHint": "Alt+↑/↓ перенести · Shift+Alt+↑/↓ дублировать · Ctrl+/ коммент · Ctrl+S сохранить",
+  "editor.shortcutsHint": "Ctrl+F поиск · Alt+↑/↓ перенести · Shift+Alt+↑/↓ дублировать · Ctrl+/ коммент · Ctrl+S сохранить",
+  "editor.findPlaceholder": "Найти",
+  "editor.replacePlaceholder": "Заменить",
+  "editor.replace": "Заменить",
+  "editor.replaceAll": "Все",
+  "editor.findNext": "Дальше (Enter)",
+  "editor.findPrev": "Назад (Shift+Enter)",
 
   // ---- Чат с ассистентом ----
   "chat.assistant": "Ассистент",

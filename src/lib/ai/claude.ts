@@ -46,7 +46,15 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   const last = params.messages.length - 1;
   const stream = anthropic.messages.stream({
     model: ASSISTANT_MODEL,
-    max_tokens: 4096,
+    // Extended thinking: the model plans + self-reviews internally before it
+    // writes files. The reasoning never reaches the client — the stream loop
+    // below only forwards `text_delta`, so thinking blocks are dropped. Note
+    // max_tokens must comfortably exceed budget_tokens (Anthropic requires it),
+    // and the thinking tokens do bill as output — a deliberate quality/cost
+    // trade only paid (Advanced/Claude) users hit. Temperature stays unset
+    // (extended thinking requires the API default).
+    max_tokens: 8000,
+    thinking: { type: "enabled", budget_tokens: 2048 },
     system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
     tools: [WRITE_FILE_TOOL],
     messages: params.messages.map((m, i) =>

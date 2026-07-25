@@ -18,7 +18,7 @@ import {
 } from "@/lib/workspace/store";
 import { downloadZip } from "@/lib/workspace/zip";
 import { TopBar, type SaveStatus } from "./TopBar";
-import { FileTree } from "./FileTree";
+import { FileTree, FileDot } from "./FileTree";
 import { CodeEditor } from "./CodeEditor";
 import { RunGuideModal } from "./RunGuideModal";
 import { WorkspaceChat } from "./WorkspaceChat";
@@ -288,7 +288,7 @@ export function Workspace({ projectId }: { projectId: string }) {
   // ---- Render states ----
   if (load === "loading") {
     return (
-      <div className="forge dark grid h-screen place-items-center bg-[#0A0B0F] text-white/50">
+      <div className="forge dark grid h-screen place-items-center bg-ink-950 text-white/50">
         <div className="flex items-center gap-2 text-sm">
           <Logo className="h-5 w-5 animate-pulse" /> {t("ws.loading")}
         </div>
@@ -298,7 +298,7 @@ export function Workspace({ projectId }: { projectId: string }) {
 
   if (load === "missing" || !project) {
     return (
-      <div className="forge dark grid h-screen place-items-center bg-[#0A0B0F] px-6 text-center">
+      <div className="forge dark grid h-screen place-items-center bg-ink-950 px-6 text-center">
         <div className="max-w-sm">
           <Logo className="mx-auto h-8 w-8 opacity-70" />
           <h1 className="mt-4 font-display text-lg font-semibold text-white">{t("ws.projectNotFound")}</h1>
@@ -321,7 +321,7 @@ export function Workspace({ projectId }: { projectId: string }) {
       {/* Below `md` the file tree and assistant chat both disappear (see their
           own `md:block`/`lg:block`), leaving a bare editor with no explanation.
           Show an honest message instead of that silently-broken layout. */}
-      <div className="forge dark grid h-screen place-items-center bg-[#0A0B0F] px-6 text-center md:hidden">
+      <div className="forge dark grid h-screen place-items-center bg-ink-950 px-6 text-center md:hidden">
         <div className="max-w-sm">
           <Logo className="mx-auto h-8 w-8 opacity-70" />
           <h1 className="mt-4 font-display text-lg font-semibold text-white">{t("ws.mobileGateTitle")}</h1>
@@ -335,7 +335,7 @@ export function Workspace({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      <div className="forge dark relative hidden h-screen flex-col overflow-hidden bg-[#0A0B0F] text-neutral-200 md:flex">
+      <div className="forge dark relative hidden h-screen flex-col overflow-hidden bg-ink-950 text-neutral-200 md:flex">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 top-0 -z-[1] h-64 bg-[radial-gradient(60%_100%_at_50%_0%,rgba(99,102,241,0.14),transparent_70%)]"
@@ -353,7 +353,7 @@ export function Workspace({ projectId }: { projectId: string }) {
       />
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-60 shrink-0 border-r border-white/[0.06] bg-[#0A0B0F]/70 backdrop-blur-sm md:block">
+        <aside className="hidden w-60 shrink-0 border-r border-ink-800 bg-ink-950/70 backdrop-blur-sm md:block">
           <FileTree
             files={project.files}
             folders={project.folders ?? []}
@@ -385,7 +385,7 @@ export function Workspace({ projectId }: { projectId: string }) {
           ) : (
             <>
           {/* Open-file tabs */}
-          <div className="flex h-9 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-white/[0.06] bg-[#0A0B0F]/70 px-1.5">
+          <div className="flex h-9 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-ink-800 bg-ink-950/70 px-1.5">
             {openPaths.map((path) => {
               const name = path.split("/").pop();
               const active = path === activePath;
@@ -399,10 +399,11 @@ export function Workspace({ projectId }: { projectId: string }) {
                   className={cn(
                     "group/tab relative flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2.5 pr-1.5 text-[12px] transition-colors",
                     active
-                      ? "bg-white/[0.06] text-white"
+                      ? "bg-ink-800 text-white"
                       : "text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300",
                   )}
                 >
+                  <FileDot path={path} />
                   <span className="font-mono">{name}</span>
                   <button
                     aria-label={`${t("ws.close")} ${name}`}
@@ -443,7 +444,7 @@ export function Workspace({ projectId }: { projectId: string }) {
             toggles the panel for more editor room. */}
         <aside
           className={cn(
-            "w-[340px] shrink-0 border-l border-white/[0.06] bg-[#0A0B0F]/50 xl:w-[380px]",
+            "w-[340px] shrink-0 border-l border-ink-800 bg-ink-950/50 xl:w-[380px]",
             chatOpen ? "hidden lg:block" : "hidden",
           )}
         >

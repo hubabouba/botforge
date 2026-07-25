@@ -278,7 +278,7 @@ export function WorkspaceChat({
                       onClick={() => pickModel(m)}
                       className={cn(
                         "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                        active ? "bg-accent/15" : "hover:bg-white/[0.05]",
+                        active ? "bg-accent/15" : "hover:bg-white/[0.04]",
                       )}
                     >
                       <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", MODEL_META[m].dot, locked && "opacity-40")} />

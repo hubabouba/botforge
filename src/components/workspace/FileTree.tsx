@@ -30,7 +30,7 @@ function useArmedDelete(): [boolean, (onConfirmed: () => void) => void] {
 }
 
 /** A small colored square keyed to the file's language — quiet visual anchor. */
-function FileDot({ path }: { path: string }) {
+export function FileDot({ path }: { path: string }) {
   const lang = langOf(path);
   const color =
     lang === "python"

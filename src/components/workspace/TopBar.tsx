@@ -15,7 +15,7 @@ function PlatformBadge({ platform }: { platform: Project["platform"] }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px]",
+        "inline-flex items-center gap-1.5 rounded-md bg-ink-800 px-2 py-0.5 text-[11px]",
         telegram ? "text-[#2aabee]" : "text-[#7d88ff]",
       )}
     >
@@ -60,10 +60,10 @@ export function TopBar({
   }
 
   return (
-    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-white/[0.06] bg-[#0B0D13]/70 px-3 backdrop-blur-xl">
+    <header className="flex h-12 shrink-0 items-center gap-3 border-b border-ink-800 bg-ink-950/80 px-3 backdrop-blur-xl">
       <Link
         href="/dashboard"
-        className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-white/60 transition-colors hover:bg-white/[0.06] hover:text-white"
+        className="flex items-center gap-2 rounded-lg px-1.5 py-1 text-white/60 transition-colors hover:bg-ink-800 hover:text-white"
         title={t("top.backToDashboard")}
       >
         <ArrowLeft className="h-4 w-4" />
@@ -85,7 +85,7 @@ export function TopBar({
                 setEditing(false);
               }
             }}
-            className="w-48 rounded border border-[#6366F1]/50 bg-white/[0.04] px-2 py-0.5 text-sm text-white outline-none"
+            className="w-48 rounded border border-accent/50 bg-ink-900 px-2 py-0.5 text-sm text-white outline-none"
           />
         ) : (
           <button
@@ -93,7 +93,7 @@ export function TopBar({
               setDraft(project.name);
               setEditing(true);
             }}
-            className="truncate rounded px-1 text-sm font-medium text-white transition-colors hover:bg-white/[0.06]"
+            className="truncate rounded px-1 text-sm font-medium text-white transition-colors hover:bg-ink-800"
             title={t("top.renameProject")}
           >
             {project.name}
@@ -101,7 +101,7 @@ export function TopBar({
         )}
         <div className="hidden items-center gap-2 sm:flex">
           <PlatformBadge platform={project.platform} />
-          <span className="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-white/55">{langLabel}</span>
+          <span className="rounded-md bg-ink-800 px-2 py-0.5 text-[11px] text-white/55">{langLabel}</span>
         </div>
       </div>
 
@@ -123,7 +123,7 @@ export function TopBar({
             "hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all lg:inline-flex",
             chatOpen
               ? "border-[#6366F1]/40 bg-gradient-to-r from-[#6366F1]/20 to-[#22D3EE]/10 text-[#a5b4fc]"
-              : "border-white/10 text-white/70 hover:bg-white/[0.06] hover:text-white",
+              : "border-ink-700 text-white/70 hover:bg-ink-800 hover:text-white",
           )}
         >
           <Bot className="h-3.5 w-3.5" />
@@ -131,7 +131,7 @@ export function TopBar({
         </button>
         <button
           onClick={onDownload}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-white/70 transition-colors hover:bg-white/[0.06] hover:text-white"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-2.5 py-1.5 text-xs text-white/70 transition-colors hover:bg-ink-800 hover:text-white"
         >
           <Download className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">{t("top.downloadZip")}</span>

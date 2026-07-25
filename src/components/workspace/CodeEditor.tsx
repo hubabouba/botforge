@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { highlightToLines, TOKEN_COLORS } from "@/lib/workspace/highlight";
 import { langOf, type Lang, type ProjectFile } from "@/lib/workspace/types";
 import { Copy, Check, Close, ChevronRight } from "@/components/icons";
@@ -53,6 +53,7 @@ export function CodeEditor({
   // ---- Find / replace ----
   const findRef = useRef<HTMLInputElement>(null);
   const activeMatchRef = useRef<HTMLSpanElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const [findOpen, setFindOpen] = useState(false);
   const [replaceMode, setReplaceMode] = useState(false);
   const [query, setQuery] = useState("");
@@ -144,14 +145,36 @@ export function CodeEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeMatch, matches]);
 
-  function openFind(withReplace: boolean) {
+  const openFind = useCallback((withReplace: boolean) => {
     const el = ref.current;
-    const sel = el && el.selectionEnd > el.selectionStart ? value.slice(el.selectionStart, el.selectionEnd) : "";
+    // Read the live DOM value (not the `value` closure) so this stays stable.
+    const sel = el && el.selectionEnd > el.selectionStart ? el.value.slice(el.selectionStart, el.selectionEnd) : "";
     if (sel && !sel.includes("\n")) setQuery(sel);
     setFindOpen(true);
     setReplaceMode(withReplace);
     requestAnimationFrame(() => findRef.current?.select());
-  }
+  }, []);
+
+  // Ctrl/Cmd+F (find) and Ctrl/Cmd+H (replace) work anywhere in the editor view,
+  // not only when the textarea itself has focus (opening a file doesn't focus
+  // it). But we never hijack while the user is typing in some other field
+  // (chat composer, a rename box) — that keeps their native find there.
+  useEffect(() => {
+    const onWinKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key !== "f" && key !== "h") return;
+      const ae = document.activeElement as HTMLElement | null;
+      const inEditor = !!rootRef.current?.contains(ae);
+      const inOtherField =
+        !inEditor && !!ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable);
+      if (inOtherField) return;
+      e.preventDefault();
+      openFind(key === "h");
+    };
+    window.addEventListener("keydown", onWinKey);
+    return () => window.removeEventListener("keydown", onWinKey);
+  }, [openFind]);
 
   function closeFind() {
     setFindOpen(false);
@@ -228,13 +251,7 @@ export function CodeEditor({
     const en = el.selectionEnd;
     const k = e.key;
 
-    // Find / replace (Ctrl/Cmd+F, Ctrl/Cmd+H) — overrides the browser's native
-    // find. Escape closes the bar when it's open.
-    if ((e.ctrlKey || e.metaKey) && (k.toLowerCase() === "f" || k.toLowerCase() === "h")) {
-      e.preventDefault();
-      openFind(k.toLowerCase() === "h");
-      return;
-    }
+    // Escape closes the find bar (the window listener above handles opening it).
     if (k === "Escape" && findOpen) {
       e.preventDefault();
       closeFind();
@@ -379,7 +396,7 @@ export function CodeEditor({
   const activeLine = caret.line - 1;
 
   return (
-    <div className="relative flex h-full flex-col bg-ink-950">
+    <div ref={rootRef} className="relative flex h-full flex-col bg-ink-950">
       {findOpen && (
         <div className="absolute right-3 top-2 z-20 rounded-lg border border-ink-700 bg-ink-900/95 p-1.5 shadow-lift backdrop-blur">
           <div className="flex items-center gap-1">

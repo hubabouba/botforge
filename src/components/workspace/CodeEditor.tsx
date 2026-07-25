@@ -47,6 +47,15 @@ export function CodeEditor({
   const { t, lang: uiLang } = useI18n();
   const ref = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState(file.content);
+  // Undo/redo: commit() sets the value programmatically, which throws away the
+  // textarea's native undo stack — so we keep our own. Each entry is a full
+  // snapshot; a burst of typing coalesces into one step while structural edits
+  // (Tab, Enter, comment, move…) each get their own boundary.
+  const history = useRef<{ stack: { value: string; selStart: number; selEnd: number }[]; index: number }>({
+    stack: [{ value: file.content, selStart: 0, selEnd: 0 }],
+    index: 0,
+  });
+  const lastEdit = useRef<{ time: number; kind: "type" | "struct" | "none" }>({ time: 0, kind: "none" });
   const [caret, setCaret] = useState({ line: 1, col: 1 });
   const [selLen, setSelLen] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -62,6 +71,7 @@ export function CodeEditor({
   const lines = useMemo(() => highlightToLines(value, lang), [value, lang]);
 
   function commit(next: string, selStart: number, selEnd = selStart) {
+    record(next, selStart, selEnd, "struct");
     setValue(next);
     onChange(next);
     requestAnimationFrame(() => {
@@ -71,6 +81,60 @@ export function CodeEditor({
       el.selectionEnd = selEnd;
       updateCaret(next, selStart);
     });
+  }
+
+  // Push a snapshot onto the undo stack. Consecutive typing within a short
+  // window collapses into a single entry (one Ctrl+Z removes a word, not a
+  // character); structural edits never coalesce. A no-op (same text) only
+  // nudges the current entry's caret.
+  function record(next: string, selStart: number, selEnd: number, kind: "type" | "struct") {
+    const h = history.current;
+    const top = h.stack[h.index];
+    if (next === top.value) {
+      top.selStart = selStart;
+      top.selEnd = selEnd;
+      return;
+    }
+    if (h.index < h.stack.length - 1) h.stack.length = h.index + 1; // drop redo tail
+    const now = Date.now();
+    const coalesce = kind === "type" && lastEdit.current.kind === "type" && now - lastEdit.current.time < 600;
+    if (coalesce) {
+      h.stack[h.index] = { value: next, selStart, selEnd };
+    } else {
+      h.stack.push({ value: next, selStart, selEnd });
+      if (h.stack.length > 300) h.stack.shift();
+      h.index = h.stack.length - 1;
+    }
+    lastEdit.current = { time: now, kind };
+  }
+
+  function applySnapshot(snap: { value: string; selStart: number; selEnd: number }) {
+    setValue(snap.value);
+    onChange(snap.value);
+    requestAnimationFrame(() => {
+      const el = ref.current;
+      if (!el) return;
+      el.focus();
+      el.selectionStart = snap.selStart;
+      el.selectionEnd = snap.selEnd;
+      updateCaret(snap.value, snap.selStart);
+    });
+  }
+
+  function undo() {
+    const h = history.current;
+    if (h.index <= 0) return;
+    h.index -= 1;
+    lastEdit.current.kind = "none"; // next keystroke starts a fresh burst
+    applySnapshot(h.stack[h.index]);
+  }
+
+  function redo() {
+    const h = history.current;
+    if (h.index >= h.stack.length - 1) return;
+    h.index += 1;
+    lastEdit.current.kind = "none";
+    applySnapshot(h.stack[h.index]);
   }
 
   function updateCaret(text: string, pos: number) {
@@ -250,6 +314,20 @@ export function CodeEditor({
     if (k === "Escape" && findOpen) {
       e.preventDefault();
       closeFind();
+      return;
+    }
+
+    // Undo / redo — our own stack, since commit() bypasses the native one.
+    // Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y redo.
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "z") {
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === "y") {
+      e.preventDefault();
+      redo();
       return;
     }
 
@@ -523,6 +601,7 @@ export function CodeEditor({
               ref={ref}
               value={value}
               onChange={(e) => {
+                record(e.target.value, e.target.selectionStart, e.target.selectionStart, "type");
                 setValue(e.target.value);
                 onChange(e.target.value);
                 updateCaret(e.target.value, e.target.selectionStart);

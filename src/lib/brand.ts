@@ -41,7 +41,7 @@ const PRICING_COPY: Record<PricingTier["id"], Omit<PricingTier, "id" | "name">> 
     features: [
       "Up to 15 projects",
       "Standard AI model",
-      "10 AI messages/day",
+      "20 AI messages/day",
       "Automatic error fixing",
       "Chat & version history",
       "Email support",
@@ -66,7 +66,7 @@ const PRICING_COPY: Record<PricingTier["id"], Omit<PricingTier, "id" | "name">> 
     features: [
       "Everything in Pro",
       "Opus — smartest AI model",
-      "100 AI messages/day",
+      "80 AI messages/day",
       "Priority Opus generation",
       "Unlimited projects",
       "Priority support",

@@ -23,7 +23,7 @@ export function projectLimit(plan: Plan): number {
 }
 
 /** Daily AI-assistant message cap per plan (enforced in /api/ai/chat). */
-export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 3, basic: 10, pro: 40, max: 100 };
+export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 3, basic: 20, pro: 40, max: 80 };
 
 /**
  * The Claude model each plan's assistant runs. Max unlocks Opus (our most
@@ -160,7 +160,7 @@ export const PLANS: PlanMeta[] = [
     name: "Basic",
     price: 9,
     tagline: "A serious assistant for real bots.",
-    highlights: ["Advanced AI assistant", "10 assistant messages/day", "Logs & AI planning panels", "15 projects"],
+    highlights: ["Advanced AI assistant", "20 assistant messages/day", "Logs & AI planning panels", "15 projects"],
   },
   {
     id: "pro",
@@ -174,7 +174,7 @@ export const PLANS: PlanMeta[] = [
     name: "Max",
     price: 49,
     tagline: "The most capable AI — Opus, for demanding builds.",
-    highlights: ["Everything in Pro", "Opus — our smartest model", "100 assistant messages/day", "Priority Opus generation"],
+    highlights: ["Everything in Pro", "Opus — our smartest model", "80 assistant messages/day", "Priority Opus generation"],
   },
 ];
 

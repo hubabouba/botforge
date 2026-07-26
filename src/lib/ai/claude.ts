@@ -66,6 +66,15 @@ You are running as a coding agent with tools, in a loop — not a single reply:
 - When the work is genuinely done and reviewed, stop calling tools and end with a short plain-language summary of what you changed and why.`;
 
 /**
+ * Extra nudge for the no-thinking tier. With extended thinking off, the model
+ * reaches for tools noticeably less — and this whole feature is tool calls, so
+ * without this it answers *about* the code instead of writing it.
+ */
+const NO_THINKING_NOTE = `
+
+You are running without a separate reasoning pass, so be deliberate about acting: when the user asks for a change, call write_file — describing the change in prose instead of writing the file is not completing the task. A brief sentence before a tool call is fine.`;
+
+/**
  * The workspace assistant (Claude): an agent that answers questions about the
  * bot project and makes concrete file edits via tools. It streams prose as it's
  * generated and runs a bounded write→read→review→refine loop so edits are
@@ -78,7 +87,12 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   const anthropic = getClient();
   const planning = params.intent === "plan";
   const model = params.model || ASSISTANT_MODEL;
-  const system = buildSystemPrompt(params) + (planning ? "" : AGENT_NOTE);
+  // Default matches the paid tiers; the route always passes an explicit config.
+  const reasoning = params.reasoning ?? { thinking: true, effort: "high" as const };
+  const system =
+    buildSystemPrompt(params) +
+    (planning ? "" : AGENT_NOTE) +
+    (!planning && !reasoning.thinking ? NO_THINKING_NOTE : "");
 
   // A server-side working copy of the project, seeded with the FULL (untruncated)
   // files the request carried. read_file serves from here — including the model's
@@ -114,15 +128,19 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     const stream = anthropic.messages.stream({
       model,
-      // Adaptive thinking: the model plans + self-reviews internally, deciding
-      // how much to think per turn. We deliberately DON'T set the old
-      // `budget_tokens` — it's rejected with a 400 on Sonnet 5 / Opus 5, and
-      // omitting `thinking` runs adaptive on both by default. The reasoning
-      // never reaches the client (the loop only forwards `text_delta`) and its
-      // blocks are echoed back across turns, as the API requires. max_tokens
-      // caps thinking + output together, so it's sized to leave room for a full
-      // file write after the model thinks; thinking tokens bill as output — a
-      // quality/cost trade only paid users hit, and larger on Max's Opus.
+      // Reasoning is set EXPLICITLY on every request. Two defaults would bite us
+      // otherwise: omitting `thinking` runs adaptive (it is not off), and
+      // omitting `effort` runs "high" — so an unset pair silently opts every
+      // tier into the expensive end. `budget_tokens` is gone: it's a 400 on
+      // Sonnet 5 / Opus 5, and `effort` replaces it.
+      //
+      // `display: "summarized"` is what makes reasoning visible to the user —
+      // the default is "omitted", which streams thinking blocks with empty text.
+      // Thinking tokens bill as output, which is exactly why Basic runs without
+      // them (see reasoningFor in plan.ts). max_tokens caps thinking + output
+      // together, sized to leave room for a full file write after the model thinks.
+      thinking: reasoning.thinking ? { type: "adaptive", display: "summarized" } : { type: "disabled" },
+      output_config: { effort: reasoning.effort },
       max_tokens: 16000,
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       ...(tools ? { tools } : {}),
@@ -134,8 +152,12 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
     const killer = setTimeout(() => stream.abort(), Math.max(deadline - WRAP_UP_MS - Date.now(), 1_000));
     try {
       for await (const event of stream) {
-        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          yield { type: "text", delta: event.delta.text };
+        if (event.type === "content_block_delta") {
+          if (event.delta.type === "text_delta") {
+            yield { type: "text", delta: event.delta.text };
+          } else if (event.delta.type === "thinking_delta") {
+            yield { type: "thinking", delta: event.delta.thinking };
+          }
         }
       }
     } catch (e) {

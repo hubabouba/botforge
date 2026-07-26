@@ -6,7 +6,15 @@ import { assistantChatStream } from "@/lib/ai/claude";
 import { assistantChatGeminiStream } from "@/lib/ai/gemini";
 import { buildRuntimeContext } from "@/lib/ai/runtimeContext";
 import type { AssistantStreamEvent } from "@/lib/ai/types";
-import { aiDailyLimit, assistantModelForPlan, isAiLimitExempt, resolveProvider } from "@/lib/plan";
+import {
+  aiDailyLimit,
+  isAiLimitExempt,
+  modelForTier,
+  planAllows,
+  providerForTier,
+  reasoningFor,
+  resolveTier,
+} from "@/lib/plan";
 import { getUserPlan } from "@/lib/subscription";
 
 export const runtime = "nodejs";
@@ -46,9 +54,9 @@ const bodySchema = z.object({
   // `attach` is the user's opt-in — a crashed bot attaches its logs regardless.
   projectId: z.string().uuid().optional(),
   attach: z.object({ logs: z.boolean().optional(), metrics: z.boolean().optional() }).optional(),
-  // The model the user picked in the workspace. Only honored if their plan
-  // allows it (resolveProvider) — the client can't unlock Claude.
-  provider: z.enum(["gemini", "claude"]).optional(),
+  // The tier the user picked in the workspace. Only honored if their plan
+  // allows it (resolveTier) — the client can't unlock a paid tier.
+  tier: z.enum(["standard", "advanced", "max"]).optional(),
 });
 
 // POST /api/ai/chat — the in-workspace coding assistant.
@@ -82,7 +90,8 @@ async function handlePost(req: Request) {
   }
 
   const plan = await getUserPlan(supabase, user.id, user.email);
-  const provider = resolveProvider(plan, parsed.data.provider);
+  const tier = resolveTier(plan, parsed.data.tier);
+  const provider = providerForTier(tier);
 
   // Guard: the chosen provider must be configured.
   if (provider === "claude" && !process.env.ANTHROPIC_API_KEY) {
@@ -154,7 +163,14 @@ async function handlePost(req: Request) {
   // change the status, so it's surfaced as an in-stream `error` event instead.
   const gen: AsyncGenerator<AssistantStreamEvent> =
     provider === "claude"
-      ? assistantChatStream({ ...parsed.data, runtime, model: assistantModelForPlan(plan), budgetMs: LOOP_BUDGET_MS })
+      ? assistantChatStream({
+          ...parsed.data,
+          runtime,
+          model: modelForTier(tier),
+          reasoning: reasoningFor(plan, tier),
+          clarify: planAllows(plan, "assistant.clarify"),
+          budgetMs: LOOP_BUDGET_MS,
+        })
       : assistantChatGeminiStream({ ...parsed.data, runtime });
 
   const encoder = new TextEncoder();

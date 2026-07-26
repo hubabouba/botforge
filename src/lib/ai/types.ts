@@ -22,11 +22,14 @@ export interface AssistantResult {
  * One event in a streamed assistant response, emitted by both providers so the
  * API route and client don't need to know which model produced it:
  *  - `text`: an incremental chunk of prose to append as it arrives.
+ *  - `thinking`: an incremental chunk of the model's reasoning summary, shown
+ *    in a collapsed block. Only tiers with extended thinking emit these.
  *  - `edit`: a complete proposed file write (Claude/Gemini stream text as it
  *    goes but only surface a tool call once its arguments are fully assembled).
  */
 export type AssistantStreamEvent =
   | { type: "text"; delta: string }
+  | { type: "thinking"; delta: string }
   | { type: "edit"; path: string; content: string };
 
 /** User-tunable persona for the assistant (how it talks, not what it can do). */
@@ -67,8 +70,18 @@ export interface AssistantParams {
    * `lib/ai/runtimeContext.ts` — never accepted from the client.
    */
   runtime?: string;
-  /** Claude model id to run (plan-derived; Max → Opus). Ignored by Gemini. */
+  /** Claude model id to run (tier-derived; Max → Opus). Ignored by Gemini. */
   model?: string;
+  /**
+   * Whether extended thinking runs, and how deep. Resolved from plan + tier by
+   * `reasoningFor` — never from the client. Ignored by Gemini.
+   */
+  reasoning?: { thinking: boolean; effort: "low" | "medium" | "high" | "xhigh" };
+  /**
+   * Let the assistant stop and ask when the request is genuinely
+   * underspecified, instead of guessing. Gated on `assistant.clarify` (Pro+).
+   */
+  clarify?: boolean;
   /**
    * Total wall-clock budget for the whole agentic loop, in ms. The route derives
    * it from its own maxDuration so the loop always finishes (and flushes the
@@ -129,6 +142,18 @@ ${params.plan.trim().slice(0, 8000)}
 --- END BUILD PLAN ---`
       : "";
 
+  // Deliberately narrow: the bar is "different readings produce materially
+  // different work", not "anything is unclear". An assistant that checks in on
+  // every judgment call is worse than one that picks a sane default and says so.
+  const clarifying = params.clarify
+    ? `
+
+Asking instead of guessing:
+- When the request is genuinely underspecified — two reasonable readings would lead to materially different code, or you'd need a credential, API or business rule you have no way to know — stop and ask. Ask the one or two questions that actually unblock you, and don't write files on that turn.
+- Routine judgment calls (naming, file layout, which of two equivalent approaches) are yours to make: pick a sensible one and mention it in a sentence. Don't ask about those.
+- If part of the task is clear and part isn't, build the clear part, then ask about the rest.`
+    : "";
+
   return `You are Botforge's coding assistant. You help the user build a ${params.project.platform} bot written in ${params.project.language}. The project is called "${params.project.name}".
 
 Rules:
@@ -139,7 +164,7 @@ Rules:
 - Make focused, minimal changes and briefly explain what you did in plain language.
 - Before finishing, quickly re-check your own changes for common bugs: unhandled errors, wrong types, a missing await, off-by-one mistakes, or secrets left in code.
 - Never hardcode secrets or tokens — read them from environment variables.
-- If the request is just a question, answer it without editing files.${planning}${preferenceLines(params.preferences)}${planContext}${params.runtime ?? ""}
+- If the request is just a question, answer it without editing files.${planning}${clarifying}${preferenceLines(params.preferences)}${planContext}${params.runtime ?? ""}
 
 Current project files:
 ${fileDump}`;

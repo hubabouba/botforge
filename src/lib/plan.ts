@@ -26,12 +26,77 @@ export function projectLimit(plan: Plan): number {
 export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 3, basic: 20, pro: 40, max: 80 };
 
 /**
- * The Claude model each plan's assistant runs. Max unlocks Opus (our most
- * capable model, ~2.5–3x the token cost of Sonnet — hence the higher price);
- * every other Claude tier stays on Sonnet. Free runs Gemini and never reads this.
+ * What the user picks in the workspace model selector. This is the product-level
+ * concept; `Provider` below is just which SDK the server calls for it.
  */
-export function assistantModelForPlan(plan: Plan): string {
-  return plan === "max" ? "claude-opus-5" : "claude-sonnet-5";
+export type AssistantTier = "standard" | "advanced" | "max";
+
+export function providerForTier(tier: AssistantTier): Provider {
+  return tier === "standard" ? "gemini" : "claude";
+}
+
+/**
+ * The model each tier runs. Max is our most capable model (~2.5–3x the token
+ * cost of the standard paid one — hence the higher price). Free runs Gemini and
+ * never reads this.
+ */
+export function modelForTier(tier: AssistantTier): string {
+  return tier === "max" ? "claude-opus-5" : "claude-sonnet-5";
+}
+
+/**
+ * How hard the assistant reasons, and what that costs.
+ *
+ * Extended thinking is the single biggest cost driver: those tokens bill as
+ * output, and each user message runs a multi-turn agentic loop. Basic therefore
+ * runs with thinking OFF — its smaller message allowance would otherwise burn
+ * far more per message than the tier is priced for. Pro and Max buy real
+ * deliberation, and it's visible to them (see the `thinking` stream event).
+ *
+ * `effort` is set explicitly on every tier because the API default is "high" —
+ * leaving it unset silently opts everyone into the expensive end of the scale.
+ */
+export interface ReasoningConfig {
+  /** Extended thinking on. When false the model answers without a reasoning pass. */
+  thinking: boolean;
+  effort: "low" | "medium" | "high" | "xhigh";
+}
+
+export function reasoningFor(plan: Plan, tier: AssistantTier): ReasoningConfig {
+  if (tier === "max") return { thinking: true, effort: "xhigh" };
+  return plan === "basic"
+    ? { thinking: false, effort: "medium" }
+    : { thinking: true, effort: "high" };
+}
+
+/**
+ * Which tiers a plan may select. Pure (no env) so the client can build the
+ * selector from it; `resolveTier` is the server-side enforcement — never trust
+ * the client to unlock a paid tier.
+ */
+export function tiersForPlan(plan: Plan): AssistantTier[] {
+  if (plan === "max") return ["standard", "advanced", "max"];
+  if (planAllows(plan, "assistant.claude")) return ["standard", "advanced"];
+  return ["standard"];
+}
+
+/** The tier a plan gets when the user hasn't chosen one: the best it can run. */
+export function defaultTierForPlan(plan: Plan): AssistantTier {
+  const allowed = tiersForPlan(plan);
+  return allowed[allowed.length - 1];
+}
+
+/**
+ * The tier to actually run: honor the user's choice only if their plan allows
+ * it, else fall back to the plan default. AI_FORCE_PROVIDER still overrides
+ * everything (local testing).
+ */
+export function resolveTier(plan: Plan, requested?: AssistantTier | null): AssistantTier {
+  const forced = process.env.AI_FORCE_PROVIDER;
+  if (forced === "gemini") return "standard";
+  if (forced === "claude") return plan === "max" ? "max" : "advanced";
+  if (requested && tiersForPlan(plan).includes(requested)) return requested;
+  return defaultTierForPlan(plan);
 }
 
 export function aiDailyLimit(plan: Plan): number {
@@ -75,6 +140,7 @@ export function nextPlanUp(plan: Plan): Plan {
 export type Capability =
   | "assistant.claude" // smarter model (Claude) instead of the limited free assistant
   | "assistant.logs" // the assistant may read & analyze bot logs (quiet Pro gate)
+  | "assistant.clarify" // the assistant asks instead of guessing when the ask is underspecified
   | "panel.logs" // the Logs panel
   | "panel.planning" // the AI Planning panel
   | "panel.metrics" // the Metrics panel
@@ -86,6 +152,7 @@ export const CAPABILITY_MIN_PLAN: Record<Capability, Plan> = {
   "panel.planning": "basic",
   "panel.metrics": "pro",
   "assistant.logs": "pro",
+  "assistant.clarify": "pro",
   // OPEN DECISION (revisit before Stage 2): Basic+Pro vs Pro-only. Defaulting to
   // "basic" because the Logs panel already promises Basic users "hosted runs are
   // on the way" — leaving that unfulfilled for a paying tier would be odd.
@@ -200,30 +267,6 @@ export function requiredPlan(cap: Capability): Plan {
   return CAPABILITY_MIN_PLAN[cap];
 }
 
-export function providerForPlan(plan: Plan): Provider {
-  const forced = process.env.AI_FORCE_PROVIDER;
-  if (forced === "gemini" || forced === "claude") return forced;
-  return planAllows(plan, "assistant.claude") ? "claude" : "gemini";
-}
-
-/**
- * Which providers a plan is allowed to pick. Free is locked to Gemini; paid
- * tiers may choose either the fast free model or Claude. Pure (no env) so the
- * client can use it to build the model selector. `resolveProvider` below is the
- * server-side enforcement — never trust the client to unlock Claude.
- */
-export function providersForPlan(plan: Plan): Provider[] {
-  return planAllows(plan, "assistant.claude") ? ["gemini", "claude"] : ["gemini"];
-}
-
-/**
- * The provider to actually use for a request: honor the user's explicit choice
- * only if their plan allows it, else fall back to the plan default. AI_FORCE_
- * PROVIDER still overrides everything (local testing).
- */
-export function resolveProvider(plan: Plan, requested?: Provider | null): Provider {
-  const forced = process.env.AI_FORCE_PROVIDER;
-  if (forced === "gemini" || forced === "claude") return forced;
-  if (requested && providersForPlan(plan).includes(requested)) return requested;
-  return providerForPlan(plan);
-}
+// Provider routing lives entirely on AssistantTier now (see tiersForPlan /
+// resolveTier / providerForTier above) — a plan-keyed `providerForPlan` and a
+// tier-keyed selector would be two sources of truth for the same decision.

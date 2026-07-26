@@ -8,6 +8,12 @@ import {
   hostingLimitsFor,
   effectiveHostingPlan,
   getPlan,
+  tiersForPlan,
+  defaultTierForPlan,
+  resolveTier,
+  providerForTier,
+  modelForTier,
+  reasoningFor,
 } from "@/lib/plan";
 
 describe("planAllows", () => {
@@ -48,6 +54,75 @@ describe("per-plan numeric caps", () => {
     expect(hostingRuntimeBudgetSeconds("basic")).toBe(100 * 3600);
     expect(hostingRuntimeBudgetSeconds("pro")).toBe(400 * 3600);
     expect(hostingRuntimeBudgetSeconds("max")).toBe(800 * 3600);
+  });
+});
+
+describe("assistant tiers", () => {
+  const ORIGINAL = process.env;
+  afterEach(() => {
+    process.env = ORIGINAL;
+  });
+
+  it("free is locked to standard; only max may pick max", () => {
+    expect(tiersForPlan("free")).toEqual(["standard"]);
+    expect(tiersForPlan("basic")).toEqual(["standard", "advanced"]);
+    expect(tiersForPlan("pro")).toEqual(["standard", "advanced"]);
+    expect(tiersForPlan("max")).toEqual(["standard", "advanced", "max"]);
+  });
+
+  it("defaults to the best tier the plan can run", () => {
+    expect(defaultTierForPlan("free")).toBe("standard");
+    expect(defaultTierForPlan("basic")).toBe("advanced");
+    expect(defaultTierForPlan("max")).toBe("max");
+  });
+
+  it("refuses a tier the plan hasn't paid for", () => {
+    process.env = { ...ORIGINAL, AI_FORCE_PROVIDER: "" };
+    // The whole point of the server-side check: a client asking for "max"
+    // on a lesser plan gets that plan's default, not max.
+    expect(resolveTier("free", "max")).toBe("standard");
+    expect(resolveTier("basic", "max")).toBe("advanced");
+    expect(resolveTier("pro", "max")).toBe("advanced");
+    expect(resolveTier("max", "max")).toBe("max");
+  });
+
+  it("honors a downgrade the plan does allow", () => {
+    process.env = { ...ORIGINAL, AI_FORCE_PROVIDER: "" };
+    expect(resolveTier("max", "advanced")).toBe("advanced");
+    expect(resolveTier("pro", "standard")).toBe("standard");
+  });
+
+  it("maps tiers to providers and models", () => {
+    expect(providerForTier("standard")).toBe("gemini");
+    expect(providerForTier("advanced")).toBe("claude");
+    expect(providerForTier("max")).toBe("claude");
+    expect(modelForTier("max")).toBe("claude-opus-5");
+    expect(modelForTier("advanced")).toBe("claude-sonnet-5");
+  });
+});
+
+describe("reasoningFor (cost/quality per tier)", () => {
+  it("basic runs without thinking — that's the tier's whole cost model", () => {
+    expect(reasoningFor("basic", "advanced")).toEqual({ thinking: false, effort: "medium" });
+  });
+
+  it("pro buys real deliberation, max buys the deepest", () => {
+    expect(reasoningFor("pro", "advanced")).toEqual({ thinking: true, effort: "high" });
+    expect(reasoningFor("max", "max")).toEqual({ thinking: true, effort: "xhigh" });
+  });
+
+  it("a max user who picks the cheaper tier gets that tier's reasoning", () => {
+    expect(reasoningFor("max", "advanced")).toEqual({ thinking: true, effort: "high" });
+  });
+
+  it("never sets effort implicitly — the API default is the expensive end", () => {
+    for (const [plan, tier] of [
+      ["basic", "advanced"],
+      ["pro", "advanced"],
+      ["max", "max"],
+    ] as const) {
+      expect(reasoningFor(plan, tier).effort).toBeTruthy();
+    }
   });
 });
 

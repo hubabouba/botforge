@@ -8,7 +8,7 @@ import { readAssistantStream } from "@/lib/ai/streamClient";
 import { track } from "@/lib/analytics";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
-import { planMeta, providersForPlan, type Provider } from "@/lib/plan";
+import { planMeta, tiersForPlan, defaultTierForPlan, type AssistantTier } from "@/lib/plan";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { plural } from "@/lib/i18n/plural";
 import { cn } from "@/lib/utils";
@@ -22,18 +22,25 @@ interface Msg {
   id: string;
   role: "user" | "assistant";
   text: string;
+  /** Reasoning summary, streamed before the answer. Empty on tiers without it. */
+  thinking?: string;
   edits?: Edit[];
   error?: boolean;
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const SUGGESTION_KEYS = ["chat.suggestion1", "chat.suggestion2", "chat.suggestion3"];
-// White-labelled model names — users see the tier, not the underlying provider
+// White-labelled tier names — users see the tier, not the underlying provider
 // (lets us swap the engine later without changing the product's language).
-const MODEL_LABEL: Record<Provider, string> = { gemini: "Standard", claude: "Advanced" };
-const MODEL_META: Record<Provider, { dot: string; descKey: string }> = {
-  gemini: { dot: "bg-emerald-400", descKey: "chat.modelStandardDesc" },
-  claude: { dot: "bg-accent", descKey: "chat.modelAdvancedDesc" },
+const TIER_LABEL: Record<AssistantTier, string> = {
+  standard: "Standard",
+  advanced: "Advanced",
+  max: "Max",
+};
+const TIER_META: Record<AssistantTier, { dot: string; descKey: string }> = {
+  standard: { dot: "bg-emerald-400", descKey: "chat.modelStandardDesc" },
+  advanced: { dot: "bg-accent", descKey: "chat.modelAdvancedDesc" },
+  max: { dot: "bg-amber-400", descKey: "chat.modelMaxDesc" },
 };
 const MODEL_KEY = "bf:assistant-model";
 const AUTO_APPLY_KEY = "bf:auto-apply";
@@ -73,7 +80,7 @@ export function WorkspaceChat({
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [quota, setQuota] = useState<{ used: number; limit: number } | null>(null);
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
-  const [model, setModel] = useState<Provider>("gemini");
+  const [tier, setTier] = useState<AssistantTier>("standard");
   const [modelMenu, setModelMenu] = useState(false);
   // Opt-in extras sent with each message. Logs also ride along automatically
   // when the server sees the bot crashed, so this toggle is for the other case:
@@ -95,33 +102,33 @@ export function WorkspaceChat({
     }
   }, []);
 
-  // Resolve the selected model from storage, clamped to what the plan allows —
-  // a saved "claude" from a lapsed subscription must fall back to Gemini. Runs
-  // when the plan resolves so a free account never sends a locked model.
+  // Resolve the selected tier from storage, clamped to what the plan allows —
+  // a saved "max" from a lapsed subscription must fall back. Runs when the plan
+  // resolves so a free account never sends a locked tier.
   useEffect(() => {
-    const allowed = providersForPlan(plan);
+    const allowed = tiersForPlan(plan);
     let saved: string | null = null;
     try {
       saved = localStorage.getItem(MODEL_KEY);
     } catch {
       /* storage blocked — use the plan default */
     }
-    const fallback: Provider = allowed.includes("claude") ? "claude" : "gemini";
-    const initial: Provider = saved === "claude" || saved === "gemini" ? saved : fallback;
-    setModel(allowed.includes(initial) ? initial : "gemini");
+    const isTier = (v: string | null): v is AssistantTier =>
+      v === "standard" || v === "advanced" || v === "max";
+    setTier(isTier(saved) && allowed.includes(saved) ? saved : defaultTierForPlan(plan));
   }, [plan]);
 
-  // Pick a model; a locked one (not in the plan) opens the upgrade modal
+  // Pick a tier; a locked one (not in the plan) opens the upgrade modal
   // instead of switching. The server re-checks — this is UX, not the gate.
-  function pickModel(m: Provider) {
+  function pickTier(t: AssistantTier) {
     setModelMenu(false);
-    if (!providersForPlan(plan).includes(m)) {
+    if (!tiersForPlan(plan).includes(t)) {
       setUpgradeOpen(true);
       return;
     }
-    setModel(m);
+    setTier(t);
     try {
-      localStorage.setItem(MODEL_KEY, m);
+      localStorage.setItem(MODEL_KEY, t);
     } catch {
       /* non-fatal */
     }
@@ -181,6 +188,7 @@ export function WorkspaceChat({
       setMessages((prev) => prev.map((m) => (m.id === replyId ? fn(m) : m)));
 
     let accText = "";
+    let accThinking = "";
     const accEdits: Edit[] = [];
     let hadError = false;
 
@@ -193,7 +201,7 @@ export function WorkspaceChat({
           files,
           messages: payload.map((m) => ({ role: m.role, content: m.text })),
           preferences: prefs,
-          provider: model,
+          tier,
           // Empty string would just waste prompt tokens on an empty section.
           ...(buildPlan.trim() ? { plan: buildPlan } : {}),
           // The server looks the bot's state up itself; we only say which
@@ -222,6 +230,9 @@ export function WorkspaceChat({
         if (event.type === "text") {
           accText += event.delta;
           patch((m) => ({ ...m, text: accText }));
+        } else if (event.type === "thinking") {
+          accThinking += event.delta;
+          patch((m) => ({ ...m, thinking: accThinking }));
         } else if (event.type === "edit") {
           accEdits.push({ path: event.path, content: event.content });
           patch((m) => ({ ...m, edits: [...accEdits] }));
@@ -294,8 +305,8 @@ export function WorkspaceChat({
             aria-expanded={modelMenu}
             className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900/60 px-2 py-1 text-[11px] font-medium text-neutral-200 transition-colors hover:border-accent/50 hover:bg-ink-900"
           >
-            <span className={cn("h-1.5 w-1.5 rounded-full", MODEL_META[model].dot)} />
-            {MODEL_LABEL[model]}
+            <span className={cn("h-1.5 w-1.5 rounded-full", TIER_META[tier].dot)} />
+            {TIER_LABEL[tier]}
             <ChevronRight className={cn("h-3 w-3 text-neutral-500 transition-transform", modelMenu && "rotate-90")} />
           </button>
           {modelMenu && (
@@ -305,23 +316,23 @@ export function WorkspaceChat({
                 <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
                   {t("chat.modelMenuTitle")}
                 </div>
-                {(["gemini", "claude"] as Provider[]).map((m) => {
-                  const locked = !providersForPlan(plan).includes(m);
-                  const active = model === m && !locked;
+                {(["standard", "advanced", "max"] as AssistantTier[]).map((m) => {
+                  const locked = !tiersForPlan(plan).includes(m);
+                  const active = tier === m && !locked;
                   return (
                     <button
                       key={m}
-                      onClick={() => pickModel(m)}
+                      onClick={() => pickTier(m)}
                       className={cn(
                         "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
                         active ? "bg-accent/15" : "hover:bg-white/[0.04]",
                       )}
                     >
-                      <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", MODEL_META[m].dot, locked && "opacity-40")} />
+                      <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", TIER_META[m].dot, locked && "opacity-40")} />
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
                           <span className={cn("text-[13px] font-medium", locked ? "text-neutral-400" : "text-neutral-100")}>
-                            {MODEL_LABEL[m]}
+                            {TIER_LABEL[m]}
                           </span>
                           {active && <Check className="h-3.5 w-3.5 text-emerald-400" />}
                           {locked && (
@@ -331,7 +342,7 @@ export function WorkspaceChat({
                           )}
                         </span>
                         <span className="mt-0.5 block text-[11px] leading-snug text-neutral-500">
-                          {t(MODEL_META[m].descKey)}
+                          {t(TIER_META[m].descKey)}
                         </span>
                       </span>
                     </button>
@@ -388,6 +399,7 @@ export function WorkspaceChat({
             </div>
           ) : (
             <div key={m.id} className="space-y-2.5">
+              {m.thinking && <ThinkingBlock text={m.thinking} live={busy && !m.text} />}
               <div
                 className={cn(
                   "whitespace-pre-wrap text-[13px] leading-relaxed",
@@ -422,19 +434,22 @@ export function WorkspaceChat({
           ),
         )}
 
-        {/* Typing dots only until the streamed reply starts filling in. */}
-        {busy && !messages[messages.length - 1]?.text && !messages[messages.length - 1]?.edits?.length && (
-          <div className="flex items-center gap-1.5 rounded-xl border border-ink-800 bg-ink-900/70 px-3 py-2.5 w-fit">
-            {[0, 1, 2].map((i) => (
-              <span
-                key={i}
-                className="h-1.5 w-1.5 rounded-full bg-neutral-500"
-                style={{ animation: `bfb 1.2s ease-in-out ${i * 0.15}s infinite` }}
-              />
-            ))}
-            <style>{`@keyframes bfb{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}`}</style>
-          </div>
-        )}
+        {/* Typing dots only until something — reasoning or prose — starts arriving. */}
+        {busy &&
+          !messages[messages.length - 1]?.text &&
+          !messages[messages.length - 1]?.thinking &&
+          !messages[messages.length - 1]?.edits?.length && (
+            <div className="flex w-fit items-center gap-1.5 rounded-xl border border-ink-800 bg-ink-900/70 px-3 py-2.5">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="h-1.5 w-1.5 rounded-full bg-neutral-500"
+                  style={{ animation: `bfb 1.2s ease-in-out ${i * 0.15}s infinite` }}
+                />
+              ))}
+              <style>{`@keyframes bfb{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}`}</style>
+            </div>
+          )}
 
         {messages.length === 0 && !busy && (
           <div className="pt-1">
@@ -516,6 +531,45 @@ export function WorkspaceChat({
           reason={t("chat.upgradeReason").replace("{plan}", planMeta(plan).name)}
           onClose={() => setUpgradeOpen(false)}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The model's reasoning, shown the way a person would want it: expanded while
+ * it's the only thing happening, collapsed to a one-line header once the actual
+ * answer starts. It's a summary from the provider, not raw internal state.
+ */
+function ThinkingBlock({ text, live }: { text: string; live: boolean }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const expanded = open || live;
+
+  // Follow the reasoning as it streams, but only while it's driving the view —
+  // once the user has opened it themselves, let them read at their own pace.
+  useEffect(() => {
+    if (live) bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight });
+  }, [text, live]);
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900/40">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={expanded}
+        className="flex w-full items-center gap-1.5 px-3 py-1.5 text-[11px] text-neutral-500 transition-colors hover:text-neutral-300"
+      >
+        <ChevronRight className={cn("h-3 w-3 transition-transform", expanded && "rotate-90")} />
+        {live ? t("chat.thinkingLive") : t("chat.thinkingDone")}
+      </button>
+      {expanded && (
+        <div
+          ref={bodyRef}
+          className="max-h-48 overflow-y-auto border-t border-ink-800 px-3 py-2 text-[12px] leading-relaxed whitespace-pre-wrap text-neutral-500"
+        >
+          {text}
+        </div>
       )}
     </div>
   );

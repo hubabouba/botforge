@@ -23,6 +23,8 @@ import { FileTree, FileDot } from "./FileTree";
 import { CodeEditor } from "./CodeEditor";
 import { RunGuideModal } from "./RunGuideModal";
 import { WorkspaceChat } from "./WorkspaceChat";
+import { FirstRunChecklist } from "./FirstRunChecklist";
+import { useHostingStatus } from "@/hooks/useHostingStatus";
 import { ViewSwitcher, LogsPanel, PlanningPanel, MetricsPanel, type WorkView } from "./panels";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { usePlan } from "@/hooks/usePlan";
@@ -76,10 +78,20 @@ export function Workspace({ projectId }: { projectId: string }) {
   // Goal handed the other way — the assistant decided this is a planning
   // request and called open_plan, so we switch to Planning and build it there.
   const [planGoal, setPlanGoal] = useState("");
+  // First-run progress. Real state, not guesses: whether they've talked to the
+  // assistant, whether a bot token exists, whether the bot has ever started.
+  const [hasChatted, setHasChatted] = useState(false);
   const [upgrade, setUpgrade] = useState<{ highlight: Plan; reason: string } | null>(null);
   // A failed file-tree operation (add/rename/delete) would otherwise be silent.
   const [treeError, setTreeError] = useState("");
   const { plan, allows, hostingAvailable } = usePlan();
+  // Drives the first-run checklist: a stored token and a past start are real
+  // signals, so the checklist reflects the account rather than this browser.
+  const { status: hostingStatus } = useHostingStatus(projectId, hostingAvailable);
+  const hosting = {
+    hasToken: (hostingStatus?.secretNames.length ?? 0) > 0,
+    hasRun: !!hostingStatus?.startedAt || (hostingStatus?.restartCount ?? 0) > 0,
+  };
   // Bumped when the assistant applies an edit, to remount the editor with fresh content.
   const [editorNonce, setEditorNonce] = useState(0);
   // Debounced autosave: hold the latest unsaved edit and flush it after a pause
@@ -370,6 +382,16 @@ export function Workspace({ projectId }: { projectId: string }) {
         onRun={() => (hostingAvailable ? selectView("logs") : setRunOpen(true))}
       />
 
+      {/* The path from "code exists" to "my bot answered me". Disappears for
+          good once every step is done. */}
+      <FirstRunChecklist
+        project={project}
+        hasChatted={hasChatted}
+        hasToken={hosting.hasToken}
+        hasRun={hosting.hasRun}
+        onOpenRun={() => (hostingAvailable ? selectView("logs") : setRunOpen(true))}
+      />
+
       {/* Tab bar for the compact layout. Visibility is CSS (`lg:hidden`), not
           the `compact` flag, so a phone gets the right layout on the very first
           paint instead of flashing the desktop columns until the hook resolves.
@@ -548,6 +570,7 @@ export function Workspace({ projectId }: { projectId: string }) {
             buildPlan={buildPlan}
             seed={chatSeed}
             onSeedUsed={() => setChatSeed("")}
+            onActivity={() => setHasChatted(true)}
             // The assistant asked for the Planning tab — take the user there.
             onOpenPlan={(goal) => {
               setPlanGoal(goal);

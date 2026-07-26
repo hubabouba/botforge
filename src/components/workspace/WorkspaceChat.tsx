@@ -57,6 +57,7 @@ export function WorkspaceChat({
   seed = "",
   onSeedUsed,
   onOpenPlan,
+  onActivity,
 }: {
   project: Project;
   files: ProjectFile[];
@@ -74,6 +75,8 @@ export function WorkspaceChat({
   onSeedUsed?: () => void;
   /** The assistant decided this is a planning request (open_plan tool). */
   onOpenPlan?: (goal: string) => void;
+  /** This project has a conversation — drives the first-run checklist. */
+  onActivity?: () => void;
 }) {
   const { t, lang } = useI18n();
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -177,6 +180,7 @@ export function WorkspaceChat({
     let cancelled = false;
     void loadChat(project.id).then((saved) => {
       if (cancelled || !saved.length) return;
+      onActivity?.();
       setMessages(
         saved.map((m) => ({
           id: uid(),
@@ -227,6 +231,7 @@ export function WorkspaceChat({
     setMessages([...history, { id: replyId, role: "assistant", text: "", edits: [] }]);
     setInput("");
     setBusy(true);
+    onActivity?.();
     track("ai_message_sent");
 
     // The API accepts at most 30 messages — send a sliding window of the most

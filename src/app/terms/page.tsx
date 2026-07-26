@@ -9,7 +9,7 @@ export default function TermsPage() {
   const priceList = paid.map((t) => `${t.name} ($${t.price}/month)`).join(" and ");
 
   return (
-    <LegalShell title="Terms of Service" updated="July 3, 2026">
+    <LegalShell title="Terms of Service" updated="July 26, 2026">
       <p>
         {brand.name} (“{brand.operator}”, “we”) provides an AI service for building bots. By using
         it, you agree to these terms. This document is a plain-language draft and should be reviewed
@@ -62,12 +62,16 @@ export default function TermsPage() {
         end of the current paid period and then does not renew — you are not charged again.
       </p>
       <p>
-        <strong>Just after purchase.</strong> If you cancel within 14 days of a payment and have made
-        little or no use of paid features, contact us and we will normally refund that payment.
+        <strong>Just after purchase.</strong> If you cancel within 7 days of a payment and have made
+        only minimal use of the paid features — no more than 5 assistant messages sent on the paid
+        plan, and no bot started on Botforge hosting — contact us and we will normally refund that
+        payment. We can verify both from your account.
       </p>
       <p>
-        <strong>Partway through a period.</strong> If you cancel after using the service during a paid
-        period, that period is non-refundable, but your access continues until it ends.
+        <strong>Partway through a period.</strong> Once you have used the paid features beyond that,
+        the paid period has been delivered and is not refundable — but your access continues until
+        the end of that period. Generated code you have already produced or downloaded is yours to
+        keep either way, which is why usage beyond the threshold above is treated as delivered.
       </p>
       <p>
         <strong>Accidental or mistaken charges.</strong> If you were charged in error, or forgot to
@@ -75,8 +79,11 @@ export default function TermsPage() {
       </p>
       <p>
         None of this limits mandatory consumer-protection rights you may have in the EU or where you
-        live. By starting a subscription and using paid features immediately, you agree the service
-        begins before any statutory withdrawal period ends.
+        live. When you subscribe, you expressly request and consent that we begin providing the
+        service immediately — access to the paid features is granted the moment payment completes —
+        and you acknowledge that, once performance has begun, you lose the statutory 14-day right of
+        withdrawal for that purchase. The goodwill refund described above is offered on top of that,
+        at our discretion.
       </p>
 
       <h2>Disclaimer</h2>

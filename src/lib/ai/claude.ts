@@ -142,6 +142,8 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   const tools = planning ? undefined : [WRITE_FILE_TOOL, READ_FILE_TOOL, OPEN_PLAN_TOOL];
   const deadline = Date.now() + (params.budgetMs ?? DEFAULT_BUDGET_MS);
   let outOfTime = false;
+  let truncated = false;
+  let saidSomething = false;
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     const stream = anthropic.messages.stream({
@@ -155,11 +157,17 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
       // `display: "summarized"` is what makes reasoning visible to the user —
       // the default is "omitted", which streams thinking blocks with empty text.
       // Thinking tokens bill as output, which is exactly why Basic runs without
-      // them (see reasoningFor in plan.ts). max_tokens caps thinking + output
-      // together, sized to leave room for a full file write after the model thinks.
+      // them (see reasoningFor in plan.ts).
       thinking: reasoning.thinking ? { type: "adaptive", display: "summarized" } : { type: "disabled" },
       output_config: { effort: reasoning.effort },
-      max_tokens: 16000,
+      // max_tokens caps thinking AND output together — it is a ceiling, not a
+      // spend target (effort controls actual usage). 16000 was too tight the
+      // moment effort went to xhigh: the model spent the whole allowance
+      // reasoning and got truncated before writing a word, which reached users
+      // as "the assistant returned an empty reply". 64K is the documented
+      // starting point for high/xhigh, and leaves room for a full file write
+      // after a long think.
+      max_tokens: 64000,
       system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
       ...(tools ? { tools } : {}),
       messages,
@@ -172,6 +180,7 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
       for await (const event of stream) {
         if (event.type === "content_block_delta") {
           if (event.delta.type === "text_delta") {
+            saidSomething = true;
             yield { type: "text", delta: event.delta.text };
           } else if (event.delta.type === "thinking_delta") {
             yield { type: "thinking", delta: event.delta.thinking };
@@ -191,6 +200,9 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
     // message to get complete tool calls (and the thinking blocks, which must be
     // sent back verbatim when continuing an extended-thinking + tool-use turn).
     const final = await stream.finalMessage();
+    // Hit the output ceiling. Worth saying out loud: the turn is cut off, so
+    // anything the model was midway through writing is simply gone.
+    if (final.stop_reason === "max_tokens") truncated = true;
     const toolUses = final.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
     if (toolUses.length === 0) break; // model is done — no more tool calls
 
@@ -261,8 +273,8 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
     if (Date.now() > deadline - WRAP_UP_MS) break;
   }
 
-  // Ran out of budget mid-build: say so honestly instead of going silent — the
-  // finished files below still apply, and a follow-up message continues the work.
+  // Say what happened instead of going quiet. Every one of these used to reach
+  // the user as a bare "the assistant returned an empty reply".
   if (outOfTime) {
     yield {
       type: "text",
@@ -270,6 +282,17 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
         edits.size > 0
           ? "\n\n⏱ I ran out of time mid-build, so I stopped here — every file below is complete and applied. Send a follow-up message and I'll continue where I left off."
           : "\n\n⏱ This request was too big to finish in one pass and I ran out of time. Try splitting it up — start with the core bot in one message, then add features one at a time.",
+    };
+  } else if (truncated && !saidSomething) {
+    yield {
+      type: "text",
+      delta:
+        "This one hit my output limit while I was still working it out, so nothing came back. Ask for it in smaller pieces — one feature at a time — and it'll go through.",
+    };
+  } else if (!saidSomething && edits.size === 0) {
+    yield {
+      type: "text",
+      delta: "I didn't produce anything for that one. Try rephrasing it, or say specifically which file you want changed.",
     };
   }
 

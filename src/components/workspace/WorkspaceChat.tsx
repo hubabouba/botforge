@@ -37,6 +37,7 @@ const TIER_LABEL: Record<AssistantTier, string> = {
   advanced: "Advanced",
   max: "Max",
 };
+const TIERS: AssistantTier[] = ["standard", "advanced", "max"];
 const TIER_META: Record<AssistantTier, { dot: string; descKey: string }> = {
   standard: { dot: "bg-emerald-400", descKey: "chat.modelStandardDesc" },
   advanced: { dot: "bg-accent", descKey: "chat.modelAdvancedDesc" },
@@ -121,6 +122,34 @@ export function WorkspaceChat({
     setTier(isTier(saved) && allowed.includes(saved) ? saved : defaultTierForPlan(plan));
   }, [plan]);
 
+  // Keyboard navigation for the tier menu: ↑/↓ move, Enter picks, Esc closes.
+  // Locked tiers are still reachable — landing on one and pressing Enter is how
+  // you find out what upgrading gets you.
+  const [cursor, setCursor] = useState(0);
+  useEffect(() => {
+    if (!modelMenu) return;
+    setCursor(Math.max(0, TIERS.indexOf(tier)));
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setModelMenu(false);
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setCursor((c) => (c + (e.key === "ArrowDown" ? 1 : TIERS.length - 1)) % TIERS.length);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        setCursor((c) => {
+          pickTier(TIERS[c]);
+          return c;
+        });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // pickTier is stable enough for this menu's lifetime; re-subscribing on
+    // every render would tear the listener down mid-keypress.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelMenu, tier]);
+
   // Pick a tier; a locked one (not in the plan) opens the upgrade modal
   // instead of switching. The server re-checks — this is UX, not the gate.
   function pickTier(t: AssistantTier) {
@@ -194,6 +223,7 @@ export function WorkspaceChat({
     let accThinking = "";
     const accEdits: Edit[] = [];
     let hadError = false;
+    let handedOffPlan = false;
 
     try {
       const res = await fetch("/api/ai/chat", {
@@ -237,6 +267,7 @@ export function WorkspaceChat({
           accThinking += event.delta;
           patch((m) => ({ ...m, thinking: accThinking }));
         } else if (event.type === "plan") {
+          handedOffPlan = true;
           onOpenPlan?.(event.goal);
         } else if (event.type === "edit") {
           accEdits.push({ path: event.path, content: event.content });
@@ -256,9 +287,10 @@ export function WorkspaceChat({
           .replace("{files}", plural(lang, n, { en: ["file", "files"], ru: ["файл", "файла", "файлов"] }));
         patch((m) => ({ ...m, text: summary }));
       }
-      // Stream ended with nothing at all (e.g. the model spent its whole token
-      // budget) — never leave a permanently blank message.
-      if (!hadError && !accText.trim() && !accEdits.length) {
+      // Nothing to show at all — never leave a permanently blank message. A
+      // reasoning block or a hand-off to the Planning tab both count as an
+      // answer; only true silence is an error.
+      if (!hadError && !accText.trim() && !accEdits.length && !accThinking.trim() && !handedOffPlan) {
         patch((m) => ({ ...m, text: t("chat.emptyReplyError"), error: true }));
       }
 
@@ -321,16 +353,20 @@ export function WorkspaceChat({
                 <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
                   {t("chat.modelMenuTitle")}
                 </div>
-                {(["standard", "advanced", "max"] as AssistantTier[]).map((m) => {
+                {TIERS.map((m, i) => {
                   const locked = !tiersForPlan(plan).includes(m);
                   const active = tier === m && !locked;
                   return (
                     <button
                       key={m}
                       onClick={() => pickTier(m)}
+                      onMouseEnter={() => setCursor(i)}
                       className={cn(
                         "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors",
-                        active ? "bg-accent/15" : "hover:bg-white/[0.04]",
+                        active && "bg-accent/15",
+                        // Keyboard cursor and hover are the same highlight, so
+                        // switching between mouse and keys doesn't show two.
+                        cursor === i && !active && "bg-white/[0.06]",
                       )}
                     >
                       <span className={cn("mt-1 h-2 w-2 shrink-0 rounded-full", TIER_META[m].dot, locked && "opacity-40")} />

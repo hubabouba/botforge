@@ -9,7 +9,13 @@ import { aiDailyLimit, assistantModelForPlan, isAiLimitExempt, resolveProvider }
 import { getUserPlan } from "@/lib/subscription";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// The paid assistant is a multi-turn agentic loop; big builds (several files +
+// review passes) proved to need well over 60s live — Vercel killed the function
+// mid-stream with a bare 504. Fluid compute allows up to 300s on this plan.
+export const maxDuration = 300;
+// The loop's own wall-clock budget: finish (and flush finished edits) with
+// comfortable margin before the platform cutoff above.
+const LOOP_BUDGET_MS = 280_000;
 
 const bodySchema = z.object({
   project: z.object({
@@ -126,7 +132,7 @@ async function handlePost(req: Request) {
   // change the status, so it's surfaced as an in-stream `error` event instead.
   const gen: AsyncGenerator<AssistantStreamEvent> =
     provider === "claude"
-      ? assistantChatStream({ ...parsed.data, model: assistantModelForPlan(plan) })
+      ? assistantChatStream({ ...parsed.data, model: assistantModelForPlan(plan), budgetMs: LOOP_BUDGET_MS })
       : assistantChatGeminiStream(parsed.data);
 
   const encoder = new TextEncoder();
@@ -141,7 +147,13 @@ async function handlePost(req: Request) {
           /* stream cancelled */
         }
       };
+      // Commit the 200 right away and keep the connection warm: the agentic
+      // loop's thinking/tool-writing phases emit no text for long stretches,
+      // and a silent stream is what proxies and browsers cut. The client's
+      // event loop ignores unknown types, so pings are invisible to the UI.
       const startedAt = Date.now();
+      write({ type: "ping" });
+      const heartbeat = setInterval(() => write({ type: "ping" }), 15_000);
       try {
         for await (const event of gen) write(event);
       } catch (e) {
@@ -154,6 +166,7 @@ async function handlePost(req: Request) {
         Sentry.captureException(e, { extra: { provider, plan, elapsedMs: Date.now() - startedAt } });
         write({ type: "error", message: (e as Error).message || "The assistant failed." });
       } finally {
+        clearInterval(heartbeat);
         try {
           controller.close();
         } catch {

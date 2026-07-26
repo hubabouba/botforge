@@ -17,12 +17,16 @@ const ASSISTANT_MODEL = "claude-sonnet-5";
  * Agentic loop bounds. The assistant runs as a tool-using agent that can write
  * a file, read its own work back, review it, and improve it across several
  * turns within a single user request — real create-then-refine, not one shot.
- * Both bounds keep us comfortably inside the route's 60s maxDuration and cap the
- * paid-tier cost: MAX_TOOL_TURNS is the hard ceiling; SOFT_DEADLINE_MS makes us
- * stop starting new turns in time to always flush the edits we already have.
+ * MAX_TOOL_TURNS caps paid-tier cost; the time budget (params.budgetMs, from
+ * the route's maxDuration) caps wall-clock. A single big turn can outlast any
+ * "don't start new turns" check — a live launch-day 504 proved it — so the
+ * budget is enforced with a real stream.abort() on the in-flight call, leaving
+ * WRAP_UP_MS to flush the edits that already finished instead of dying with
+ * nothing when the platform kills the function.
  */
 const MAX_TOOL_TURNS = 4;
-const SOFT_DEADLINE_MS = 45_000;
+const DEFAULT_BUDGET_MS = 50_000;
+const WRAP_UP_MS = 10_000;
 
 const WRITE_FILE_TOOL = {
   name: "write_file",
@@ -104,7 +108,8 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   // Planning mode returns a diagram + plan and must never touch files, so it
   // runs tool-less (which also makes the loop naturally end after one turn).
   const tools = planning ? undefined : [WRITE_FILE_TOOL, READ_FILE_TOOL];
-  const deadline = Date.now() + SOFT_DEADLINE_MS;
+  const deadline = Date.now() + (params.budgetMs ?? DEFAULT_BUDGET_MS);
+  let outOfTime = false;
 
   for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
     const stream = anthropic.messages.stream({
@@ -124,11 +129,23 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
       messages,
     });
 
-    for await (const event of stream) {
-      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-        yield { type: "text", delta: event.delta.text };
+    // Abort the in-flight call shortly before the budget ends — a long single
+    // turn is the one thing the between-turns check below cannot bound.
+    const killer = setTimeout(() => stream.abort(), Math.max(deadline - WRAP_UP_MS - Date.now(), 1_000));
+    try {
+      for await (const event of stream) {
+        if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+          yield { type: "text", delta: event.delta.text };
+        }
       }
+    } catch (e) {
+      const aborted = e instanceof Anthropic.APIUserAbortError || (e as Error)?.name === "APIUserAbortError";
+      if (!aborted) throw e; // real API errors still surface to the route's catch
+      outOfTime = true;
+    } finally {
+      clearTimeout(killer);
     }
+    if (outOfTime) break; // finalMessage() would reject after an abort
 
     // The SDK assembles partial tool-argument JSON for us — read the final
     // message to get complete tool calls (and the thinking blocks, which must be
@@ -179,9 +196,20 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
     messages.push({ role: "assistant", content: final.content as Anthropic.ContentBlockParam[] });
     messages.push({ role: "user", content: results });
 
-    // Stop opening new turns in time to flush what we already built before the
-    // route's hard 60s cutoff.
-    if (Date.now() > deadline) break;
+    // Don't open another turn without enough time left to do anything with it.
+    if (Date.now() > deadline - WRAP_UP_MS) break;
+  }
+
+  // Ran out of budget mid-build: say so honestly instead of going silent — the
+  // finished files below still apply, and a follow-up message continues the work.
+  if (outOfTime) {
+    yield {
+      type: "text",
+      delta:
+        edits.size > 0
+          ? "\n\n⏱ I ran out of time mid-build, so I stopped here — every file below is complete and applied. Send a follow-up message and I'll continue where I left off."
+          : "\n\n⏱ This request was too big to finish in one pass and I ran out of time. Try splitting it up — start with the core bot in one message, then add features one at a time.",
+    };
   }
 
   for (const [path, content] of edits) {

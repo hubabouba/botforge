@@ -57,6 +57,12 @@ export interface AssistantParams {
   intent?: "chat" | "plan";
   /** Claude model id to run (plan-derived; Max → Opus). Ignored by Gemini. */
   model?: string;
+  /**
+   * Total wall-clock budget for the whole agentic loop, in ms. The route derives
+   * it from its own maxDuration so the loop always finishes (and flushes the
+   * edits it already built) before the platform would kill the function.
+   */
+  budgetMs?: number;
 }
 
 /** Turns the user's persona settings into extra system-prompt lines. */

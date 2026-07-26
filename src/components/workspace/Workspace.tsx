@@ -72,6 +72,9 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [buildPlan, setBuildPlan] = useState("");
   // Text handed to the chat composer by "build this with the assistant".
   const [chatSeed, setChatSeed] = useState("");
+  // Goal handed the other way — the assistant decided this is a planning
+  // request and called open_plan, so we switch to Planning and build it there.
+  const [planGoal, setPlanGoal] = useState("");
   const [upgrade, setUpgrade] = useState<{ highlight: Plan; reason: string } | null>(null);
   // A failed file-tree operation (add/rename/delete) would otherwise be silent.
   const [treeError, setTreeError] = useState("");
@@ -450,6 +453,16 @@ export function Workspace({ projectId }: { projectId: string }) {
                   files={project.files}
                   plan={buildPlan}
                   onPlanChange={onPlanChange}
+                  incomingGoal={planGoal}
+                  onGoalConsumed={() => setPlanGoal("")}
+                  // One step at a time: hand it to the chat as a concrete ask
+                  // rather than making the user retype it.
+                  onBuildStep={(step) => {
+                    setChatSeed(t("panel.buildStepSeed").replace("{step}", step));
+                    setView("code");
+                    setMobileTab("chat");
+                    setChatOpen(true);
+                  }}
                   // Hand the plan to the assistant: back to the editor view and
                   // over to the chat (the only way to reach it on a phone), with
                   // the composer pre-filled. The plan itself rides along as
@@ -541,6 +554,12 @@ export function Workspace({ projectId }: { projectId: string }) {
             buildPlan={buildPlan}
             seed={chatSeed}
             onSeedUsed={() => setChatSeed("")}
+            // The assistant asked for the Planning tab — take the user there.
+            onOpenPlan={(goal) => {
+              setPlanGoal(goal);
+              if (!isLocked("planning")) setView("planning");
+              setMobileTab("code");
+            }}
             // On a phone there's no "rest of the workspace" to reveal by
             // collapsing — closing the chat just moves to the code tab.
             onCollapse={() => (compact ? setMobileTab("code") : setChatOpen(false))}

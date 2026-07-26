@@ -42,6 +42,22 @@ const WRITE_FILE_TOOL = {
   },
 };
 
+const OPEN_PLAN_TOOL = {
+  name: "open_plan",
+  description:
+    "Use when the user is asking for a plan, roadmap, or architecture for the bot rather than an immediate code change (\"plan out X\", \"how should I structure this\", \"what are the steps\"). Hands the request to the Planning tab, which builds a diagram and a step-by-step plan the user can then work through. Don't use it for ordinary build requests — those you do yourself with write_file.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      goal: {
+        type: "string",
+        description: "What the plan should cover, in one sentence, from the user's request.",
+      },
+    },
+    required: ["goal"],
+  },
+};
+
 const READ_FILE_TOOL = {
   name: "read_file",
   description:
@@ -85,7 +101,9 @@ You are running without a separate reasoning pass, so be deliberate about acting
  */
 export async function* assistantChatStream(params: AssistantParams): AsyncGenerator<AssistantStreamEvent> {
   const anthropic = getClient();
-  const planning = params.intent === "plan";
+  // Both planning modes are read-only: no tools, no agent note telling the model
+  // to write files. "review" additionally reads the plan it's judging.
+  const planning = params.intent === "plan" || params.intent === "review";
   const model = params.model || ASSISTANT_MODEL;
   // Default matches the paid tiers; the route always passes an explicit config.
   const reasoning = params.reasoning ?? { thinking: true, effort: "high" as const };
@@ -121,7 +139,7 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
 
   // Planning mode returns a diagram + plan and must never touch files, so it
   // runs tool-less (which also makes the loop naturally end after one turn).
-  const tools = planning ? undefined : [WRITE_FILE_TOOL, READ_FILE_TOOL];
+  const tools = planning ? undefined : [WRITE_FILE_TOOL, READ_FILE_TOOL, OPEN_PLAN_TOOL];
   const deadline = Date.now() + (params.budgetMs ?? DEFAULT_BUDGET_MS);
   let outOfTime = false;
 
@@ -194,6 +212,27 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
             type: "tool_result",
             tool_use_id: block.id,
             content: "write_file needs both a path and full content.",
+            is_error: true,
+          });
+        }
+      } else if (block.name === "open_plan") {
+        const input = block.input as { goal?: string };
+        const goal = (input.goal ?? "").trim();
+        if (goal) {
+          // Surfaced immediately (not held back like edits): the client switches
+          // tabs and starts building the plan while this turn is still finishing.
+          yield { type: "plan", goal };
+          results.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content:
+              "Opened the Planning tab and started building the plan there. Tell the user in one sentence that the plan is being built in the Planning tab — do not write the plan out yourself.",
+          });
+        } else {
+          results.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: "open_plan needs a one-sentence goal.",
             is_error: true,
           });
         }

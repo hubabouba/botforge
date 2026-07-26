@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { loadPrefs } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
 import { HostingPanel, formatRuntime, STATUS_META } from "./HostingPanel";
 import { MermaidDiagram } from "./MermaidDiagram";
 import { useHostingStatus } from "@/hooks/useHostingStatus";
-import { CodeIcon, Terminal, ListChecks, Chart, Lock, Play, Bot } from "@/components/icons";
+import { CodeIcon, Terminal, ListChecks, Chart, Lock, Play, Bot, Check } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
@@ -242,12 +242,36 @@ function splitPlan(s: string): { diagram: string | null; text: string } {
   return { diagram: m[1].trim(), text: s.replace(m[0], "").trim() };
 }
 
+/**
+ * Pull the numbered steps out of a plan so each one becomes something the user
+ * can tick off and hand to the assistant individually. The plan prompt asks for
+ * a numbered list, so this is reading the format we requested — a plan that
+ * comes back as prose just renders as prose with no checklist, which is fine.
+ */
+const STEP_RE = /^\s*(\d+)[.)]\s+(.+)$/;
+function parseSteps(text: string): string[] {
+  return text
+    .split("\n")
+    .map((line) => line.match(STEP_RE)?.[2]?.trim())
+    .filter((s): s is string => !!s && s.length > 3);
+}
+
+/** Marks where a review pass writes its findings, so repeats replace rather than stack. */
+const GAPS_MARKER = "<!--gaps-->";
+function mergeGaps(plan: string, gaps: string, heading: string): string {
+  const base = plan.split(GAPS_MARKER)[0].trimEnd();
+  return `${base}\n\n${GAPS_MARKER}\n${heading}\n${gaps.trim()}`;
+}
+
 export function PlanningPanel({
   project,
   files,
   plan,
   onPlanChange,
   onBuildWithAssistant,
+  onBuildStep,
+  incomingGoal,
+  onGoalConsumed,
 }: {
   project: Project;
   files: ProjectFile[];
@@ -255,70 +279,120 @@ export function PlanningPanel({
   plan: string;
   onPlanChange: (plan: string) => void;
   onBuildWithAssistant: () => void;
+  /** Hand a single step to the assistant. */
+  onBuildStep: (step: string) => void;
+  /** Goal handed over from the chat (assistant called open_plan). */
+  incomingGoal?: string;
+  onGoalConsumed?: () => void;
 }) {
   const { t } = useI18n();
-  const [goal, setGoal] = useState(project.description ?? "");
-  const [busy, setBusy] = useState(false);
+  const [goal, setGoal] = useState(incomingGoal || project.description || "");
+  const [busy, setBusy] = useState<"plan" | "review" | null>(null);
   const [error, setError] = useState("");
+  const [done, setDone] = useState<Set<string>>(new Set());
   const abortRef = useRef<AbortController | null>(null);
   const setPlan = onPlanChange;
 
-  // Abort an in-flight plan if the panel unmounts (view switched away).
+  // Abort an in-flight request if the panel unmounts (view switched away).
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  async function generate() {
-    const trimmed = goal.trim();
-    if (!trimmed || busy) return;
-    setBusy(true);
-    setError("");
-    setPlan("");
+  /**
+   * Runs a planning request and streams the answer somewhere.
+   * `intent: "plan"` writes a fresh plan; `"review"` reads the project against
+   * the existing plan and returns only what's still missing.
+   */
+  const run = useCallback(
+    async (mode: "plan" | "review", prompt: string, onDone: (out: string) => void) => {
+      setBusy(mode);
+      setError("");
+      const controller = new AbortController();
+      abortRef.current = controller;
+      let acc = "";
+      let hadError = false;
 
-    const controller = new AbortController();
-    abortRef.current = controller;
-    let acc = "";
-    let hadError = false;
+      try {
+        const res = await fetch("/api/ai/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            project: { name: project.name, platform: project.platform, language: project.language },
+            files,
+            messages: [{ role: "user", content: prompt }],
+            preferences: loadPrefs(),
+            intent: mode,
+            // The review pass has to see the plan it's reviewing against.
+            ...(mode === "review" && plan.trim() ? { plan } : {}),
+          }),
+          signal: controller.signal,
+        });
 
-    try {
-      const res = await fetch("/api/ai/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          project: { name: project.name, platform: project.platform, language: project.language },
-          files,
-          messages: [{ role: "user", content: `Plan how to build: ${trimmed}` }],
-          preferences: loadPrefs(),
-          intent: "plan",
-        }),
-        signal: controller.signal,
-      });
-
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}));
-        setError(data?.error || t("panel.couldntGeneratePlan"));
-        return;
-      }
-
-      for await (const event of readAssistantStream(res.body)) {
-        if (event.type === "text") {
-          acc += event.delta;
-          setPlan(acc);
-        } else if (event.type === "error") {
-          hadError = true;
-          setError(event.message || t("panel.couldntGeneratePlan"));
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({}));
+          setError(data?.error || t("panel.couldntGeneratePlan"));
+          return;
         }
-        // "edit" events don't occur in planning mode; ignore if any slip through.
+
+        for await (const event of readAssistantStream(res.body)) {
+          if (event.type === "text") {
+            acc += event.delta;
+            onDone(acc);
+          } else if (event.type === "error") {
+            hadError = true;
+            setError(event.message || t("panel.couldntGeneratePlan"));
+          }
+          // "edit" events don't occur in planning mode; ignore if any slip through.
+        }
+        if (!hadError && !acc.trim()) onDone(t("panel.noPlanReturned"));
+      } catch (e) {
+        if ((e as Error).name === "AbortError") return; // unmounted
+        setError(t("chat.networkError"));
+      } finally {
+        if (abortRef.current === controller) abortRef.current = null;
+        setBusy(null);
       }
-      if (!hadError && !acc.trim()) setPlan(t("panel.noPlanReturned"));
-    } catch (e) {
-      if ((e as Error).name === "AbortError") return; // unmounted
-      setError(t("chat.networkError"));
-    } finally {
-      if (abortRef.current === controller) abortRef.current = null;
-      setBusy(false);
-    }
+    },
+    [project.name, project.platform, project.language, files, plan, t],
+  );
+
+  const generate = useCallback(
+    (forGoal?: string) => {
+      const trimmed = (forGoal ?? goal).trim();
+      if (!trimmed || busy) return;
+      setDone(new Set());
+      setPlan("");
+      void run("plan", `Plan how to build: ${trimmed}`, setPlan);
+    },
+    [goal, busy, run, setPlan],
+  );
+
+  /**
+   * Compare the plan against the code that actually exists and fold the gaps
+   * back into the plan as further steps — so "what's left" is part of the plan
+   * the assistant works from, not a separate report the user has to relay.
+   */
+  function review() {
+    if (!plan.trim() || busy) return;
+    const before = plan;
+    void run(
+      "review",
+      "Review the build plan against the project's current files and list what is still missing or done poorly.",
+      (out) => setPlan(mergeGaps(before, out, t("panel.gapsHeading"))),
+    );
   }
 
+  // The assistant handed a plan request over from the chat — build it at once,
+  // so switching to this tab already shows work in progress.
+  const consumed = useRef(false);
+  useEffect(() => {
+    if (!incomingGoal || consumed.current) return;
+    consumed.current = true;
+    setGoal(incomingGoal);
+    generate(incomingGoal);
+    onGoalConsumed?.();
+  }, [incomingGoal, generate, onGoalConsumed]);
+
   const { diagram, text } = splitPlan(plan);
+  const steps = parseSteps(text);
 
   return (
     <PanelShell icon={ListChecks} title={t("ws.viewPlanning")} wide>
@@ -332,15 +406,24 @@ export function PlanningPanel({
       />
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
-          onClick={generate}
-          disabled={!goal.trim() || busy}
+          onClick={() => generate()}
+          disabled={!goal.trim() || !!busy}
           className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
         >
           <Bot className="h-3.5 w-3.5" />
-          {busy ? t("panel.planning") : plan ? t("panel.regeneratePlan") : t("panel.generatePlan")}
+          {busy === "plan" ? t("panel.planning") : plan ? t("panel.regeneratePlan") : t("panel.generatePlan")}
         </button>
-        {/* A plan the assistant can't act on is just a wall of text — this is
-            the bridge from "here's the plan" to "now build it". */}
+        {/* Checks the plan against the code that actually exists and folds the
+            gaps back in as steps — the loop that makes a plan worth keeping. */}
+        {plan && (
+          <button
+            onClick={review}
+            disabled={!!busy}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3.5 py-2 text-xs font-medium text-neutral-300 transition-colors hover:bg-ink-800 hover:text-white disabled:opacity-40"
+          >
+            {busy === "review" ? t("panel.reviewing") : t("panel.reviewPlan")}
+          </button>
+        )}
         {plan && !busy && (
           <button
             onClick={onBuildWithAssistant}
@@ -363,10 +446,69 @@ export function PlanningPanel({
         ) : (
           <div className="mt-4 space-y-4">
             {diagram && <MermaidDiagram code={diagram} />}
-            {text && (
-              <div className="whitespace-pre-wrap rounded-xl border border-ink-800 bg-ink-900/50 p-4 text-[13px] leading-relaxed text-neutral-300">
-                {text}
+
+            {steps.length > 0 ? (
+              <div className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900/50">
+                <div className="flex items-center justify-between border-b border-ink-800 px-4 py-2 text-[11px] uppercase tracking-wide text-neutral-500">
+                  <span>{t("panel.steps")}</span>
+                  <span>
+                    {[...done].filter((d) => steps.includes(d)).length}/{steps.length}
+                  </span>
+                </div>
+                <ul>
+                  {steps.map((step, i) => {
+                    const isDone = done.has(step);
+                    return (
+                      <li
+                        key={`${i}-${step.slice(0, 24)}`}
+                        className="group flex items-start gap-3 border-b border-ink-800/60 px-4 py-2.5 last:border-b-0"
+                      >
+                        <button
+                          onClick={() =>
+                            setDone((prev) => {
+                              const next = new Set(prev);
+                              if (!next.delete(step)) next.add(step);
+                              return next;
+                            })
+                          }
+                          aria-pressed={isDone}
+                          aria-label={step}
+                          className={cn(
+                            "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border transition-colors",
+                            isDone
+                              ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
+                              : "border-ink-700 text-transparent hover:border-neutral-500",
+                          )}
+                        >
+                          <Check className="h-3 w-3" />
+                        </button>
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 text-[13px] leading-relaxed",
+                            isDone ? "text-neutral-600 line-through" : "text-neutral-300",
+                          )}
+                        >
+                          {step}
+                        </span>
+                        {!isDone && (
+                          <button
+                            onClick={() => onBuildStep(step)}
+                            className="shrink-0 rounded-md border border-ink-700 px-2 py-0.5 text-[11px] text-neutral-400 opacity-0 transition-opacity hover:text-neutral-100 focus-visible:opacity-100 group-hover:opacity-100"
+                          >
+                            {t("panel.buildStep")}
+                          </button>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
+            ) : (
+              text && (
+                <div className="whitespace-pre-wrap rounded-xl border border-ink-800 bg-ink-900/50 p-4 text-[13px] leading-relaxed text-neutral-300">
+                  {text}
+                </div>
+              )
             )}
           </div>
         ))}

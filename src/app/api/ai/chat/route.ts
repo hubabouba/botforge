@@ -47,7 +47,7 @@ const bodySchema = z.object({
       custom: z.string().max(1000).optional(),
     })
     .optional(),
-  intent: z.enum(["chat", "plan"]).optional(),
+  intent: z.enum(["chat", "plan", "review"]).optional(),
   // The Planning panel's output, carried so the assistant can act on "the plan".
   plan: z.string().max(20000).optional(),
   // Which project's hosted-bot state to look up (RLS scopes it to the caller);

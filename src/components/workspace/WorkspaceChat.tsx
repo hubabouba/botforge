@@ -54,6 +54,7 @@ export function WorkspaceChat({
   buildPlan = "",
   seed = "",
   onSeedUsed,
+  onOpenPlan,
 }: {
   project: Project;
   files: ProjectFile[];
@@ -69,6 +70,8 @@ export function WorkspaceChat({
   /** Text to drop into the composer (e.g. "build the plan"), then cleared. */
   seed?: string;
   onSeedUsed?: () => void;
+  /** The assistant decided this is a planning request (open_plan tool). */
+  onOpenPlan?: (goal: string) => void;
 }) {
   const { t, lang } = useI18n();
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -233,6 +236,8 @@ export function WorkspaceChat({
         } else if (event.type === "thinking") {
           accThinking += event.delta;
           patch((m) => ({ ...m, thinking: accThinking }));
+        } else if (event.type === "plan") {
+          onOpenPlan?.(event.goal);
         } else if (event.type === "edit") {
           accEdits.push({ path: event.path, content: event.content });
           patch((m) => ({ ...m, edits: [...accEdits] }));

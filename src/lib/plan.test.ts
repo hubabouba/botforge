@@ -51,9 +51,17 @@ describe("per-plan numeric caps", () => {
 
   it("hosting monthly budget converts hours→seconds, 0 for free", () => {
     expect(hostingRuntimeBudgetSeconds("free")).toBe(0);
-    expect(hostingRuntimeBudgetSeconds("basic")).toBe(100 * 3600);
-    expect(hostingRuntimeBudgetSeconds("pro")).toBe(400 * 3600);
-    expect(hostingRuntimeBudgetSeconds("max")).toBe(800 * 3600);
+    expect(hostingRuntimeBudgetSeconds("basic")).toBe(750 * 3600);
+    expect(hostingRuntimeBudgetSeconds("pro")).toBe(1000 * 3600);
+    expect(hostingRuntimeBudgetSeconds("max")).toBe(1500 * 3600);
+  });
+
+  it("every paid tier covers a bot running all month (~730h)", () => {
+    // The product sells "your bot is hosted" — a budget under a full month
+    // means it silently stops partway through, which is the bug this guards.
+    for (const plan of ["basic", "pro", "max"] as const) {
+      expect(hostingRuntimeBudgetSeconds(plan)).toBeGreaterThanOrEqual(730 * 3600);
+    }
   });
 });
 
@@ -175,8 +183,8 @@ describe("hostingLimitsFor (resolved plan → concurrency/budget pair)", () => {
   });
 
   it("basic/pro/max match HOSTING_CONCURRENT_RUNS / HOSTING_MONTHLY_RUNTIME_HOURS", () => {
-    expect(hostingLimitsFor("basic")).toEqual({ concurrent: 1, budgetSeconds: 100 * 3600 });
-    expect(hostingLimitsFor("pro")).toEqual({ concurrent: 3, budgetSeconds: 400 * 3600 });
-    expect(hostingLimitsFor("max")).toEqual({ concurrent: 5, budgetSeconds: 800 * 3600 });
+    expect(hostingLimitsFor("basic")).toEqual({ concurrent: 1, budgetSeconds: 750 * 3600 });
+    expect(hostingLimitsFor("pro")).toEqual({ concurrent: 3, budgetSeconds: 1000 * 3600 });
+    expect(hostingLimitsFor("max")).toEqual({ concurrent: 5, budgetSeconds: 1500 * 3600 });
   });
 });

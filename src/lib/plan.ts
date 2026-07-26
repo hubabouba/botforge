@@ -172,8 +172,16 @@ export function hostingConcurrentLimit(plan: Plan): number {
   return HOSTING_CONCURRENT_RUNS[plan];
 }
 
-/** Monthly bot-runtime budget per plan, in hours (Infinity = unlimited). */
-export const HOSTING_MONTHLY_RUNTIME_HOURS: Record<Plan, number> = { free: 0, basic: 100, pro: 400, max: 800 };
+/**
+ * Monthly bot-runtime budget per plan, in hours (Infinity = unlimited).
+ *
+ * A month is ~730 hours, so every paid tier must clear that: a bot that stops
+ * halfway through the month is a broken promise for a bot-hosting product, and
+ * the old 100/400/800 did exactly that (Basic died after 4 days). Cost isn't the
+ * constraint — a shared-cpu-1x/256MB machine is ~$2/month flat out, so the real
+ * spend ceiling is HOSTING_CONCURRENT_RUNS above (max $2/$6/$10 per account).
+ */
+export const HOSTING_MONTHLY_RUNTIME_HOURS: Record<Plan, number> = { free: 0, basic: 750, pro: 1000, max: 1500 };
 
 /** The monthly runtime budget in seconds for begin_project_run (-1 = unlimited). */
 export function hostingRuntimeBudgetSeconds(plan: Plan): number {

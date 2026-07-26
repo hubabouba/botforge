@@ -30,7 +30,9 @@ export interface AssistantResult {
 export type AssistantStreamEvent =
   | { type: "text"; delta: string }
   | { type: "thinking"; delta: string }
-  | { type: "edit"; path: string; content: string };
+  | { type: "edit"; path: string; content: string }
+  /** The user asked for a plan — the client opens Planning and builds it there. */
+  | { type: "plan"; goal: string };
 
 /** User-tunable persona for the assistant (how it talks, not what it can do). */
 export interface AssistantPreferences {
@@ -56,8 +58,12 @@ export interface AssistantParams {
   files: { path: string; content: string }[];
   messages: { role: "user" | "assistant"; content: string }[];
   preferences?: AssistantPreferences;
-  /** "chat" edits files; "plan" returns a build plan and never edits. */
-  intent?: "chat" | "plan";
+  /**
+   * "chat" edits files; "plan" returns a build plan and never edits; "review"
+   * checks the plan against the code that exists and lists what's still missing.
+   * Neither planning mode touches files.
+   */
+  intent?: "chat" | "plan" | "review";
   /**
    * The build plan the user generated in the Planning panel, if any. Without
    * this the assistant had no idea a plan existed — the user would approve one
@@ -118,6 +124,15 @@ export function buildSystemPrompt(params: AssistantParams): string {
     .map((f) => `--- ${f.path} ---\n${f.content.slice(0, 8000)}`)
     .join("\n\n");
 
+  const reviewing =
+    params.intent === "review"
+      ? `
+
+REVIEW MODE: Do NOT modify files and do NOT call write_file. Compare the build plan above against the project's files as they are right now, then reply with ONLY a numbered list of what is still missing or done badly — no preamble, no diagram, no summary of what's already fine.
+
+Each line: what's missing and which file it belongs in, specific enough to act on. Judge the code that exists, not the plan's wording: a step whose code is present and correct doesn't belong in the list. If everything in the plan is genuinely done, reply with the single line "1. Nothing left — the plan is fully implemented."`
+      : "";
+
   const planning =
     params.intent === "plan"
       ? `
@@ -129,18 +144,26 @@ PLANNING MODE: Do NOT modify files or call write_file. Reply with TWO parts, in 
 2) After the diagram, a concise, practical numbered build plan. For each step name the feature, what to do, and which file(s) to create or change. Keep it specific and buildable — no fluff.`
       : "";
 
-  // Only in chat mode: while *generating* a plan the model must not be primed
-  // with the previous one, or it rewrites instead of planning afresh.
-  const planContext =
-    params.intent !== "plan" && params.plan?.trim()
-      ? `
+  // The plan is context in chat mode and the subject in review mode. It is
+  // deliberately absent while *generating* a plan: priming the model with the
+  // previous one makes it rewrite instead of planning afresh.
+  const planText = params.plan?.trim().slice(0, 8000) ?? "";
+  let planContext = "";
+  if (planText && params.intent === "review") {
+    planContext = `
+
+--- BUILD PLAN UNDER REVIEW ---
+${planText}
+--- END BUILD PLAN ---`;
+  } else if (planText && params.intent !== "plan") {
+    planContext = `
 
 The user has already worked out a build plan for this project in the Planning panel. Follow it when they refer to "the plan", and keep your changes consistent with it. If they ask for something that contradicts it, do what they ask and say briefly how it differs.
 
 --- BUILD PLAN ---
-${params.plan.trim().slice(0, 8000)}
---- END BUILD PLAN ---`
-      : "";
+${planText}
+--- END BUILD PLAN ---`;
+  }
 
   // Deliberately narrow: the bar is "different readings produce materially
   // different work", not "anything is unclear". An assistant that checks in on
@@ -164,7 +187,7 @@ Rules:
 - Make focused, minimal changes and briefly explain what you did in plain language.
 - Before finishing, quickly re-check your own changes for common bugs: unhandled errors, wrong types, a missing await, off-by-one mistakes, or secrets left in code.
 - Never hardcode secrets or tokens — read them from environment variables.
-- If the request is just a question, answer it without editing files.${planning}${clarifying}${preferenceLines(params.preferences)}${planContext}${params.runtime ?? ""}
+- If the request is just a question, answer it without editing files.${planning}${clarifying}${preferenceLines(params.preferences)}${planContext}${reviewing}${params.runtime ?? ""}
 
 Current project files:
 ${fileDump}`;

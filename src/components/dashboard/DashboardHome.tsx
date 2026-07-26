@@ -18,9 +18,11 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 import { messages, type Locale } from "@/lib/i18n/messages";
 import { plural } from "@/lib/i18n/plural";
 import { CreateProjectModal } from "./CreateProjectModal";
+import { ProjectSurveyModal } from "./ProjectSurveyModal";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { Magnetic } from "@/components/marketing/Magnetic";
 import { usePlan } from "@/hooks/usePlan";
+import { useCompactViewport } from "@/hooks/useCompactViewport";
 import { projectLimit, nextPlanUp, planMeta } from "@/lib/plan";
 import {
   Telegram,
@@ -67,15 +69,14 @@ function timeAgo(ts: number, lang: Locale): string {
     : `${d}${messages[lang]["dash.dayAgo"] ?? messages.en["dash.dayAgo"]}`;
 }
 
-/** Gradient primary button with a shimmer sweep. */
+/** Solid primary button — flat accent, no gradient or shimmer sweep. */
 function PrimaryButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
   return (
     <button
       onClick={onClick}
-      className="group relative inline-flex items-center gap-2 self-start overflow-hidden rounded-xl bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-4 py-2.5 text-sm font-medium text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.9)] transition-transform hover:-translate-y-0.5 sm:self-auto"
+      className="inline-flex items-center gap-2 self-start rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover sm:self-auto"
     >
-      <span className="relative z-10 inline-flex items-center gap-2">{children}</span>
-      <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+      {children}
     </button>
   );
 }
@@ -88,6 +89,13 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
   const [loaded, setLoaded] = useState(false);
   const [creating, setCreating] = useState(false);
   const [upgrade, setUpgrade] = useState(false);
+  const compact = useCompactViewport();
+  // Free users see plans, then a two-question survey, before the wizard opens.
+  // The create action they asked for waits here until both are dismissed, so
+  // "New project" and "use this template" both keep working unchanged.
+  const [pendingCreate, setPendingCreate] = useState<(() => void) | null>(null);
+  const [nudge, setNudge] = useState(false);
+  const [survey, setSurvey] = useState(false);
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<"recent" | "name">("recent");
   // Start hidden so the server render matches; reveal on mount if not dismissed
@@ -155,10 +163,32 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
     sort === "name" ? a.name.localeCompare(b.name) : b.updatedAt - a.updatedAt,
   );
 
-  /** Run a create action, or prompt to upgrade if the plan's project cap is hit. */
+  /**
+   * Run a create action — unless the plan's cap is hit (hard upgrade prompt),
+   * or the user is on free and still under it, in which case they first see
+   * plans and a short survey. Both are dismissible; the action always runs
+   * afterwards. Free's cap is 2 projects, so this pair is seen at most twice
+   * per account before the hard prompt takes over.
+   */
   function guardedCreate(fn: () => void) {
-    if (atLimit) setUpgrade(true);
-    else fn();
+    if (atLimit) {
+      setUpgrade(true);
+      return;
+    }
+    if (!planLoading && plan === "free") {
+      setPendingCreate(() => fn);
+      setNudge(true);
+      return;
+    }
+    fn();
+  }
+
+  /** Both pre-create modals are done — run whatever the user originally clicked. */
+  function runPendingCreate() {
+    setSurvey(false);
+    const fn = pendingCreate;
+    setPendingCreate(null);
+    fn?.();
   }
 
   function startNewProject() {
@@ -183,7 +213,7 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="animate-fade-up">
           <h1 className="font-display text-2xl font-bold tracking-tight text-white">
-            {t("dash.welcome")} <span className="forge-gradient-text">{name}</span>
+            {t("dash.welcome")} <span className="text-[#a5b4fc]">{name}</span>
           </h1>
           <p className="mt-1 text-sm text-white/50">{t("dash.subtitle")}</p>
         </div>
@@ -193,6 +223,14 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
           </PrimaryButton>
         </Magnetic>
       </div>
+
+      {/* Small-screen notice. Not a gate — building a bot by chatting works on a
+          phone; it's the code editor that wants a real screen. */}
+      {compact && (
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 text-sm text-white/60">
+          {t("dash.compactNotice")}
+        </div>
+      )}
 
       {/* First-visit onboarding hint (dismissible, remembered) */}
       {showOnboard && (
@@ -213,7 +251,7 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
                 key={i}
                 className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3"
               >
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6366F1] to-[#4F46E5] text-xs font-semibold text-white">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-accent text-xs font-semibold text-white">
                   {i + 1}
                 </span>
                 <span className="text-sm text-white/70">{step}</span>
@@ -299,7 +337,7 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
         </section>
       ) : (
         <section className="animate-fade-up rounded-2xl border border-dashed border-white/12 bg-white/[0.02] px-6 py-14 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#6366F1]/30 to-[#22D3EE]/15 text-[#a5b4fc] ring-1 ring-white/10">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-accent/15 text-[#a5b4fc] ring-1 ring-white/10">
             <Bot className="h-6 w-6" />
           </div>
           <h2 className="mt-4 font-display font-semibold text-white">{t("dash.noProjectsYet")}</h2>
@@ -324,7 +362,7 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
               style={{ animationDelay: `${i * 45}ms` }}
               className="group flex animate-fade-up items-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-[#6366F1]/40 hover:bg-white/[0.04]"
             >
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-gradient-to-br from-[#6366F1]/25 to-[#22D3EE]/12 text-[#a5b4fc] ring-1 ring-white/10">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent/15 text-[#a5b4fc] ring-1 ring-white/10">
                 {tpl.platform === "telegram" ? <Telegram className="h-4 w-4" /> : <Discord className="h-4 w-4" />}
               </span>
               <span className="min-w-0 flex-1">
@@ -357,6 +395,21 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
           onClose={() => setUpgrade(false)}
         />
       )}
+
+      {/* Pre-create pair for free users: plans → survey → the wizard. */}
+      {nudge && (
+        <UpgradeModal
+          current={plan}
+          highlight={nextPlanUp(plan)}
+          reason={t("dash.precreateNudgeReason")}
+          onClose={() => {
+            setNudge(false);
+            setSurvey(true);
+          }}
+        />
+      )}
+
+      {survey && <ProjectSurveyModal onDone={runPendingCreate} />}
     </div>
   );
 }
@@ -399,7 +452,7 @@ function ProjectCard({
   return (
     <div
       style={{ animationDelay: `${index * 55}ms` }}
-      className="group relative flex animate-fade-up flex-col rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#6366F1]/40 hover:shadow-[0_0_0_1px_rgba(99,102,241,0.12),0_24px_60px_-24px_rgba(99,102,241,0.45)]"
+      className="group relative flex animate-fade-up flex-col rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 transition-all duration-300 hover:-translate-y-0.5 hover:border-white/20"
     >
       <div className="flex items-center justify-between">
         <PlatformTag platform={project.platform} />

@@ -33,7 +33,7 @@ const SUGGESTION_KEYS = ["chat.suggestion1", "chat.suggestion2", "chat.suggestio
 const MODEL_LABEL: Record<Provider, string> = { gemini: "Standard", claude: "Advanced" };
 const MODEL_META: Record<Provider, { dot: string; descKey: string }> = {
   gemini: { dot: "bg-emerald-400", descKey: "chat.modelStandardDesc" },
-  claude: { dot: "bg-gradient-to-r from-[#818CF8] to-[#22D3EE]", descKey: "chat.modelAdvancedDesc" },
+  claude: { dot: "bg-accent", descKey: "chat.modelAdvancedDesc" },
 };
 const MODEL_KEY = "bf:assistant-model";
 const AUTO_APPLY_KEY = "bf:auto-apply";
@@ -43,11 +43,14 @@ export function WorkspaceChat({
   files,
   onApplyEdit,
   onCollapse,
+  compact = false,
 }: {
   project: Project;
   files: ProjectFile[];
   onApplyEdit: (path: string, content: string) => void;
   onCollapse: () => void;
+  /** Phone/tablet layout — the assistant says so up front before anything else. */
+  compact?: boolean;
 }) {
   const { t, lang } = useI18n();
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -330,6 +333,15 @@ export function WorkspaceChat({
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-3.5 overflow-y-auto p-4">
+        {/* On a small screen the assistant opens by saying a desktop is roomier
+            — before the usual hint, so it's the first thing read. It's advice,
+            not a gate: everything below still works. */}
+        {messages.length === 0 && compact && (
+          <div className="rounded-xl border border-ink-800 bg-ink-900/60 p-3.5 text-[13px] text-neutral-300">
+            {t("chat.compactHint")}
+          </div>
+        )}
+
         {messages.length === 0 && (
           <div className="rounded-xl border border-ink-800 bg-ink-900/60 p-3.5 text-[13px] text-neutral-400">
             {t("chat.introHint")}

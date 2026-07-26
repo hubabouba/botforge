@@ -14,7 +14,9 @@ export type AnalyticsEvent =
   | "ai_message_sent" // user sent a message to the in-editor assistant
   | "hosting_started" // user started a bot on Botforge hosting
   | "upgrade_clicked" // user clicked checkout in the upgrade modal
-  | "checkout_completed"; // returned from Stripe with a successful checkout
+  | "checkout_completed" // returned from Stripe with a successful checkout
+  | "precreate_survey_shown" // free user saw the pre-create survey
+  | "precreate_survey_submitted"; // ...and answered it (skipping doesn't fire this)
 
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>): void {
   try {

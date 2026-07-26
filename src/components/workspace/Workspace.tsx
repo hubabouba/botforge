@@ -25,6 +25,7 @@ import { WorkspaceChat } from "./WorkspaceChat";
 import { ViewSwitcher, LogsPanel, PlanningPanel, MetricsPanel, type WorkView } from "./panels";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
 import { usePlan } from "@/hooks/usePlan";
+import { useCompactViewport } from "@/hooks/useCompactViewport";
 import { planMeta, requiredPlan, type Capability, type Plan } from "@/lib/plan";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,14 @@ export function Workspace({ projectId }: { projectId: string }) {
   const [runOpen, setRunOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(true);
   const [view, setView] = useState<WorkView>("code");
+  // Narrow screens can't fit tree + editor + chat side by side, so they get a
+  // two-tab layout instead. Chat is the default tab: building a bot by asking
+  // for it is the part that genuinely works on a phone — typing code doesn't.
+  const compact = useCompactViewport();
+  const [mobileTab, setMobileTab] = useState<"chat" | "code">("chat");
+  // In compact mode the tree isn't a sidebar; it takes over the code pane until
+  // a file is picked.
+  const [treeOpen, setTreeOpen] = useState(false);
   const [upgrade, setUpgrade] = useState<{ highlight: Plan; reason: string } | null>(null);
   // A failed file-tree operation (add/rename/delete) would otherwise be silent.
   const [treeError, setTreeError] = useState("");
@@ -142,6 +151,8 @@ export function Workspace({ projectId }: { projectId: string }) {
   const openFile = useCallback((path: string) => {
     setActivePath(path);
     setOpenPaths((prev) => (prev.includes(path) ? prev : [...prev, path]));
+    // Compact layout only: picking a file hands the pane back to the editor.
+    setTreeOpen(false);
   }, []);
 
   const closeTab = useCallback(
@@ -305,7 +316,7 @@ export function Workspace({ projectId }: { projectId: string }) {
           <p className="mt-1 text-sm text-white/50">{t("ws.projectNotFoundHint")}</p>
           <Link
             href="/dashboard"
-            className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-4 py-2 text-sm font-medium text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.9)] transition-transform hover:-translate-y-0.5"
+            className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
           >
             {t("ws.backToDashboard")}
           </Link>
@@ -317,29 +328,7 @@ export function Workspace({ projectId }: { projectId: string }) {
   const activeFile = project.files.find((f) => f.path === activePath) ?? project.files[0];
 
   return (
-    <>
-      {/* Below `md` the file tree and assistant chat both disappear (see their
-          own `md:block`/`lg:block`), leaving a bare editor with no explanation.
-          Show an honest message instead of that silently-broken layout. */}
-      <div className="forge dark grid h-screen place-items-center bg-ink-950 px-6 text-center md:hidden">
-        <div className="max-w-sm">
-          <Logo className="mx-auto h-8 w-8 opacity-70" />
-          <h1 className="mt-4 font-display text-lg font-semibold text-white">{t("ws.mobileGateTitle")}</h1>
-          <p className="mt-1 text-sm text-white/50">{t("ws.mobileGateHint")}</p>
-          <Link
-            href="/dashboard"
-            className="mt-6 inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-4 py-2 text-sm font-medium text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.9)] transition-transform hover:-translate-y-0.5"
-          >
-            {t("ws.backToDashboard")}
-          </Link>
-        </div>
-      </div>
-
-      <div className="forge dark relative hidden h-screen flex-col overflow-hidden bg-ink-950 text-neutral-200 md:flex">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 -z-[1] h-64 bg-[radial-gradient(60%_100%_at_50%_0%,rgba(99,102,241,0.14),transparent_70%)]"
-        />
+    <div className="forge dark relative flex h-screen flex-col overflow-hidden bg-ink-950 text-neutral-200">
       <TopBar
         project={project}
         status={status}
@@ -352,8 +341,50 @@ export function Workspace({ projectId }: { projectId: string }) {
         onRun={() => (hostingAvailable ? selectView("logs") : setRunOpen(true))}
       />
 
+      {/* Tab bar for the compact layout. Visibility is CSS (`lg:hidden`), not
+          the `compact` flag, so a phone gets the right layout on the very first
+          paint instead of flashing the desktop columns until the hook resolves.
+          Above `lg` all three panes fit at once and there's nothing to switch. */}
+      <div className="flex shrink-0 items-center gap-1 border-b border-ink-800 bg-ink-950 px-2 py-1.5 lg:hidden">
+        {(["chat", "code"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setMobileTab(tab)}
+            className={cn(
+              "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+              mobileTab === tab
+                ? "bg-ink-800 text-white"
+                : "text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300",
+            )}
+          >
+            {tab === "chat" ? t("ws.tabChat") : t("ws.tabCode")}
+          </button>
+        ))}
+        {mobileTab === "code" && (
+          <button
+            onClick={() => setTreeOpen((v) => !v)}
+            aria-pressed={treeOpen}
+            className={cn(
+              "ml-auto rounded-lg border px-2.5 py-1.5 text-xs transition-colors",
+              treeOpen
+                ? "border-accent/40 bg-accent/15 text-[#a5b4fc]"
+                : "border-ink-700 text-neutral-400 hover:text-neutral-200",
+            )}
+          >
+            {t("ws.tabFiles")}
+          </button>
+        )}
+      </div>
+
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-60 shrink-0 border-r border-ink-800 bg-ink-950/70 backdrop-blur-sm md:block">
+        {/* Sidebar above `lg`; below it, a full-width file list that takes over
+            the code pane until a file is picked. */}
+        <aside
+          className={cn(
+            "w-full shrink-0 bg-ink-950/70 backdrop-blur-sm lg:block lg:w-60 lg:border-r lg:border-ink-800",
+            mobileTab === "code" && treeOpen ? "block" : "hidden",
+          )}
+        >
           <FileTree
             files={project.files}
             folders={project.folders ?? []}
@@ -369,7 +400,12 @@ export function Workspace({ projectId }: { projectId: string }) {
           />
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div
+          className={cn(
+            "min-w-0 flex-1 flex-col lg:flex",
+            mobileTab === "code" && !treeOpen ? "flex" : "hidden",
+          )}
+        >
           <ViewSwitcher view={view} onSelect={selectView} isLocked={isLocked} />
 
           {view !== "code" ? (
@@ -416,7 +452,7 @@ export function Workspace({ projectId }: { projectId: string }) {
                     <Close className="h-3 w-3" />
                   </button>
                   {active && (
-                    <span className="pointer-events-none absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-[#6366F1] to-[#22D3EE]" />
+                    <span className="pointer-events-none absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-accent" />
                   )}
                 </div>
               );
@@ -441,33 +477,37 @@ export function Workspace({ projectId }: { projectId: string }) {
 
         {/* Kept mounted when collapsed (CSS-hidden): unmounting would wipe the
             conversation and abort a mid-stream reply every time the user
-            toggles the panel for more editor room. */}
+            toggles the panel for more editor room — or switches tabs on a
+            phone, where that would happen constantly. */}
         <aside
           className={cn(
-            "w-[340px] shrink-0 border-l border-ink-800 bg-ink-950/50 xl:w-[380px]",
-            chatOpen ? "hidden lg:block" : "hidden",
+            "w-full shrink-0 bg-ink-950/50 lg:w-[340px] lg:border-l lg:border-ink-800 xl:w-[380px]",
+            mobileTab === "chat" ? "block" : "hidden",
+            chatOpen ? "lg:block" : "lg:hidden",
           )}
         >
           <WorkspaceChat
             project={project}
             files={project.files}
             onApplyEdit={onApplyEdit}
-            onCollapse={() => setChatOpen(false)}
+            compact={compact}
+            // On a phone there's no "rest of the workspace" to reveal by
+            // collapsing — closing the chat just moves to the code tab.
+            onCollapse={() => (compact ? setMobileTab("code") : setChatOpen(false))}
           />
         </aside>
       </div>
 
       {runOpen && <RunGuideModal project={project} onClose={() => setRunOpen(false)} />}
 
-        {upgrade && (
-          <UpgradeModal
-            current={plan}
-            highlight={upgrade.highlight}
-            reason={upgrade.reason}
-            onClose={() => setUpgrade(null)}
-          />
-        )}
-      </div>
-    </>
+      {upgrade && (
+        <UpgradeModal
+          current={plan}
+          highlight={upgrade.highlight}
+          reason={upgrade.reason}
+          onClose={() => setUpgrade(null)}
+        />
+      )}
+    </div>
   );
 }

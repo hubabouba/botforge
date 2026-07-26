@@ -20,7 +20,7 @@ export function Hero() {
             className="animate-rise inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-white/70 backdrop-blur"
             style={{ "--i": 0 } as React.CSSProperties}
           >
-            <span className="animate-breathe h-1.5 w-1.5 rounded-full bg-[#22D3EE] shadow-[0_0_8px_2px_rgba(34,211,238,0.6)]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-[#22D3EE]" />
             {t("hero.kicker")}
           </div>
 
@@ -31,10 +31,12 @@ export function Hero() {
             <span className="animate-rise block text-white" style={{ "--i": 1 } as React.CSSProperties}>
               {t("hero.l1")}
             </span>
-            <span className="animate-rise forge-gradient-text block" style={{ "--i": 2 } as React.CSSProperties}>
+            {/* Emphasis by weight, not by colour: the three words step down in
+                brightness instead of running through a gradient. */}
+            <span className="animate-rise block text-white" style={{ "--i": 2 } as React.CSSProperties}>
               {t("hero.l2")}
             </span>
-            <span className="animate-rise forge-gradient-text block" style={{ "--i": 3 } as React.CSSProperties}>
+            <span className="animate-rise block text-white/35" style={{ "--i": 3 } as React.CSSProperties}>
               {t("hero.l3")}
             </span>
           </h1>
@@ -53,12 +55,9 @@ export function Hero() {
             <Magnetic className="w-full sm:w-auto">
               <Link
                 href={primaryHref}
-                className="group relative inline-flex h-12 w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-6 font-medium text-white shadow-[0_10px_40px_-10px_rgba(99,102,241,0.9)] sm:w-auto"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent px-6 font-medium text-white transition-colors hover:bg-accent-hover sm:w-auto"
               >
-                <span className="relative z-10">
-                  {signedIn ? t("hero.ctaOpenDashboard") : t("hero.getStarted")}
-                </span>
-                <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                {signedIn ? t("hero.ctaOpenDashboard") : t("hero.getStarted")}
               </Link>
             </Magnetic>
             <a
@@ -77,13 +76,11 @@ export function Hero() {
           </div>
         </div>
 
-        {/* Right — product dashboard (gentle idle float) */}
+        {/* Right — product dashboard. No ambient glow behind it and no idle
+            float: the mock should look like a screenshot, not an art piece. */}
         <div className="relative">
-          <div className="pointer-events-none absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-[#6366F1]/20 via-transparent to-[#22D3EE]/10 blur-2xl" />
           <div className="animate-fade-up [animation-delay:150ms]">
-            <div className="animate-float">
-              <DashboardMock />
-            </div>
+            <DashboardMock />
           </div>
         </div>
       </div>

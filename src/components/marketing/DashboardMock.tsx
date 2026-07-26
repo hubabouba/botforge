@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
  */
 export function DashboardMock() {
   return (
-    <div className="forge-glass relative w-full rounded-2xl p-4 shadow-[0_40px_120px_-40px_rgba(99,102,241,0.55)]">
+    <div className="forge-glass relative w-full rounded-2xl p-4">
       {/* window chrome */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[#6366F1] to-[#22D3EE]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-accent" />
           <span className="text-[13px] font-medium text-white/80">Botforge Analytics</span>
         </div>
         <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
@@ -82,16 +82,14 @@ function AreaChart() {
           <stop offset="0%" stopColor="#6366F1" stopOpacity="0.45" />
           <stop offset="100%" stopColor="#6366F1" stopOpacity="0" />
         </linearGradient>
-        <linearGradient id="fg-line" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stopColor="#818CF8" />
-          <stop offset="100%" stopColor="#22D3EE" />
-        </linearGradient>
       </defs>
+      {/* The area keeps its vertical fade (that's how area charts read); the
+          line itself is a single colour, not a two-tone sweep. */}
       <path d={AREA} fill="url(#fg-area)" />
       <path
         d={LINE}
         fill="none"
-        stroke="url(#fg-line)"
+        stroke="#818CF8"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -111,19 +109,13 @@ function Gauge() {
   return (
     <div className="relative mx-auto mt-2 h-20 w-20">
       <svg viewBox="0 0 80 80" className="h-20 w-20 -rotate-90">
-        <defs>
-          <linearGradient id="fg-gauge" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#818CF8" />
-            <stop offset="100%" stopColor="#22D3EE" />
-          </linearGradient>
-        </defs>
         <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="7" />
         <circle
           cx="40"
           cy="40"
           r={r}
           fill="none"
-          stroke="url(#fg-gauge)"
+          stroke="#818CF8"
           strokeWidth="7"
           strokeLinecap="round"
           strokeDasharray={c}

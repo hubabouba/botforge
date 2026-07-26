@@ -122,7 +122,7 @@ export function TopBar({
           className={cn(
             "hidden items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs transition-all lg:inline-flex",
             chatOpen
-              ? "border-[#6366F1]/40 bg-gradient-to-r from-[#6366F1]/20 to-[#22D3EE]/10 text-[#a5b4fc]"
+              ? "border-accent/40 bg-accent/15 text-[#a5b4fc]"
               : "border-ink-700 text-white/70 hover:bg-ink-800 hover:text-white",
           )}
         >
@@ -138,7 +138,7 @@ export function TopBar({
         </button>
         <button
           onClick={onRun}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-3 py-1.5 text-xs font-medium text-white shadow-[0_8px_24px_-8px_rgba(16,185,129,0.75)] transition-transform hover:-translate-y-px"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500"
         >
           <Play className="h-3.5 w-3.5" />
           {t("top.run")}

@@ -22,12 +22,11 @@ export default async function DashboardPage() {
 
   return (
     <div className="forge dark relative min-h-screen overflow-x-clip text-white">
-      {/* Premium backdrop — calmer than the landing (no particles) */}
+      {/* Flat backdrop with a faint grid — same restrained surface as the
+          landing page (SiteBackground), no drifting colour behind the work. */}
       <div aria-hidden className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute inset-0 bg-[#080A0F]" />
         <div className="forge-grid forge-grid-fade absolute inset-0 opacity-40" />
-        <div className="forge-aurora absolute -top-40 left-1/3 h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-[#6366F1]/18" />
-        <div className="forge-aurora absolute -top-20 right-[10%] h-[28rem] w-[28rem] rounded-full bg-[#22D3EE]/10 [animation-delay:-8s]" />
       </div>
 
       <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0B0D13]/70 backdrop-blur-xl">

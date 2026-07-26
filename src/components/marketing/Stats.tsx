@@ -27,7 +27,7 @@ export function Stats() {
               key={i}
               className="forge-glass rounded-2xl p-6 text-center transition-colors hover:border-white/15"
             >
-              <div className="forge-gradient-text font-display text-4xl font-bold tracking-tight sm:text-5xl">
+              <div className="font-display text-4xl font-bold tracking-tight text-white sm:text-5xl">
                 {s.node}
               </div>
               <div className="mt-2 text-sm text-white/50">{s.label}</div>

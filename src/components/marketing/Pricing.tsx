@@ -25,19 +25,17 @@ export function Pricing() {
               key={tier.id}
               className={cn(
                 "relative flex flex-col rounded-2xl border p-6 backdrop-blur transition-all",
+                // The popular tier stands out by a solid accent ring and a lift,
+                // not by a coloured halo glowing behind the card.
                 tier.highlighted
-                  ? "border-transparent bg-white/[0.045] shadow-[0_0_0_1px_rgba(99,102,241,0.5),0_30px_80px_-30px_rgba(99,102,241,0.65)] md:-translate-y-3"
+                  ? "border-accent bg-white/[0.045] ring-1 ring-accent/40 md:-translate-y-3"
                   : "border-white/10 bg-white/[0.02] hover:-translate-y-1 hover:border-white/20",
               )}
             >
-              {tier.highlighted && (
-                <div className="pointer-events-none absolute -inset-px -z-10 rounded-2xl bg-gradient-to-b from-[#6366F1]/50 to-[#22D3EE]/25 opacity-60 blur-md" />
-              )}
-
               <div className="flex items-center justify-between">
                 <h3 className="font-display font-semibold text-white">{tier.name}</h3>
                 {tier.highlighted && (
-                  <span className="rounded-full bg-gradient-to-r from-[#6366F1] to-[#22D3EE] px-2.5 py-0.5 text-xs font-medium text-white">
+                  <span className="rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-white">
                     {t("pricing.popular")}
                   </span>
                 )}
@@ -56,7 +54,7 @@ export function Pricing() {
                 className={cn(
                   "mt-6 inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-medium transition-all",
                   tier.highlighted
-                    ? "bg-gradient-to-r from-[#6366F1] to-[#4F46E5] text-white shadow-[0_10px_30px_-10px_rgba(99,102,241,0.9)] hover:-translate-y-0.5"
+                    ? "bg-accent text-white hover:bg-accent-hover"
                     : "border border-white/12 bg-white/[0.03] text-white hover:bg-white/[0.07]",
                 )}
               >

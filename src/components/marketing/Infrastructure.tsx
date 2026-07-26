@@ -28,17 +28,17 @@ function Connector({ delay }: { delay: number }) {
     <div className="flex items-center justify-center lg:flex-1">
       {/* mobile: vertical */}
       <div className="relative h-8 w-px lg:hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-[#6366F1]/40 to-white/5" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/5 via-white/20 to-white/5" />
         <span
-          className="absolute left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-[#22D3EE] shadow-[0_0_8px_2px_rgba(34,211,238,0.7)]"
+          className="absolute left-1/2 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-[#22D3EE]"
           style={{ animation: `forge-flow-y 3s linear ${delay}s infinite` }}
         />
       </div>
       {/* desktop: horizontal */}
       <div className="relative hidden h-px w-full lg:block">
-        <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-[#6366F1]/40 to-white/5" />
+        <div className="absolute inset-0 bg-gradient-to-r from-white/5 via-white/20 to-white/5" />
         <span
-          className="absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-[#22D3EE] shadow-[0_0_8px_2px_rgba(34,211,238,0.7)]"
+          className="absolute top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-[#22D3EE]"
           style={{ animation: `forge-flow-x 3s linear ${delay}s infinite` }}
         />
       </div>
@@ -63,7 +63,7 @@ export function Infrastructure() {
           {NODES.map(({ icon: Icon, t: title, s: sub }, i) => (
             <div key={title} className="contents">
               <div className="group relative flex flex-1 flex-col items-center gap-2 rounded-2xl border border-white/[0.08] bg-white/[0.02] px-4 py-6 text-center transition-colors hover:border-[#6366F1]/40">
-                <div className="grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-[#6366F1]/30 to-[#22D3EE]/15 text-[#a5b4fc] ring-1 ring-white/10 transition-transform duration-300 group-hover:scale-105">
+                <div className="grid h-12 w-12 place-items-center rounded-xl bg-accent/15 text-[#a5b4fc] ring-1 ring-white/10">
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="mt-1 font-display text-sm font-semibold text-white">{t(title)}</div>

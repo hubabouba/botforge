@@ -24,7 +24,7 @@ function Avatar({ email }: { email: string }) {
       href="/dashboard"
       title={email}
       aria-label="Dashboard"
-      className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#6366F1] to-[#22D3EE] text-[12px] font-semibold text-white transition-transform hover:scale-105"
+      className="grid h-9 w-9 place-items-center rounded-full bg-accent text-[12px] font-semibold text-white transition-colors hover:bg-accent-hover"
     >
       {initials}
     </Link>
@@ -35,10 +35,9 @@ function GetStarted({ label }: { label: string }) {
   return (
     <Link
       href="/signup"
-      className="group relative inline-flex h-9 items-center gap-1.5 overflow-hidden rounded-lg bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-4 text-sm font-medium text-white shadow-[0_6px_20px_-6px_rgba(99,102,241,0.85)] transition-shadow hover:shadow-[0_8px_28px_-6px_rgba(99,102,241,1)]"
+      className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-4 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
     >
-      <span className="relative z-10">{label}</span>
-      <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+      {label}
     </Link>
   );
 }
@@ -62,7 +61,7 @@ export function Navbar() {
         className={cn(
           "container-x flex h-14 items-center justify-between rounded-2xl border px-3 transition-all duration-300",
           scrolled
-            ? "border-white/10 bg-[#0B0D13]/80 shadow-[0_10px_40px_-12px_rgba(0,0,0,0.7)] backdrop-blur-xl"
+            ? "border-white/10 bg-[#0B0D13]/85 backdrop-blur-xl"
             : "border-white/[0.06] bg-white/[0.02] backdrop-blur-md",
         )}
       >
@@ -141,7 +140,7 @@ export function Navbar() {
                 <Link
                   href="/dashboard"
                   onClick={() => setOpen(false)}
-                  className="flex-1 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-3 py-2.5 text-center text-sm font-medium text-white"
+                  className="flex-1 rounded-lg bg-accent px-3 py-2.5 text-center text-sm font-medium text-white"
                 >
                   {t("nav.goToDashboard")}
                 </Link>
@@ -157,7 +156,7 @@ export function Navbar() {
                   <Link
                     href="/signup"
                     onClick={() => setOpen(false)}
-                    className="flex-1 rounded-lg bg-gradient-to-r from-[#6366F1] to-[#4F46E5] px-3 py-2.5 text-center text-sm font-medium text-white"
+                    className="flex-1 rounded-lg bg-accent px-3 py-2.5 text-center text-sm font-medium text-white"
                   >
                     {t("nav.getStarted")}
                   </Link>

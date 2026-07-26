@@ -210,7 +210,7 @@ export function MetricsPanel({
             <div
               className={cn(
                 "h-full rounded-full transition-all",
-                budgetPct >= 90 ? "bg-rose-500" : "bg-gradient-to-r from-[#6366F1] to-[#22D3EE]",
+                budgetPct >= 90 ? "bg-rose-500" : "bg-accent",
               )}
               style={{ width: `${budgetPct}%` }}
             />

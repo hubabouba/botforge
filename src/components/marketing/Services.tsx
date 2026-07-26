@@ -27,7 +27,7 @@ export function Services() {
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {CARDS.map(({ icon: Icon, t: title, d: desc }) => (
             <div key={title} className="forge-card group p-6">
-              <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#6366F1]/30 to-[#22D3EE]/15 text-[#a5b4fc] ring-1 ring-white/10">
+              <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-accent/15 text-[#a5b4fc] ring-1 ring-white/10">
                 <Icon className="h-5 w-5" />
               </div>
               <div className="flex items-center justify-between gap-3">

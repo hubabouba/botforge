@@ -75,7 +75,12 @@ export function WorkspaceChat({
   const [prefs, setPrefs] = useState<AssistantPreferences>(DEFAULT_PREFERENCES);
   const [model, setModel] = useState<Provider>("gemini");
   const [modelMenu, setModelMenu] = useState(false);
-  const { plan } = usePlan();
+  // Opt-in extras sent with each message. Logs also ride along automatically
+  // when the server sees the bot crashed, so this toggle is for the other case:
+  // "it runs, but behaves wrong".
+  const [attachLogs, setAttachLogs] = useState(false);
+  const [attachMetrics, setAttachMetrics] = useState(false);
+  const { plan, hostingAvailable } = usePlan();
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -191,6 +196,12 @@ export function WorkspaceChat({
           provider: model,
           // Empty string would just waste prompt tokens on an empty section.
           ...(buildPlan.trim() ? { plan: buildPlan } : {}),
+          // The server looks the bot's state up itself; we only say which
+          // project and what the user opted into.
+          projectId: project.id,
+          ...(attachLogs || attachMetrics
+            ? { attach: { logs: attachLogs, metrics: attachMetrics } }
+            : {}),
         }),
         signal: controller.signal,
       });
@@ -445,6 +456,25 @@ export function WorkspaceChat({
 
       {/* Composer */}
       <div className="border-t border-ink-800 p-3">
+        {/* Attach controls — only for accounts that can actually host a bot;
+            without hosting there's no runtime state to attach. */}
+        {hostingAvailable && (
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-neutral-600">{t("chat.attach")}</span>
+            <AttachChip
+              label={t("chat.attachLogs")}
+              title={t("chat.attachLogsHint")}
+              on={attachLogs}
+              onToggle={() => setAttachLogs((v) => !v)}
+            />
+            <AttachChip
+              label={t("chat.attachMetrics")}
+              title={t("chat.attachMetricsHint")}
+              on={attachMetrics}
+              onToggle={() => setAttachMetrics((v) => !v)}
+            />
+          </div>
+        )}
         <div className="rounded-xl border border-ink-700 bg-ink-900 p-2 focus-within:border-accent/50">
           <textarea
             value={input}
@@ -491,3 +521,31 @@ export function WorkspaceChat({
   );
 }
 
+/** Small on/off pill for the composer's attach row. */
+function AttachChip({
+  label,
+  title,
+  on,
+  onToggle,
+}: {
+  label: string;
+  title: string;
+  on: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-pressed={on}
+      title={title}
+      className={cn(
+        "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+        on
+          ? "border-accent/40 bg-accent/15 text-[#a5b4fc]"
+          : "border-ink-700 text-neutral-500 hover:text-neutral-300",
+      )}
+    >
+      {label}
+    </button>
+  );
+}

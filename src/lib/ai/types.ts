@@ -61,6 +61,12 @@ export interface AssistantParams {
    * in a panel the model never saw, then ask it to "build the plan".
    */
   plan?: string;
+  /**
+   * Live state of the user's hosted bot (status, and its console output when it
+   * has crashed or they asked for it). Built server-side — see
+   * `lib/ai/runtimeContext.ts` — never accepted from the client.
+   */
+  runtime?: string;
   /** Claude model id to run (plan-derived; Max → Opus). Ignored by Gemini. */
   model?: string;
   /**
@@ -133,7 +139,7 @@ Rules:
 - Make focused, minimal changes and briefly explain what you did in plain language.
 - Before finishing, quickly re-check your own changes for common bugs: unhandled errors, wrong types, a missing await, off-by-one mistakes, or secrets left in code.
 - Never hardcode secrets or tokens — read them from environment variables.
-- If the request is just a question, answer it without editing files.${planning}${preferenceLines(params.preferences)}${planContext}
+- If the request is just a question, answer it without editing files.${planning}${preferenceLines(params.preferences)}${planContext}${params.runtime ?? ""}
 
 Current project files:
 ${fileDump}`;

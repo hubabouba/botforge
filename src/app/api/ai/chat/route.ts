@@ -4,6 +4,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { assistantChatStream } from "@/lib/ai/claude";
 import { assistantChatGeminiStream } from "@/lib/ai/gemini";
+import { buildRuntimeContext } from "@/lib/ai/runtimeContext";
 import type { AssistantStreamEvent } from "@/lib/ai/types";
 import { aiDailyLimit, assistantModelForPlan, isAiLimitExempt, resolveProvider } from "@/lib/plan";
 import { getUserPlan } from "@/lib/subscription";
@@ -41,6 +42,10 @@ const bodySchema = z.object({
   intent: z.enum(["chat", "plan"]).optional(),
   // The Planning panel's output, carried so the assistant can act on "the plan".
   plan: z.string().max(20000).optional(),
+  // Which project's hosted-bot state to look up (RLS scopes it to the caller);
+  // `attach` is the user's opt-in — a crashed bot attaches its logs regardless.
+  projectId: z.string().uuid().optional(),
+  attach: z.object({ logs: z.boolean().optional(), metrics: z.boolean().optional() }).optional(),
   // The model the user picked in the workspace. Only honored if their plan
   // allows it (resolveProvider) — the client can't unlock Claude.
   provider: z.enum(["gemini", "claude"]).optional(),
@@ -128,14 +133,29 @@ async function handlePost(req: Request) {
     }
   }
 
+  // What the user's bot is doing right now, if it's hosted here. Fails soft:
+  // the assistant answering without runtime detail beats not answering at all.
+  let runtime = "";
+  try {
+    runtime = await buildRuntimeContext(
+      supabase,
+      parsed.data.projectId,
+      plan,
+      user.email,
+      parsed.data.attach ?? {},
+    );
+  } catch (e) {
+    Sentry.captureException(e, { extra: { where: "buildRuntimeContext" } });
+  }
+
   // Stream the reply as newline-delimited JSON events. Metadata that's known
   // up-front (provider, usage) rides in headers so it doesn't pollute the event
   // protocol; a failure that happens *after* the 200 has been committed can't
   // change the status, so it's surfaced as an in-stream `error` event instead.
   const gen: AsyncGenerator<AssistantStreamEvent> =
     provider === "claude"
-      ? assistantChatStream({ ...parsed.data, model: assistantModelForPlan(plan), budgetMs: LOOP_BUDGET_MS })
-      : assistantChatGeminiStream(parsed.data);
+      ? assistantChatStream({ ...parsed.data, runtime, model: assistantModelForPlan(plan), budgetMs: LOOP_BUDGET_MS })
+      : assistantChatGeminiStream({ ...parsed.data, runtime });
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

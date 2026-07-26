@@ -22,28 +22,32 @@ describe("planAllows", () => {
 });
 
 describe("per-plan numeric caps", () => {
-  it("project limits, unlimited for pro", () => {
+  it("project limits, unlimited for pro and max", () => {
     expect(projectLimit("free")).toBe(2);
     expect(projectLimit("basic")).toBe(15);
     expect(projectLimit("pro")).toBe(Infinity);
+    expect(projectLimit("max")).toBe(Infinity);
   });
 
   it("daily AI message caps", () => {
     expect(aiDailyLimit("free")).toBe(3);
-    expect(aiDailyLimit("basic")).toBe(10);
+    expect(aiDailyLimit("basic")).toBe(20);
     expect(aiDailyLimit("pro")).toBe(40);
+    expect(aiDailyLimit("max")).toBe(80);
   });
 
   it("hosting concurrency per plan", () => {
     expect(hostingConcurrentLimit("free")).toBe(0);
     expect(hostingConcurrentLimit("basic")).toBe(1);
     expect(hostingConcurrentLimit("pro")).toBe(3);
+    expect(hostingConcurrentLimit("max")).toBe(5);
   });
 
   it("hosting monthly budget converts hours→seconds, 0 for free", () => {
     expect(hostingRuntimeBudgetSeconds("free")).toBe(0);
     expect(hostingRuntimeBudgetSeconds("basic")).toBe(100 * 3600);
     expect(hostingRuntimeBudgetSeconds("pro")).toBe(400 * 3600);
+    expect(hostingRuntimeBudgetSeconds("max")).toBe(800 * 3600);
   });
 });
 
@@ -54,7 +58,13 @@ describe("getPlan (env allow-lists)", () => {
   });
 
   it("resolves plan from the email allow-lists", () => {
-    process.env = { ...ORIGINAL, BOTFORGE_PRO_EMAILS: "boss@x.com", BOTFORGE_BASIC_EMAILS: "user@x.com" };
+    process.env = {
+      ...ORIGINAL,
+      BOTFORGE_MAX_EMAILS: "owner@x.com",
+      BOTFORGE_PRO_EMAILS: "boss@x.com",
+      BOTFORGE_BASIC_EMAILS: "user@x.com",
+    };
+    expect(getPlan("owner@x.com")).toBe("max");
     expect(getPlan("boss@x.com")).toBe("pro");
     expect(getPlan("USER@x.com")).toBe("basic"); // case-insensitive
     expect(getPlan("nobody@x.com")).toBe("free");
@@ -89,8 +99,9 @@ describe("hostingLimitsFor (resolved plan → concurrency/budget pair)", () => {
     expect(hostingLimitsFor("free").concurrent).toBe(0);
   });
 
-  it("basic/pro match HOSTING_CONCURRENT_RUNS / HOSTING_MONTHLY_RUNTIME_HOURS", () => {
+  it("basic/pro/max match HOSTING_CONCURRENT_RUNS / HOSTING_MONTHLY_RUNTIME_HOURS", () => {
     expect(hostingLimitsFor("basic")).toEqual({ concurrent: 1, budgetSeconds: 100 * 3600 });
     expect(hostingLimitsFor("pro")).toEqual({ concurrent: 3, budgetSeconds: 400 * 3600 });
+    expect(hostingLimitsFor("max")).toEqual({ concurrent: 5, budgetSeconds: 800 * 3600 });
   });
 });

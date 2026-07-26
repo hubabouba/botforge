@@ -242,13 +242,26 @@ function splitPlan(s: string): { diagram: string | null; text: string } {
   return { diagram: m[1].trim(), text: s.replace(m[0], "").trim() };
 }
 
-export function PlanningPanel({ project, files }: { project: Project; files: ProjectFile[] }) {
+export function PlanningPanel({
+  project,
+  files,
+  plan,
+  onPlanChange,
+  onBuildWithAssistant,
+}: {
+  project: Project;
+  files: ProjectFile[];
+  /** Owned by Workspace so it outlives this panel's unmount (view switch). */
+  plan: string;
+  onPlanChange: (plan: string) => void;
+  onBuildWithAssistant: () => void;
+}) {
   const { t } = useI18n();
   const [goal, setGoal] = useState(project.description ?? "");
-  const [plan, setPlan] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const setPlan = onPlanChange;
 
   // Abort an in-flight plan if the panel unmounts (view switched away).
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -317,14 +330,26 @@ export function PlanningPanel({ project, files }: { project: Project; files: Pro
         placeholder={t("panel.planningPlaceholder")}
         className="w-full resize-none rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-[13px] text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-accent/50"
       />
-      <button
-        onClick={generate}
-        disabled={!goal.trim() || busy}
-        className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
-      >
-        <Bot className="h-3.5 w-3.5" />
-        {busy ? t("panel.planning") : plan ? t("panel.regeneratePlan") : t("panel.generatePlan")}
-      </button>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          onClick={generate}
+          disabled={!goal.trim() || busy}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
+        >
+          <Bot className="h-3.5 w-3.5" />
+          {busy ? t("panel.planning") : plan ? t("panel.regeneratePlan") : t("panel.generatePlan")}
+        </button>
+        {/* A plan the assistant can't act on is just a wall of text — this is
+            the bridge from "here's the plan" to "now build it". */}
+        {plan && !busy && (
+          <button
+            onClick={onBuildWithAssistant}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3.5 py-2 text-xs font-medium text-neutral-300 transition-colors hover:bg-ink-800 hover:text-white"
+          >
+            {t("panel.buildWithAssistant")}
+          </button>
+        )}
+      </div>
 
       {error && <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-300">{error}</div>}
 

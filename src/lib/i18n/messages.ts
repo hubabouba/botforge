@@ -419,6 +419,8 @@ const en: Dict = {
   "panel.planning": "Planning…",
   "panel.regeneratePlan": "Regenerate plan",
   "panel.generatePlan": "Generate plan",
+  "panel.buildWithAssistant": "Build this with the assistant",
+  "panel.buildWithAssistantSeed": "Build the plan from the Planning tab. Start with the first steps and tell me what you did.",
   "panel.couldntGeneratePlan": "Couldn't generate a plan.",
   "panel.noPlanReturned": "No plan returned.",
 
@@ -1020,6 +1022,8 @@ const ru: Dict = {
   "panel.planning": "Планируем…",
   "panel.regeneratePlan": "Перегенерировать план",
   "panel.generatePlan": "Сгенерировать план",
+  "panel.buildWithAssistant": "Собрать это с ассистентом",
+  "panel.buildWithAssistantSeed": "Реализуй план из вкладки «Планирование». Начни с первых шагов и расскажи, что сделал.",
   "panel.couldntGeneratePlan": "Не удалось сгенерировать план.",
   "panel.noPlanReturned": "План не получен.",
 
@@ -1621,6 +1625,8 @@ const pl: Dict = {
   "panel.planning": "Planowanie…",
   "panel.regeneratePlan": "Wygeneruj plan ponownie",
   "panel.generatePlan": "Wygeneruj plan",
+  "panel.buildWithAssistant": "Zbuduj to z asystentem",
+  "panel.buildWithAssistantSeed": "Zrealizuj plan z zakładki „Planowanie”. Zacznij od pierwszych kroków i powiedz, co zrobiłeś.",
   "panel.couldntGeneratePlan": "Nie udało się wygenerować planu.",
   "panel.noPlanReturned": "Nie zwrócono planu.",
 
@@ -2222,6 +2228,8 @@ const es: Dict = {
   "panel.planning": "Planificando…",
   "panel.regeneratePlan": "Regenerar plan",
   "panel.generatePlan": "Generar plan",
+  "panel.buildWithAssistant": "Constrúyelo con el asistente",
+  "panel.buildWithAssistantSeed": "Implementa el plan de la pestaña «Planificación». Empieza por los primeros pasos y cuéntame qué has hecho.",
   "panel.couldntGeneratePlan": "No se pudo generar un plan.",
   "panel.noPlanReturned": "No se devolvió ningún plan.",
 

@@ -64,6 +64,14 @@ export function Workspace({ projectId }: { projectId: string }) {
   // In compact mode the tree isn't a sidebar; it takes over the code pane until
   // a file is picked.
   const [treeOpen, setTreeOpen] = useState(false);
+  // The build plan lives here, not inside PlanningPanel: that panel unmounts
+  // the moment the user switches to Code (or to the Chat tab on a phone), which
+  // used to throw the freshly generated plan away. Persisted per project so a
+  // reload doesn't lose it either.
+  // ("buildPlan", not "plan" — `plan` in this file is the subscription tier.)
+  const [buildPlan, setBuildPlan] = useState("");
+  // Text handed to the chat composer by "build this with the assistant".
+  const [chatSeed, setChatSeed] = useState("");
   const [upgrade, setUpgrade] = useState<{ highlight: Plan; reason: string } | null>(null);
   // A failed file-tree operation (add/rename/delete) would otherwise be silent.
   const [treeError, setTreeError] = useState("");
@@ -98,6 +106,30 @@ export function Workspace({ projectId }: { projectId: string }) {
   const refresh = useCallback((next: StoredProject | null) => {
     if (next) setProject({ ...next });
   }, []);
+
+  // ---- Build plan persistence (localStorage, per project) ----
+  const planKey = `bf:plan:${projectId}`;
+
+  useEffect(() => {
+    try {
+      setBuildPlan(localStorage.getItem(`bf:plan:${projectId}`) ?? "");
+    } catch {
+      /* storage blocked — the plan just won't survive a reload */
+    }
+  }, [projectId]);
+
+  const onPlanChange = useCallback(
+    (next: string) => {
+      setBuildPlan(next);
+      try {
+        if (next) localStorage.setItem(planKey, next);
+        else localStorage.removeItem(planKey);
+      } catch {
+        /* non-fatal */
+      }
+    },
+    [planKey],
+  );
 
   // Persist whatever edit is pending right now (if any). Fire-and-forget.
   const flushSave = useCallback(() => {
@@ -413,7 +445,22 @@ export function Workspace({ projectId }: { projectId: string }) {
               {view === "logs" ? (
                 <LogsPanel project={project} hostingAvailable={hostingAvailable} onRun={() => setRunOpen(true)} />
               ) : view === "planning" ? (
-                <PlanningPanel project={project} files={project.files} />
+                <PlanningPanel
+                  project={project}
+                  files={project.files}
+                  plan={buildPlan}
+                  onPlanChange={onPlanChange}
+                  // Hand the plan to the assistant: back to the editor view and
+                  // over to the chat (the only way to reach it on a phone), with
+                  // the composer pre-filled. The plan itself rides along as
+                  // context on every request, so the model can actually read it.
+                  onBuildWithAssistant={() => {
+                    setChatSeed(t("panel.buildWithAssistantSeed"));
+                    setView("code");
+                    setMobileTab("chat");
+                    setChatOpen(true);
+                  }}
+                />
               ) : (
                 <MetricsPanel project={project} hostingAvailable={hostingAvailable} />
               )}
@@ -491,6 +538,9 @@ export function Workspace({ projectId }: { projectId: string }) {
             files={project.files}
             onApplyEdit={onApplyEdit}
             compact={compact}
+            buildPlan={buildPlan}
+            seed={chatSeed}
+            onSeedUsed={() => setChatSeed("")}
             // On a phone there's no "rest of the workspace" to reveal by
             // collapsing — closing the chat just moves to the code tab.
             onCollapse={() => (compact ? setMobileTab("code") : setChatOpen(false))}

@@ -44,6 +44,9 @@ export function WorkspaceChat({
   onApplyEdit,
   onCollapse,
   compact = false,
+  buildPlan = "",
+  seed = "",
+  onSeedUsed,
 }: {
   project: Project;
   files: ProjectFile[];
@@ -51,6 +54,14 @@ export function WorkspaceChat({
   onCollapse: () => void;
   /** Phone/tablet layout — the assistant says so up front before anything else. */
   compact?: boolean;
+  /**
+   * Build plan from the Planning panel; sent as context on every request.
+   * Named `buildPlan` because `plan` in this file is the subscription tier.
+   */
+  buildPlan?: string;
+  /** Text to drop into the composer (e.g. "build the plan"), then cleared. */
+  seed?: string;
+  onSeedUsed?: () => void;
 }) {
   const { t, lang } = useI18n();
   const [messages, setMessages] = useState<Msg[]>([]);
@@ -114,6 +125,15 @@ export function WorkspaceChat({
   // Abort an in-flight stream if the panel unmounts (e.g. chat collapsed).
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  // Pre-fill the composer when the Planning panel hands work over. Deliberately
+  // not auto-sent: the user gets to edit it, and a message they didn't press
+  // send on must never eat a slot from their daily quota.
+  useEffect(() => {
+    if (!seed) return;
+    setInput(seed);
+    onSeedUsed?.();
+  }, [seed, onSeedUsed]);
+
   function toggleAutoApply() {
     setAutoApply((v) => {
       const next = !v;
@@ -169,6 +189,8 @@ export function WorkspaceChat({
           messages: payload.map((m) => ({ role: m.role, content: m.text })),
           preferences: prefs,
           provider: model,
+          // Empty string would just waste prompt tokens on an empty section.
+          ...(buildPlan.trim() ? { plan: buildPlan } : {}),
         }),
         signal: controller.signal,
       });

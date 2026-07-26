@@ -39,6 +39,8 @@ const bodySchema = z.object({
     })
     .optional(),
   intent: z.enum(["chat", "plan"]).optional(),
+  // The Planning panel's output, carried so the assistant can act on "the plan".
+  plan: z.string().max(20000).optional(),
   // The model the user picked in the workspace. Only honored if their plan
   // allows it (resolveProvider) — the client can't unlock Claude.
   provider: z.enum(["gemini", "claude"]).optional(),

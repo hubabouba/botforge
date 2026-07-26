@@ -55,6 +55,12 @@ export interface AssistantParams {
   preferences?: AssistantPreferences;
   /** "chat" edits files; "plan" returns a build plan and never edits. */
   intent?: "chat" | "plan";
+  /**
+   * The build plan the user generated in the Planning panel, if any. Without
+   * this the assistant had no idea a plan existed — the user would approve one
+   * in a panel the model never saw, then ask it to "build the plan".
+   */
+  plan?: string;
   /** Claude model id to run (plan-derived; Max → Opus). Ignored by Gemini. */
   model?: string;
   /**
@@ -104,6 +110,19 @@ PLANNING MODE: Do NOT modify files or call write_file. Reply with TWO parts, in 
 2) After the diagram, a concise, practical numbered build plan. For each step name the feature, what to do, and which file(s) to create or change. Keep it specific and buildable — no fluff.`
       : "";
 
+  // Only in chat mode: while *generating* a plan the model must not be primed
+  // with the previous one, or it rewrites instead of planning afresh.
+  const planContext =
+    params.intent !== "plan" && params.plan?.trim()
+      ? `
+
+The user has already worked out a build plan for this project in the Planning panel. Follow it when they refer to "the plan", and keep your changes consistent with it. If they ask for something that contradicts it, do what they ask and say briefly how it differs.
+
+--- BUILD PLAN ---
+${params.plan.trim().slice(0, 8000)}
+--- END BUILD PLAN ---`
+      : "";
+
   return `You are Botforge's coding assistant. You help the user build a ${params.project.platform} bot written in ${params.project.language}. The project is called "${params.project.name}".
 
 Rules:
@@ -114,7 +133,7 @@ Rules:
 - Make focused, minimal changes and briefly explain what you did in plain language.
 - Before finishing, quickly re-check your own changes for common bugs: unhandled errors, wrong types, a missing await, off-by-one mistakes, or secrets left in code.
 - Never hardcode secrets or tokens — read them from environment variables.
-- If the request is just a question, answer it without editing files.${planning}${preferenceLines(params.preferences)}
+- If the request is just a question, answer it without editing files.${planning}${preferenceLines(params.preferences)}${planContext}
 
 Current project files:
 ${fileDump}`;

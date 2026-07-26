@@ -13,6 +13,7 @@ import {
   normalizePath,
   renameFile,
   renameProject,
+  saveProjectPlan,
   writeFile,
   type StoredProject,
 } from "@/lib/workspace/store";
@@ -97,6 +98,7 @@ export function Workspace({ projectId }: { projectId: string }) {
         return;
       }
       setProject(p);
+      setBuildPlan(p.plan ?? "");
       setOpenPaths([p.entry]);
       setActivePath(p.entry);
       setLoad("ready");
@@ -110,29 +112,21 @@ export function Workspace({ projectId }: { projectId: string }) {
     if (next) setProject({ ...next });
   }, []);
 
-  // ---- Build plan persistence (localStorage, per project) ----
-  const planKey = `bf:plan:${projectId}`;
-
-  useEffect(() => {
-    try {
-      setBuildPlan(localStorage.getItem(`bf:plan:${projectId}`) ?? "");
-    } catch {
-      /* storage blocked — the plan just won't survive a reload */
-    }
-  }, [projectId]);
+  // ---- Build plan persistence (server-side, so it follows the account) ----
+  // Debounced: the plan streams in token by token, and one PATCH per token
+  // would hammer the API for no benefit.
+  const planSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const onPlanChange = useCallback(
     (next: string) => {
       setBuildPlan(next);
-      try {
-        if (next) localStorage.setItem(planKey, next);
-        else localStorage.removeItem(planKey);
-      } catch {
-        /* non-fatal */
-      }
+      clearTimeout(planSaveTimer.current);
+      planSaveTimer.current = setTimeout(() => void saveProjectPlan(projectId, next), 800);
     },
-    [planKey],
+    [projectId],
   );
+
+  useEffect(() => () => clearTimeout(planSaveTimer.current), []);
 
   // Persist whatever edit is pending right now (if any). Fire-and-forget.
   const flushSave = useCallback(() => {

@@ -9,7 +9,7 @@ import type { StoredProject } from "./store";
 
 // Nested select pulls a project with its files and folders in one round-trip.
 export const PROJECT_SELECT =
-  "id, name, platform, language, description, entry, created_at, updated_at, project_files(path, content), project_folders(path)";
+  "id, name, platform, language, description, entry, plan, created_at, updated_at, project_files(path, content), project_folders(path)";
 
 // Lightweight list select: file PATHS only, no contents. The dashboard list
 // needs the file *count* (project.files.length), never the bodies — pulling
@@ -24,6 +24,8 @@ interface ProjectRow {
   language: string;
   description: string | null;
   entry: string | null;
+  /** Absent from the lightweight list select; the dashboard doesn't need it. */
+  plan?: string | null;
   created_at: string;
   updated_at: string;
   project_files: { path: string; content: string }[] | null;
@@ -38,6 +40,7 @@ export function mapRow(row: ProjectRow): StoredProject {
     language: row.language as StoredProject["language"],
     description: row.description ?? "",
     entry: row.entry ?? "",
+    plan: row.plan ?? "",
     // content is absent in the lightweight list select — default to "".
     files: (row.project_files ?? []).map((f) => ({ path: f.path, content: f.content ?? "" })),
     folders: (row.project_folders ?? []).map((f) => f.path),

@@ -33,6 +33,7 @@ const hasWindow = () => typeof window !== "undefined";
 interface ApiData {
   projects?: StoredProject[];
   project?: StoredProject;
+  messages?: StoredMessage[];
   error?: string;
   ok?: boolean;
 }
@@ -107,6 +108,43 @@ export async function renameProject(id: string, name: string): Promise<StoredPro
 
 export async function deleteProject(id: string): Promise<void> {
   await req(`/api/projects/${id}`, { method: "DELETE" });
+}
+
+export interface StoredMessage {
+  role: "user" | "assistant";
+  content: string;
+  edits?: { path: string; content: string }[] | null;
+}
+
+// ---- Cross-device state -----------------------------------------------------
+// The build plan and the assistant conversation used to live in localStorage,
+// so opening the same project on another device showed neither. Both are now
+// per-project rows the server owns; these are the thin wrappers around them.
+
+export async function saveProjectPlan(id: string, plan: string): Promise<void> {
+  await req(`/api/projects/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan }),
+  });
+}
+
+export async function loadChat(id: string): Promise<StoredMessage[]> {
+  const { res, data } = await req(`/api/projects/${id}/chat`);
+  return res.ok ? (data.messages ?? []) : [];
+}
+
+/** Fire-and-forget: a failed save must never block the reply the user is reading. */
+export async function appendChat(id: string, messages: StoredMessage[]): Promise<void> {
+  await req(`/api/projects/${id}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages }),
+  }).catch(() => {});
+}
+
+export async function clearChat(id: string): Promise<void> {
+  await req(`/api/projects/${id}/chat`, { method: "DELETE" }).catch(() => {});
 }
 
 // ---- File operations ----

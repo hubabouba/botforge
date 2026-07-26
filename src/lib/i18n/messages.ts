@@ -327,6 +327,8 @@ const en: Dict = {
 
   // ---- Assistant chat ----
   "chat.assistant": "Assistant",
+  "chat.clear": "Clear",
+  "chat.clearConfirm": "Clear it?",
   "chat.basicUpgrade": "Basic · Upgrade",
   "chat.freeUpgrade": "Free · Upgrade",
   "chat.selectModel": "Choose AI model",
@@ -944,6 +946,8 @@ const ru: Dict = {
 
   // ---- Чат с ассистентом ----
   "chat.assistant": "Ассистент",
+  "chat.clear": "Очистить",
+  "chat.clearConfirm": "Точно очистить?",
   "chat.basicUpgrade": "Basic · Улучшить",
   "chat.freeUpgrade": "Free · Улучшить",
   "chat.selectModel": "Выбрать модель ИИ",
@@ -1561,6 +1565,8 @@ const pl: Dict = {
 
   // ---- Assistant chat ----
   "chat.assistant": "Asystent",
+  "chat.clear": "Wyczyść",
+  "chat.clearConfirm": "Na pewno?",
   "chat.basicUpgrade": "Basic · Ulepsz",
   "chat.freeUpgrade": "Darmowy · Ulepsz",
   "chat.selectModel": "Wybierz model AI",
@@ -2178,6 +2184,8 @@ const es: Dict = {
 
   // ---- Assistant chat ----
   "chat.assistant": "Asistente",
+  "chat.clear": "Borrar",
+  "chat.clearConfirm": "¿Seguro?",
   "chat.basicUpgrade": "Basic · Mejorar",
   "chat.freeUpgrade": "Gratis · Mejorar",
   "chat.selectModel": "Elige modelo de IA",

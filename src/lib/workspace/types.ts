@@ -30,6 +30,8 @@ export interface Project {
   entry: string;
   /** Explicit folders, including empty ones the tree can't derive from files. */
   folders?: string[];
+  /** Build plan from the Planning tab. Server-owned so it follows the account. */
+  plan?: string;
 }
 
 // ---- Chat ----

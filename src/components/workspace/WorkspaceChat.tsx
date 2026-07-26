@@ -5,6 +5,7 @@ import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { Bot, Check, FileIcon, Close, Lock, ChevronRight } from "@/components/icons";
 import { loadPrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
+import { appendChat, clearChat, loadChat } from "@/lib/workspace/store";
 import { track } from "@/lib/analytics";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
@@ -91,6 +92,7 @@ export function WorkspaceChat({
   // "it runs, but behaves wrong".
   const [attachLogs, setAttachLogs] = useState(false);
   const [attachMetrics, setAttachMetrics] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const { plan, hostingAvailable } = usePlan();
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -168,6 +170,27 @@ export function WorkspaceChat({
 
   // Abort an in-flight stream if the panel unmounts (e.g. chat collapsed).
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Load the saved conversation. It lives on the server, so the same project
+  // opened on another device — or after a plain reload — picks up where it was.
+  useEffect(() => {
+    let cancelled = false;
+    void loadChat(project.id).then((saved) => {
+      if (cancelled || !saved.length) return;
+      setMessages(
+        saved.map((m) => ({
+          id: uid(),
+          role: m.role,
+          text: m.content,
+          // Anything restored was already written to the files at the time.
+          edits: (m.edits ?? []).map((e) => ({ ...e, applied: true })),
+        })),
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
 
   // Pre-fill the composer when the Planning panel hands work over. Deliberately
   // not auto-sent: the user gets to edit it, and a message they didn't press
@@ -306,6 +329,15 @@ export function WorkspaceChat({
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setBusy(false);
+      // Persist the exchange. Fire-and-forget by design: a failed save must
+      // never disturb the reply the user is already reading. Errors aren't
+      // stored — re-reading "something went wrong" on every reopen helps nobody.
+      if (!hadError && (accText.trim() || accEdits.length)) {
+        void appendChat(project.id, [
+          { role: "user", content: trimmed },
+          { role: "assistant", content: accText, edits: accEdits.map((e) => ({ path: e.path, content: e.content })) },
+        ]);
+      }
     }
   }
 
@@ -407,6 +439,31 @@ export function WorkspaceChat({
           <span className={cn("h-1.5 w-1.5 rounded-full", autoApply ? "bg-emerald-400" : "bg-neutral-600")} />
           {t("chat.autoApply")}
         </button>
+        {/* Two-step, like every other destroy in this app: the conversation is
+            now saved, so one stray click would wipe real history. */}
+        {messages.length > 0 && (
+          <button
+            onClick={() => {
+              if (!confirmClear) {
+                setConfirmClear(true);
+                return;
+              }
+              setConfirmClear(false);
+              setMessages([]);
+              void clearChat(project.id);
+            }}
+            onBlur={() => setConfirmClear(false)}
+            title={t("chat.clear")}
+            className={cn(
+              "rounded-lg border px-2 py-1 text-[11px] transition-colors",
+              confirmClear
+                ? "border-rose-500/40 bg-rose-500/10 text-rose-300"
+                : "border-ink-700 text-neutral-500 hover:text-neutral-300",
+            )}
+          >
+            {confirmClear ? t("chat.clearConfirm") : t("chat.clear")}
+          </button>
+        )}
         <button
           onClick={onCollapse}
           aria-label={t("chat.hideAssistant")}

@@ -5,7 +5,11 @@ import { fetchProject } from "@/lib/workspace/serverStore";
 
 export const runtime = "nodejs";
 
-const patchSchema = z.object({ name: z.string().max(120) });
+// Both fields optional: renaming and saving the build plan use the same route.
+const patchSchema = z.object({
+  name: z.string().max(120).optional(),
+  plan: z.string().max(20000).optional(),
+});
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -40,12 +44,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
-  const name = parsed.data.name.trim();
-  if (name) {
-    const { error } = await supabase
-      .from("projects")
-      .update({ name, updated_at: new Date().toISOString() })
-      .eq("id", id);
+  const patch: Record<string, string> = {};
+  const name = parsed.data.name?.trim();
+  if (name) patch.name = name;
+  // The plan is set to "" to clear it, so presence — not truthiness — decides.
+  if (parsed.data.plan !== undefined) patch.plan = parsed.data.plan;
+
+  if (Object.keys(patch).length) {
+    patch.updated_at = new Date().toISOString();
+    const { error } = await supabase.from("projects").update(patch).eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
   const project = await fetchProject(supabase, id);

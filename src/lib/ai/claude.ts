@@ -144,8 +144,13 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   let outOfTime = false;
   let truncated = false;
   let saidSomething = false;
+  // Real token spend, summed across the loop's turns. Logged at the end so the
+  // per-message cost is a measured number in the runtime logs rather than an
+  // estimate — plan limits should be set from this, not from arithmetic.
+  const spend = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0, turns: 0 };
 
-  for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+  const maxTurns = Math.min(params.maxTurns ?? MAX_TOOL_TURNS, MAX_TOOL_TURNS);
+  for (let turn = 0; turn < maxTurns; turn++) {
     const stream = anthropic.messages.stream({
       model,
       // Reasoning is set EXPLICITLY on every request. Two defaults would bite us
@@ -200,6 +205,11 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
     // message to get complete tool calls (and the thinking blocks, which must be
     // sent back verbatim when continuing an extended-thinking + tool-use turn).
     const final = await stream.finalMessage();
+    spend.input += final.usage.input_tokens ?? 0;
+    spend.output += final.usage.output_tokens ?? 0;
+    spend.cacheWrite += final.usage.cache_creation_input_tokens ?? 0;
+    spend.cacheRead += final.usage.cache_read_input_tokens ?? 0;
+    spend.turns += 1;
     // Hit the output ceiling. Worth saying out loud: the turn is cut off, so
     // anything the model was midway through writing is simply gone.
     if (final.stop_reason === "max_tokens") truncated = true;
@@ -299,4 +309,41 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   for (const [path, content] of edits) {
     yield { type: "edit", path, content };
   }
+
+  logSpend(model, reasoning, spend, edits.size);
+}
+
+/**
+ * Per-million-token rates, for turning the usage numbers into a figure that
+ * means something at a glance. Cache writes bill at 1.25x input, reads at 0.1x.
+ * Rough by design — it exists to rank messages by cost, not to bill anyone.
+ */
+const RATES: Record<string, { in: number; out: number }> = {
+  "claude-opus-5": { in: 5, out: 25 },
+  "claude-sonnet-5": { in: 3, out: 15 },
+};
+
+function logSpend(
+  model: string,
+  reasoning: { thinking: boolean; effort: string },
+  s: { input: number; output: number; cacheWrite: number; cacheRead: number; turns: number },
+  edits: number,
+): void {
+  const rate = RATES[model] ?? RATES["claude-sonnet-5"];
+  const usd =
+    (s.input * rate.in + s.cacheWrite * rate.in * 1.25 + s.cacheRead * rate.in * 0.1 + s.output * rate.out) / 1_000_000;
+  console.log(
+    `[ai/spend] ${JSON.stringify({
+      model,
+      thinking: reasoning.thinking,
+      effort: reasoning.effort,
+      turns: s.turns,
+      edits,
+      in: s.input,
+      cacheWrite: s.cacheWrite,
+      cacheRead: s.cacheRead,
+      out: s.output,
+      usd: Number(usd.toFixed(4)),
+    })}`,
+  );
 }

@@ -63,10 +63,24 @@ export interface ReasoningConfig {
 }
 
 export function reasoningFor(plan: Plan, tier: AssistantTier): ReasoningConfig {
-  if (tier === "max") return { thinking: true, effort: "xhigh" };
+  // Measured, not guessed: an hour of real Pro use cost $1.53, and thinking at
+  // "high" was most of it — the model reasons for thousands of tokens on every
+  // turn of the loop, and thinking bills as output. Each tier is one notch
+  // lower than the setting that produced that bill.
+  if (tier === "max") return { thinking: true, effort: "high" };
   return plan === "basic"
-    ? { thinking: false, effort: "medium" }
-    : { thinking: true, effort: "high" };
+    ? { thinking: false, effort: "low" }
+    : { thinking: true, effort: "medium" };
+}
+
+/**
+ * How many write→read→review turns the agentic loop may take. This multiplies
+ * every other cost, so it's the bluntest lever there is: a review pass is worth
+ * paying for on the top tier and hard to justify on the cheapest.
+ */
+export function maxToolTurnsFor(plan: Plan): number {
+  if (plan === "max") return 4;
+  return plan === "basic" ? 2 : 3;
 }
 
 /**

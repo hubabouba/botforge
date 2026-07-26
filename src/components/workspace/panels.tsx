@@ -315,7 +315,7 @@ export function PlanningPanel({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            project: { name: project.name, platform: project.platform, language: project.language },
+            project: { name: project.name, platform: project.platform, language: project.language, entry: project.entry },
             files,
             messages: [{ role: "user", content: prompt }],
             preferences: loadPrefs(),

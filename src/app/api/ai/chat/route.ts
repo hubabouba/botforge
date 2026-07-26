@@ -9,6 +9,7 @@ import type { AssistantStreamEvent } from "@/lib/ai/types";
 import {
   aiDailyLimit,
   isAiLimitExempt,
+  maxToolTurnsFor,
   modelForTier,
   planAllows,
   providerForTier,
@@ -31,6 +32,7 @@ const bodySchema = z.object({
     name: z.string().max(120),
     platform: z.string().max(20),
     language: z.string().max(20),
+    entry: z.string().max(200).optional(),
   }),
   files: z
     .array(z.object({ path: z.string().max(200), content: z.string().max(20000) }))
@@ -168,6 +170,7 @@ async function handlePost(req: Request) {
           runtime,
           model: modelForTier(tier),
           reasoning: reasoningFor(plan, tier),
+          maxTurns: maxToolTurnsFor(plan),
           clarify: planAllows(plan, "assistant.clarify"),
           budgetMs: LOOP_BUDGET_MS,
         })

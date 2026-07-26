@@ -54,7 +54,8 @@ export const DEFAULT_PREFERENCES: AssistantPreferences = {
 };
 
 export interface AssistantParams {
-  project: { name: string; platform: string; language: string };
+  /** `entry` is optional and only used to prioritise the file context. */
+  project: { name: string; platform: string; language: string; entry?: string };
   files: { path: string; content: string }[];
   messages: { role: "user" | "assistant"; content: string }[];
   preferences?: AssistantPreferences;
@@ -83,6 +84,8 @@ export interface AssistantParams {
    * `reasoningFor` — never from the client. Ignored by Gemini.
    */
   reasoning?: { thinking: boolean; effort: "low" | "medium" | "high" | "xhigh" };
+  /** Cap on agentic loop turns (plan-derived). Ignored by Gemini. */
+  maxTurns?: number;
   /**
    * Let the assistant stop and ask when the request is genuinely
    * underspecified, instead of guessing. Gated on `assistant.clarify` (Pro+).
@@ -118,11 +121,50 @@ function preferenceLines(prefs?: AssistantPreferences): string {
   return `\n\nHow to respond (user preferences — obey unless they conflict with the rules above):\n${lines.join("\n")}`;
 }
 
+/**
+ * Total characters of file *content* the prompt may carry (~6k tokens). Every
+ * message re-sends this, and edits invalidate the cache, so an unbounded dump
+ * of the whole project is the single largest recurring cost in the product.
+ * Files past the budget are still listed by path — the assistant pulls them
+ * with read_file only if it actually needs them.
+ */
+const FILE_CONTEXT_BUDGET = 24_000;
+const PER_FILE_CAP = 6_000;
+
+function buildFileContext(params: AssistantParams): string {
+  const { files } = params;
+  if (!files.length) return "(no files yet)";
+
+  // The entry file first — it's the one a question is most often about — then
+  // the rest in project order until the budget runs out.
+  const entry = params.project.entry;
+  const ordered = entry ? [...files].sort((a, b) => Number(b.path === entry) - Number(a.path === entry)) : files;
+
+  const included: string[] = [];
+  const omitted: string[] = [];
+  let spent = 0;
+
+  for (const f of ordered) {
+    const body = f.content.slice(0, PER_FILE_CAP);
+    if (spent + body.length > FILE_CONTEXT_BUDGET && included.length > 0) {
+      omitted.push(f.path);
+      continue;
+    }
+    spent += body.length;
+    const truncated = f.content.length > body.length ? "\n… (truncated — read_file for the rest)" : "";
+    included.push(`--- ${f.path} ---\n${body}${truncated}`);
+  }
+
+  const listing = `All files in this project: ${files.map((f) => f.path).join(", ")}`;
+  const note = omitted.length
+    ? `\n\nNot shown above (use read_file if you need them): ${omitted.join(", ")}`
+    : "";
+  return `${listing}\n\n${included.join("\n\n")}${note}`;
+}
+
 /** System prompt shared by every provider so behavior is consistent. */
 export function buildSystemPrompt(params: AssistantParams): string {
-  const fileDump = params.files
-    .map((f) => `--- ${f.path} ---\n${f.content.slice(0, 8000)}`)
-    .join("\n\n");
+  const fileDump = buildFileContext(params);
 
   const reviewing =
     params.intent === "review"

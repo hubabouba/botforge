@@ -14,6 +14,7 @@ import {
   providerForTier,
   modelForTier,
   reasoningFor,
+  maxToolTurnsFor,
 } from "@/lib/plan";
 
 describe("planAllows", () => {
@@ -111,16 +112,32 @@ describe("assistant tiers", () => {
 
 describe("reasoningFor (cost/quality per tier)", () => {
   it("basic runs without thinking — that's the tier's whole cost model", () => {
-    expect(reasoningFor("basic", "advanced")).toEqual({ thinking: false, effort: "medium" });
+    expect(reasoningFor("basic", "advanced")).toEqual({ thinking: false, effort: "low" });
   });
 
   it("pro buys real deliberation, max buys the deepest", () => {
-    expect(reasoningFor("pro", "advanced")).toEqual({ thinking: true, effort: "high" });
-    expect(reasoningFor("max", "max")).toEqual({ thinking: true, effort: "xhigh" });
+    expect(reasoningFor("pro", "advanced")).toEqual({ thinking: true, effort: "medium" });
+    expect(reasoningFor("max", "max")).toEqual({ thinking: true, effort: "high" });
   });
 
   it("a max user who picks the cheaper tier gets that tier's reasoning", () => {
-    expect(reasoningFor("max", "advanced")).toEqual({ thinking: true, effort: "high" });
+    expect(reasoningFor("max", "advanced")).toEqual({ thinking: true, effort: "medium" });
+  });
+
+  it("effort rises with the tier and never exceeds what the tier is priced for", () => {
+    const rank = { low: 0, medium: 1, high: 2, xhigh: 3 } as const;
+    expect(rank[reasoningFor("basic", "advanced").effort]).toBeLessThan(
+      rank[reasoningFor("pro", "advanced").effort],
+    );
+    expect(rank[reasoningFor("pro", "advanced").effort]).toBeLessThan(
+      rank[reasoningFor("max", "max").effort],
+    );
+  });
+
+  it("loop turns rise with the tier — they multiply every other cost", () => {
+    expect(maxToolTurnsFor("basic")).toBe(2);
+    expect(maxToolTurnsFor("pro")).toBe(3);
+    expect(maxToolTurnsFor("max")).toBe(4);
   });
 
   it("never sets effort implicitly — the API default is the expensive end", () => {

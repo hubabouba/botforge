@@ -230,7 +230,7 @@ export function WorkspaceChat({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          project: { name: project.name, platform: project.platform, language: project.language },
+          project: { name: project.name, platform: project.platform, language: project.language, entry: project.entry },
           files,
           messages: payload.map((m) => ({ role: m.role, content: m.text })),
           preferences: prefs,

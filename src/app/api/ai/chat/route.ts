@@ -42,6 +42,20 @@ const bodySchema = z.object({
 // Provider defaults to the plan (free → Gemini, paid → Claude) but a paid user
 // may override it via the workspace model selector.
 export async function POST(req: Request) {
+  try {
+    return await handlePost(req);
+  } catch (e) {
+    // Anything thrown before/outside the stream (e.g. a dependency throwing
+    // synchronously) would otherwise surface to the client as a bare 500 with
+    // no JSON body — the client's `.json().catch(() => ({}))` then yields `{}`,
+    // so `data?.error` is undefined and it silently shows the generic fallback
+    // with zero server-side signal. Capture it and answer with real JSON instead.
+    Sentry.captureException(e);
+    return NextResponse.json({ error: "The assistant failed to start. Please try again." }, { status: 500 });
+  }
+}
+
+async function handlePost(req: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -127,9 +141,17 @@ export async function POST(req: Request) {
           /* stream cancelled */
         }
       };
+      const startedAt = Date.now();
       try {
         for await (const event of gen) write(event);
       } catch (e) {
+        // This is the ONLY place a failed model call ends up — capture it with
+        // enough context to tell a genuine API error apart from the function
+        // simply running out of time (Vercel's hard 60s maxDuration kills the
+        // whole invocation before this catch would even run, so a long elapsed
+        // value alongside a completed catch here still points at the model call
+        // itself, not the platform timeout).
+        Sentry.captureException(e, { extra: { provider, plan, elapsedMs: Date.now() - startedAt } });
         write({ type: "error", message: (e as Error).message || "The assistant failed." });
       } finally {
         try {

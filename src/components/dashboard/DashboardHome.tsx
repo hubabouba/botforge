@@ -434,6 +434,8 @@ function ProjectCard({
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(project.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /** A failed card action, shown on the card itself rather than swallowed. */
+  const [error, setError] = useState("");
   // Unmounting the input on Escape can still fire its onBlur → commit; the ref
   // makes the cancellation win regardless of event order.
   const renameCancelled = useRef(false);
@@ -502,6 +504,12 @@ function ProjectCard({
 
       <p className="mt-1 line-clamp-2 flex-1 text-sm text-white/45">{project.description}</p>
 
+      {error && (
+        <p className="mt-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-xs text-rose-300">
+          {error}
+        </p>
+      )}
+
       <div className="mt-4 flex items-center justify-between border-t border-white/[0.08] pt-3 text-xs text-white/45">
         <span>
           {project.files.length} {plural(lang, project.files.length, { en: ["file", "files"], ru: ["файл", "файла", "файлов"] })} · {timeAgo(project.updatedAt, lang)}
@@ -543,8 +551,16 @@ function ProjectCard({
                   return;
                 }
                 const result = await duplicateProject(project.id);
-                if (!result.ok && result.error === "limit") onRequireUpgrade();
-                else onChange();
+                if (result.ok) {
+                  onChange();
+                } else if (result.error === "limit") {
+                  onRequireUpgrade();
+                } else {
+                  // A genuine failure used to fall through to onChange(), which
+                  // reloaded an unchanged list — indistinguishable from nothing
+                  // having happened at all.
+                  setError(t("dash.couldntDuplicate"));
+                }
               }}
             />
             <MenuItem

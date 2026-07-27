@@ -225,7 +225,16 @@ export async function migrateLocalProjects(userId: string): Promise<number> {
   if (!hasWindow()) return 0;
   let raw: string | null = null;
   try {
-    raw = window.localStorage.getItem(NS + userId) ?? window.localStorage.getItem(LEGACY_KEY);
+    // The per-user key is unambiguous. The legacy one predates user scoping, so
+    // on a shared browser it could belong to whoever signed in before — and
+    // adopting it blindly hands one person's projects to the next account that
+    // happens to log in. `bf:active-uid` records who wrote it; without a match
+    // we leave it alone rather than guess (and leave it in place, so the right
+    // owner can still claim it by signing in).
+    raw = window.localStorage.getItem(NS + userId);
+    if (!raw && window.localStorage.getItem(ACTIVE_UID_KEY) === userId) {
+      raw = window.localStorage.getItem(LEGACY_KEY);
+    }
   } catch {
     return 0;
   }
@@ -268,8 +277,12 @@ export async function migrateLocalProjects(userId: string): Promise<number> {
 function clearLegacyKeys(userId: string): void {
   try {
     window.localStorage.removeItem(NS + userId);
-    window.localStorage.removeItem(LEGACY_KEY);
-    window.localStorage.removeItem(ACTIVE_UID_KEY);
+    // Only drop the shared keys if they were this user's to drop — see the
+    // ownership check in migrateLocalProjects.
+    if (window.localStorage.getItem(ACTIVE_UID_KEY) === userId) {
+      window.localStorage.removeItem(LEGACY_KEY);
+      window.localStorage.removeItem(ACTIVE_UID_KEY);
+    }
   } catch {
     /* ignore */
   }

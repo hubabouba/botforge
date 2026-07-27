@@ -153,7 +153,7 @@ export function nextPlanUp(plan: Plan): Plan {
 /** Gated features. Each maps to the minimum plan that unlocks it. */
 export type Capability =
   | "assistant.claude" // smarter model (Claude) instead of the limited free assistant
-  | "assistant.logs" // the assistant may read & analyze bot logs (quiet Pro gate)
+  | "assistant.logs" // the assistant may read & analyze the bot's console output
   | "assistant.clarify" // the assistant asks instead of guessing when the ask is underspecified
   | "panel.logs" // the Logs panel
   | "panel.planning" // the AI Planning panel
@@ -165,7 +165,12 @@ export const CAPABILITY_MIN_PLAN: Record<Capability, Plan> = {
   "panel.logs": "basic",
   "panel.planning": "basic",
   "panel.metrics": "pro",
-  "assistant.logs": "pro",
+  // Declared "pro" for a while but never actually checked anywhere, so Basic
+  // had it the whole time — a capability that governs nothing is worse than no
+  // capability at all. Owner's call: Basic keeps it. It is now genuinely read
+  // (runtimeContext), so this line finally decides something and moving it back
+  // to "pro" would take effect for real.
+  "assistant.logs": "basic",
   "assistant.clarify": "pro",
   // OPEN DECISION (revisit before Stage 2): Basic+Pro vs Pro-only. Defaulting to
   // "basic" because the Logs panel already promises Basic users "hosted runs are

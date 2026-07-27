@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserPlan } from "@/lib/subscription";
 import { projectLimit } from "@/lib/plan";
 
@@ -19,7 +20,11 @@ export async function POST(_req: Request, { params }: Ctx) {
   const plan = await getUserPlan(supabase, user.id, user.email);
   const limit = projectLimit(plan);
 
-  const { data, error } = await supabase.rpc("duplicate_project", {
+  // Service-role, same reasoning as create_project: a cap the caller supplies
+  // isn't a cap. The RPC re-checks that p_source_id belongs to p_user_id, which
+  // it has to — RLS is bypassed in there.
+  const { data, error } = await createAdminClient().rpc("duplicate_project", {
+    p_user_id: user.id,
     p_limit: Number.isFinite(limit) ? limit : -1,
     p_source_id: id,
     p_new_name: null,

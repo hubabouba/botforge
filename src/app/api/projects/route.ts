@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserPlan } from "@/lib/subscription";
 import { projectLimit } from "@/lib/plan";
 import { fetchProjectSummaries } from "@/lib/workspace/serverStore";
@@ -59,7 +60,13 @@ export async function POST(req: Request) {
   const plan = await getUserPlan(supabase, user.id, user.email);
   const spec = parsed.data;
 
-  const { data, error } = await supabase.rpc("create_project", {
+  // Service-role client: the plan cap is an argument, and an argument a browser
+  // can set is not a cap — a free account calling this RPC directly with
+  // p_limit = -1 made projects forever. The RPC is service-role only now (see
+  // supabase/harden.sql) and stamps user_id itself, so the rows still land on
+  // this account even with RLS bypassed.
+  const { data, error } = await createAdminClient().rpc("create_project", {
+    p_user_id: user.id,
     p_limit: limitParam(projectLimit(plan)),
     p_name: spec.name,
     p_platform: spec.platform,

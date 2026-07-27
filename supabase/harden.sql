@@ -140,6 +140,146 @@ revoke all on function public.begin_project_run(uuid, uuid, integer, bigint, tex
 grant execute on function public.begin_project_run(uuid, uuid, integer, bigint, text, integer) to service_role;
 
 -- ===========================================================================
+-- 4. create_project / duplicate_project took the plan cap as an argument.
+--
+-- Same shape as 2: both were granted to `authenticated` and trusted p_limit,
+-- so a free account could POST to /rest/v1/rpc/create_project with
+-- p_limit = -1 and make projects forever. RLS still kept the rows theirs — the
+-- ownership model was never in question — but the business cap wasn't a cap.
+--
+-- The plan can't be computed in SQL (it depends on env allow-lists and the
+-- subscriptions table), so the limit has to arrive as an argument. That's only
+-- safe if the caller is the server: both become SECURITY DEFINER with the user
+-- id as a parameter, service_role only. They set user_id themselves, so rows
+-- still land on the right account with RLS bypassed.
+-- ===========================================================================
+
+drop function if exists public.create_project(integer, text, text, text, text, text, jsonb, text[]);
+drop function if exists public.duplicate_project(integer, uuid, text);
+
+create or replace function public.create_project(
+  p_user_id     uuid,
+  p_limit       integer,
+  p_name        text,
+  p_platform    text,
+  p_language    text,
+  p_description text,
+  p_entry       text,
+  p_files       jsonb,
+  p_folders     text[]
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count   integer;
+  v_project public.projects;
+begin
+  if p_user_id is null then
+    return null;
+  end if;
+
+  if p_limit is not null and p_limit >= 0 then
+    select count(*) into v_count from public.projects where user_id = p_user_id;
+    if v_count >= p_limit then
+      return jsonb_build_object('error', 'limit');
+    end if;
+  end if;
+
+  insert into public.projects (user_id, name, platform, language, description, entry)
+  values (
+    p_user_id,
+    coalesce(nullif(btrim(p_name), ''), 'my-bot'),
+    p_platform,
+    p_language,
+    coalesce(p_description, ''),
+    coalesce(p_entry, '')
+  )
+  returning * into v_project;
+
+  insert into public.project_files (project_id, path, content)
+  select v_project.id, e->>'path', coalesce(e->>'content', '')
+  from jsonb_array_elements(coalesce(p_files, '[]'::jsonb)) as e
+  where coalesce(e->>'path', '') <> ''
+  on conflict (project_id, path) do nothing;
+
+  insert into public.project_folders (project_id, path)
+  select v_project.id, f
+  from unnest(coalesce(p_folders, '{}'::text[])) as f
+  where coalesce(btrim(f), '') <> ''
+  on conflict (project_id, path) do nothing;
+
+  return public.project_json(v_project);
+end;
+$$;
+
+create or replace function public.duplicate_project(
+  p_user_id   uuid,
+  p_limit     integer,
+  p_source_id uuid,
+  p_new_name  text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_count   integer;
+  v_src     public.projects;
+  v_project public.projects;
+begin
+  if p_user_id is null then
+    return null;
+  end if;
+
+  -- RLS is bypassed in here, so the ownership check is the only thing standing
+  -- between p_source_id and someone else's project. It is not optional.
+  select * into v_src from public.projects where id = p_source_id and user_id = p_user_id;
+  if not found then
+    return null;
+  end if;
+
+  if p_limit is not null and p_limit >= 0 then
+    select count(*) into v_count from public.projects where user_id = p_user_id;
+    if v_count >= p_limit then
+      return jsonb_build_object('error', 'limit');
+    end if;
+  end if;
+
+  insert into public.projects (user_id, name, platform, language, description, entry)
+  values (
+    p_user_id,
+    coalesce(nullif(btrim(p_new_name), ''), v_src.name || ' (copy)'),
+    v_src.platform,
+    v_src.language,
+    v_src.description,
+    v_src.entry
+  )
+  returning * into v_project;
+
+  insert into public.project_files (project_id, path, content)
+  select v_project.id, path, content from public.project_files where project_id = v_src.id;
+
+  insert into public.project_folders (project_id, path)
+  select v_project.id, path from public.project_folders where project_id = v_src.id;
+
+  return public.project_json(v_project);
+end;
+$$;
+
+revoke all on function public.create_project(uuid, integer, text, text, text, text, text, jsonb, text[]) from public, anon, authenticated;
+revoke all on function public.duplicate_project(uuid, integer, uuid, text)                               from public, anon, authenticated;
+grant execute on function public.create_project(uuid, integer, text, text, text, text, text, jsonb, text[]) to service_role;
+grant execute on function public.duplicate_project(uuid, integer, uuid, text)                               to service_role;
+
+-- project_json is only ever called from inside those two — nothing in the app
+-- calls it over the API, so it doesn't need to be exposed either.
+revoke all on function public.project_json(public.projects) from public, anon, authenticated;
+
+-- ===========================================================================
 -- 3. Every internal callback did a sequential scan.
 --
 -- authenticateRun() looks a deployment up by run_token_hash on every single

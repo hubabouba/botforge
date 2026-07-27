@@ -164,7 +164,13 @@ $$;
 -- TS, not recomputed in SQL (plan depends on env allow-lists Postgres can't see).
 -- ---------------------------------------------------------------------------
 
+-- Older overloads took p_limit but not p_user_id and were granted to
+-- `authenticated` — i.e. the cap was an argument the browser chose. Drop them
+-- rather than leaving a callable version behind.
+drop function if exists public.create_project(integer, text, text, text, text, text, jsonb, text[]);
+
 create or replace function public.create_project(
+  p_user_id     uuid,
   p_limit       integer,
   p_name        text,
   p_platform    text,
@@ -176,11 +182,11 @@ create or replace function public.create_project(
 )
 returns jsonb
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $$
 declare
-  v_user    uuid := auth.uid();
+  v_user    uuid := p_user_id;
   v_count   integer;
   v_project public.projects;
 begin
@@ -227,18 +233,21 @@ $$;
 -- "(copy)" name by default), subject to the same per-plan cap.
 -- ---------------------------------------------------------------------------
 
+drop function if exists public.duplicate_project(integer, uuid, text);
+
 create or replace function public.duplicate_project(
+  p_user_id   uuid,
   p_limit     integer,
   p_source_id uuid,
   p_new_name  text
 )
 returns jsonb
 language plpgsql
-security invoker
+security definer
 set search_path = public
 as $$
 declare
-  v_user    uuid := auth.uid();
+  v_user    uuid := p_user_id;
   v_count   integer;
   v_src     public.projects;
   v_project public.projects;
@@ -247,6 +256,8 @@ begin
     return null;
   end if;
 
+  -- RLS is bypassed in a definer function, so this ownership check is the only
+  -- thing between p_source_id and someone else's project. Not optional.
   select * into v_src from public.projects where id = p_source_id and user_id = v_user;
   if not found then
     return null;
@@ -285,10 +296,14 @@ $$;
 revoke all on function public.touch_project()              from public, anon, authenticated;
 revoke all on function public.enforce_project_file_limit() from public, anon, authenticated;
 
--- Lock down function execution to signed-in users only.
-revoke all on function public.project_json(public.projects) from public, anon;
-revoke all on function public.create_project(integer, text, text, text, text, text, jsonb, text[]) from public, anon;
-revoke all on function public.duplicate_project(integer, uuid, text) from public, anon;
-grant execute on function public.project_json(public.projects) to authenticated;
-grant execute on function public.create_project(integer, text, text, text, text, text, jsonb, text[]) to authenticated;
-grant execute on function public.duplicate_project(integer, uuid, text) to authenticated;
+-- Both take the caller's id as a parameter and the plan cap as an argument, so
+-- like begin_project_run they must be unreachable from a browser: a client that
+-- could pass its own p_limit could simply pass -1. The API routes call them
+-- with the service-role client after resolving the plan server-side.
+revoke all on function public.create_project(uuid, integer, text, text, text, text, text, jsonb, text[]) from public, anon, authenticated;
+revoke all on function public.duplicate_project(uuid, integer, uuid, text)                               from public, anon, authenticated;
+grant execute on function public.create_project(uuid, integer, text, text, text, text, text, jsonb, text[]) to service_role;
+grant execute on function public.duplicate_project(uuid, integer, uuid, text)                               to service_role;
+
+-- Only ever called from inside those two; nothing reaches it over the API.
+revoke all on function public.project_json(public.projects) from public, anon, authenticated;

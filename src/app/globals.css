@@ -102,20 +102,19 @@
     @apply -translate-y-0.5 border-border shadow-soft;
   }
 
+  /* Same reasoning as `fade-up`: shorter travel, no blur-in. A 0.7s blurred
+     rise is the house style of every generated landing page. */
   .reveal {
     opacity: 0;
-    transform: translateY(18px);
-    filter: blur(7px);
+    transform: translateY(10px);
     transition:
-      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1),
-      filter 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-    will-change: opacity, transform, filter;
+      opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity, transform;
   }
   .reveal-visible {
     opacity: 1;
     transform: none;
-    filter: none;
   }
 
   @keyframes marquee {

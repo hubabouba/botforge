@@ -41,14 +41,17 @@ export default {
         lift: "0 2px 4px rgba(10,10,15,0.05), 0 16px 40px rgba(10,10,15,0.10)",
       },
       keyframes: {
+        // A shorter travel than before: 12px of drift over 0.6s was slow enough
+        // to catch a grid still assembling itself in a screenshot, which reads
+        // as sluggish rather than considered. Fast entrances feel built.
         "fade-up": {
-          "0%": { opacity: "0", transform: "translateY(12px)" },
+          "0%": { opacity: "0", transform: "translateY(6px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
         },
         blink: { "0%,100%": { opacity: "1" }, "50%": { opacity: "0" } },
       },
       animation: {
-        "fade-up": "fade-up 0.6s cubic-bezier(0.16,1,0.3,1) both",
+        "fade-up": "fade-up 0.32s cubic-bezier(0.16,1,0.3,1) both",
         blink: "blink 1.1s steps(1) infinite",
       },
     },

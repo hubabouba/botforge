@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactElement, type ReactNode } from "react";
 import type { Project, ProjectFile } from "@/lib/workspace/types";
 import { loadPrefs } from "@/lib/workspace/assistantPrefs";
+import { mergeGaps, parsePlan, planForModel, withDone } from "@/lib/workspace/plan";
 import { readAssistantStream } from "@/lib/ai/streamClient";
 import { HostingPanel, formatRuntime, STATUS_META } from "./HostingPanel";
 import { MermaidDiagram } from "./MermaidDiagram";
@@ -233,43 +234,15 @@ export function MetricsPanel({
 
 // ---- Planning (real, AI-driven) ------------------------------------------
 
-// Pull a ```mermaid fenced block out of the plan so it can be drawn as a
-// diagram; whatever's left stays as the text plan.
-const MERMAID_RE = /```mermaid\s*([\s\S]*?)```/i;
-function splitPlan(s: string): { diagram: string | null; text: string } {
-  const m = s.match(MERMAID_RE);
-  if (!m) return { diagram: null, text: s.trim() };
-  return { diagram: m[1].trim(), text: s.replace(m[0], "").trim() };
-}
-
-/**
- * Pull the numbered steps out of a plan so each one becomes something the user
- * can tick off and hand to the assistant individually. The plan prompt asks for
- * a numbered list, so this is reading the format we requested — a plan that
- * comes back as prose just renders as prose with no checklist, which is fine.
- */
-const STEP_RE = /^\s*(\d+)[.)]\s+(.+)$/;
-function parseSteps(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => line.match(STEP_RE)?.[2]?.trim())
-    .filter((s): s is string => !!s && s.length > 3);
-}
-
-/** Marks where a review pass writes its findings, so repeats replace rather than stack. */
-const GAPS_MARKER = "<!--gaps-->";
-function mergeGaps(plan: string, gaps: string, heading: string): string {
-  const base = plan.split(GAPS_MARKER)[0].trimEnd();
-  return `${base}\n\n${GAPS_MARKER}\n${heading}\n${gaps.trim()}`;
-}
-
 export function PlanningPanel({
   project,
   files,
   plan,
   onPlanChange,
-  onBuildWithAssistant,
-  onBuildStep,
+  onRunSteps,
+  onStopRun,
+  run,
+  runNote,
   incomingGoal,
   onGoalConsumed,
 }: {
@@ -278,9 +251,13 @@ export function PlanningPanel({
   /** Owned by Workspace so it outlives this panel's unmount (view switch). */
   plan: string;
   onPlanChange: (plan: string) => void;
-  onBuildWithAssistant: () => void;
-  /** Hand a single step to the assistant. */
-  onBuildStep: (step: string) => void;
+  /** Hand steps to the assistant and let it work through them on its own. */
+  onRunSteps: (steps: string[]) => void;
+  onStopRun: () => void;
+  /** The run in progress, if any — also owned by Workspace. */
+  run: { steps: string[]; index: number } | null;
+  /** Why the last run ended early, if it did. */
+  runNote?: string;
   /** Goal handed over from the chat (assistant called open_plan). */
   incomingGoal?: string;
   onGoalConsumed?: () => void;
@@ -289,7 +266,6 @@ export function PlanningPanel({
   const [goal, setGoal] = useState(incomingGoal || project.description || "");
   const [busy, setBusy] = useState<"plan" | "review" | null>(null);
   const [error, setError] = useState("");
-  const [done, setDone] = useState<Set<string>>(new Set());
   const abortRef = useRef<AbortController | null>(null);
   const setPlan = onPlanChange;
 
@@ -301,7 +277,7 @@ export function PlanningPanel({
    * `intent: "plan"` writes a fresh plan; `"review"` reads the project against
    * the existing plan and returns only what's still missing.
    */
-  const run = useCallback(
+  const generatePlan = useCallback(
     async (mode: "plan" | "review", prompt: string, onDone: (out: string) => void) => {
       setBusy(mode);
       setError("");
@@ -320,8 +296,9 @@ export function PlanningPanel({
             messages: [{ role: "user", content: prompt }],
             preferences: loadPrefs(),
             intent: mode,
-            // The review pass has to see the plan it's reviewing against.
-            ...(mode === "review" && plan.trim() ? { plan } : {}),
+            // The review pass has to see the plan it's reviewing against —
+            // without the bookkeeping markers, which mean nothing to the model.
+            ...(mode === "review" && plan.trim() ? { plan: planForModel(plan) } : {}),
           }),
           signal: controller.signal,
         });
@@ -358,11 +335,11 @@ export function PlanningPanel({
     (forGoal?: string) => {
       const trimmed = (forGoal ?? goal).trim();
       if (!trimmed || busy) return;
-      setDone(new Set());
+      // A fresh plan starts with nothing ticked — the marker block goes with it.
       setPlan("");
-      void run("plan", `Plan how to build: ${trimmed}`, setPlan);
+      void generatePlan("plan", `Plan how to build: ${trimmed}`, setPlan);
     },
-    [goal, busy, run, setPlan],
+    [goal, busy, generatePlan, setPlan],
   );
 
   /**
@@ -373,7 +350,7 @@ export function PlanningPanel({
   function review() {
     if (!plan.trim() || busy) return;
     const before = plan;
-    void run(
+    void generatePlan(
       "review",
       "Review the build plan against the project's current files and list what is still missing or done poorly.",
       (out) => setPlan(mergeGaps(before, out, t("panel.gapsHeading"))),
@@ -391,8 +368,19 @@ export function PlanningPanel({
     onGoalConsumed?.();
   }, [incomingGoal, generate, onGoalConsumed]);
 
-  const { diagram, text } = splitPlan(plan);
-  const steps = parseSteps(text);
+  const { diagram, text, steps, done } = parsePlan(plan);
+  const doneCount = steps.filter((s) => done.has(s)).length;
+  const remaining = steps.filter((s) => !done.has(s));
+  const running = !!run;
+  // While a run is going, the plan text must not be edited underneath it —
+  // regenerate/review both rewrite the very steps being built.
+  const locked = running || !!busy;
+
+  function toggle(step: string) {
+    const next = new Set(done);
+    if (!next.delete(step)) next.add(step);
+    setPlan(withDone(plan, next));
+  }
 
   return (
     <PanelShell icon={ListChecks} title={t("ws.viewPlanning")} wide>
@@ -407,7 +395,7 @@ export function PlanningPanel({
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           onClick={() => generate()}
-          disabled={!goal.trim() || !!busy}
+          disabled={!goal.trim() || locked}
           className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3.5 py-2 text-xs font-medium text-white transition-colors hover:bg-accent-hover disabled:opacity-40"
         >
           <Bot className="h-3.5 w-3.5" />
@@ -418,30 +406,64 @@ export function PlanningPanel({
         {plan && (
           <button
             onClick={review}
-            disabled={!!busy}
+            disabled={locked}
             className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3.5 py-2 text-xs font-medium text-neutral-300 transition-colors hover:bg-ink-800 hover:text-white disabled:opacity-40"
           >
             {busy === "review" ? t("panel.reviewing") : t("panel.reviewPlan")}
           </button>
         )}
-        {plan && !busy && (
+        {/* The whole point of the checklist: hand the unticked steps over and
+            let the assistant work through them, ticking each off as it lands. */}
+        {remaining.length > 0 && !busy && (
           <button
-            onClick={onBuildWithAssistant}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-ink-700 px-3.5 py-2 text-xs font-medium text-neutral-300 transition-colors hover:bg-ink-800 hover:text-white"
+            onClick={() => (running ? onStopRun() : onRunSteps(remaining))}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-medium transition-colors",
+              running
+                ? "border-rose-500/40 bg-rose-500/10 text-rose-300 hover:bg-rose-500/15"
+                : "border-ink-700 text-neutral-300 hover:bg-ink-800 hover:text-white",
+            )}
           >
-            {t("panel.buildWithAssistant")}
+            {running ? t("panel.stopRun") : t("panel.runPlan")}
           </button>
         )}
       </div>
+
+      {/* One message per step, so say so before they spend eight of them. */}
+      {remaining.length > 0 && !running && !busy && (
+        <p className="mt-2 text-[11px] leading-relaxed text-neutral-600">
+          {t("panel.runHint").replace("{n}", String(remaining.length))}
+        </p>
+      )}
+
+      {running && (
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-[13px] text-[#a5b4fc]">
+          <Bot className="h-3.5 w-3.5 shrink-0 animate-pulse" />
+          <span className="min-w-0 flex-1">
+            {t("panel.runningStep")
+              .replace("{n}", String(run.index + 1))
+              .replace("{total}", String(run.steps.length))}
+          </span>
+        </div>
+      )}
+
+      {/* A run that ended early says why here — the alternative is a checklist
+          that quietly stopped moving. */}
+      {!running && runNote && (
+        <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[13px] text-amber-200">
+          {runNote}
+        </div>
+      )}
 
       {error && <div className="mt-4 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[13px] text-rose-300">{error}</div>}
 
       {plan &&
         (busy ? (
-          // While streaming, show the raw text (the diagram block may be
+          // While streaming, show the plain text (the diagram block may be
           // half-written); render the real diagram once generation finishes.
+          // Markers are stripped — they're bookkeeping, not something to read.
           <div className="mt-4 whitespace-pre-wrap rounded-xl border border-ink-800 bg-ink-900/50 p-4 text-[13px] leading-relaxed text-neutral-300">
-            {plan}
+            {parsePlan(plan).clean}
           </div>
         ) : (
           <div className="mt-4 space-y-4">
@@ -452,32 +474,32 @@ export function PlanningPanel({
                 <div className="flex items-center justify-between border-b border-ink-800 px-4 py-2 text-[11px] uppercase tracking-wide text-neutral-500">
                   <span>{t("panel.steps")}</span>
                   <span>
-                    {[...done].filter((d) => steps.includes(d)).length}/{steps.length}
+                    {doneCount}/{steps.length}
                   </span>
                 </div>
                 <ul>
                   {steps.map((step, i) => {
                     const isDone = done.has(step);
+                    const active = running && run.steps[run.index] === step;
                     return (
                       <li
                         key={`${i}-${step.slice(0, 24)}`}
-                        className="group flex items-start gap-3 border-b border-ink-800/60 px-4 py-2.5 last:border-b-0"
+                        className={cn(
+                          "group flex items-start gap-3 border-b border-ink-800/60 px-4 py-2.5 last:border-b-0",
+                          active && "bg-accent/[0.07]",
+                        )}
                       >
                         <button
-                          onClick={() =>
-                            setDone((prev) => {
-                              const next = new Set(prev);
-                              if (!next.delete(step)) next.add(step);
-                              return next;
-                            })
-                          }
+                          onClick={() => toggle(step)}
                           aria-pressed={isDone}
                           aria-label={step}
                           className={cn(
                             "mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border transition-colors",
                             isDone
                               ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
-                              : "border-ink-700 text-transparent hover:border-neutral-500",
+                              : active
+                                ? "animate-pulse border-accent/60 text-transparent"
+                                : "border-ink-700 text-transparent hover:border-neutral-500",
                           )}
                         >
                           <Check className="h-3 w-3" />
@@ -485,14 +507,14 @@ export function PlanningPanel({
                         <span
                           className={cn(
                             "min-w-0 flex-1 text-[13px] leading-relaxed",
-                            isDone ? "text-neutral-600 line-through" : "text-neutral-300",
+                            isDone ? "text-neutral-600 line-through" : active ? "text-neutral-100" : "text-neutral-300",
                           )}
                         >
                           {step}
                         </span>
-                        {!isDone && (
+                        {!isDone && !running && (
                           <button
-                            onClick={() => onBuildStep(step)}
+                            onClick={() => onRunSteps([step])}
                             className="shrink-0 rounded-md border border-ink-700 px-2 py-0.5 text-[11px] text-neutral-400 opacity-0 transition-opacity hover:text-neutral-100 focus-visible:opacity-100 group-hover:opacity-100"
                           >
                             {t("panel.buildStep")}

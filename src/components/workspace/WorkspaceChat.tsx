@@ -6,6 +6,7 @@ import { Bot, Check, FileIcon, Close, Lock, ChevronRight } from "@/components/ic
 import { loadPrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
 import { appendChat, clearChat, loadChat } from "@/lib/workspace/store";
+import { planForModel } from "@/lib/workspace/plan";
 import { track } from "@/lib/analytics";
 import { usePlan } from "@/hooks/usePlan";
 import { UpgradeModal } from "@/components/upgrade/UpgradeModal";
@@ -54,8 +55,9 @@ export function WorkspaceChat({
   onCollapse,
   compact = false,
   buildPlan = "",
-  seed = "",
-  onSeedUsed,
+  run = null,
+  onStepResult,
+  onStopRun,
   onOpenPlan,
   onActivity,
 }: {
@@ -70,9 +72,14 @@ export function WorkspaceChat({
    * Named `buildPlan` because `plan` in this file is the subscription tier.
    */
   buildPlan?: string;
-  /** Text to drop into the composer (e.g. "build the plan"), then cleared. */
-  seed?: string;
-  onSeedUsed?: () => void;
+  /**
+   * A plan run in progress: the assistant works through these steps one message
+   * at a time. Owned by Workspace so it survives this panel being hidden.
+   */
+  run?: { steps: string[]; index: number } | null;
+  /** Outcome of the step just attempted — Workspace ticks it off or stops. */
+  onStepResult?: (r: { done: boolean; blocked: boolean; failed: boolean }) => void;
+  onStopRun?: () => void;
   /** The assistant decided this is a planning request (open_plan tool). */
   onOpenPlan?: (goal: string) => void;
   /** This project has a conversation — drives the first-run checklist. */
@@ -196,14 +203,30 @@ export function WorkspaceChat({
     };
   }, [project.id]);
 
-  // Pre-fill the composer when the Planning panel hands work over. Deliberately
-  // not auto-sent: the user gets to edit it, and a message they didn't press
-  // send on must never eat a slot from their daily quota.
+  // ---- Plan run --------------------------------------------------------
+  // Auto-sending normally isn't ok — a message the user didn't press send on
+  // still costs them a slot from the daily quota. A run is the exception: they
+  // pressed one button that says "work through these N steps", and the panel
+  // tells them how many messages that is before they do.
+  const sentStep = useRef(-1);
   useEffect(() => {
-    if (!seed) return;
-    setInput(seed);
-    onSeedUsed?.();
-  }, [seed, onSeedUsed]);
+    if (!run) {
+      sentStep.current = -1; // a new run starts from step 0 again
+      return;
+    }
+    if (busy || run.index >= run.steps.length || sentStep.current === run.index) return;
+    sentStep.current = run.index;
+    void send(
+      t("panel.runStepSeed")
+        .replace("{n}", String(run.index + 1))
+        .replace("{total}", String(run.steps.length))
+        .replace("{step}", run.steps[run.index]),
+      { stepMode: true },
+    );
+    // `send` closes over the current messages/tier and is recreated every
+    // render; listing it here would fire the effect on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run, busy]);
 
   function toggleAutoApply() {
     setAutoApply((v) => {
@@ -221,7 +244,7 @@ export function WorkspaceChat({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
 
-  async function send(text: string) {
+  async function send(text: string, opts?: { stepMode?: boolean }) {
     const trimmed = text.trim();
     if (!trimmed || busy) return;
     const userMsg: Msg = { id: uid(), role: "user", text: trimmed };
@@ -252,6 +275,9 @@ export function WorkspaceChat({
     const accEdits: Edit[] = [];
     let hadError = false;
     let handedOffPlan = false;
+    let aborted = false;
+    // The model's own verdict on this plan step, when it gave one.
+    let verdict: { status: "done" | "blocked" } | null = null;
 
     try {
       const res = await fetch("/api/ai/chat", {
@@ -264,7 +290,10 @@ export function WorkspaceChat({
           preferences: prefs,
           tier,
           // Empty string would just waste prompt tokens on an empty section.
-          ...(buildPlan.trim() ? { plan: buildPlan } : {}),
+          // `planForModel` drops the bookkeeping markers and spells out which
+          // steps are already built, so a run never redoes finished work.
+          ...(buildPlan.trim() ? { plan: planForModel(buildPlan) } : {}),
+          ...(opts?.stepMode ? { stepMode: true } : {}),
           // The server looks the bot's state up itself; we only say which
           // project and what the user opted into.
           projectId: project.id,
@@ -283,6 +312,7 @@ export function WorkspaceChat({
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
         if (data?.usage && typeof data.usage.used === "number") setQuota(data.usage);
+        hadError = true;
         patch((m) => ({ ...m, text: data?.error || t("chat.genericError"), error: true }));
         return;
       }
@@ -297,6 +327,8 @@ export function WorkspaceChat({
         } else if (event.type === "plan") {
           handedOffPlan = true;
           onOpenPlan?.(event.goal);
+        } else if (event.type === "step") {
+          verdict = { status: event.status };
         } else if (event.type === "edit") {
           accEdits.push({ path: event.path, content: event.content });
           patch((m) => ({ ...m, edits: [...accEdits] }));
@@ -324,16 +356,33 @@ export function WorkspaceChat({
 
       // Auto-apply: write every proposed edit straight to the project and mark
       // it applied. Off → the user still approves each edit with Apply below.
-      if (autoApply && !hadError && accEdits.length) {
+      // A plan run always applies: each step builds on the last one's files, so
+      // leaving them waiting for a click would feed the next step a project
+      // that never received the previous step's code.
+      if ((autoApply || opts?.stepMode) && !hadError && accEdits.length) {
         accEdits.forEach((e) => onApplyEdit(e.path, e.content));
         patch((m) => ({ ...m, edits: (m.edits ?? []).map((e) => ({ ...e, applied: true })) }));
       }
     } catch (e) {
-      if ((e as Error).name === "AbortError") return; // superseded / unmounted
+      if ((e as Error).name === "AbortError") {
+        aborted = true; // superseded / unmounted — the run must not advance
+        return;
+      }
+      hadError = true;
       patch((m) => ({ ...m, text: t("chat.networkError"), error: true }));
     } finally {
       if (abortRef.current === controller) abortRef.current = null;
       setBusy(false);
+      // Report the step back so the checklist can tick over (or stop). The
+      // model's finish_step verdict is the signal; if it skipped the tool,
+      // written files are the fallback — prose alone never counts as built.
+      if (opts?.stepMode && !aborted) {
+        onStepResult?.({
+          done: !hadError && (verdict ? verdict.status === "done" : accEdits.length > 0),
+          blocked: verdict?.status === "blocked",
+          failed: hadError,
+        });
+      }
       // Persist the exchange. Fire-and-forget by design: a failed save must
       // never disturb the reply the user is already reading. Errors aren't
       // stored — re-reading "something went wrong" on every reopen helps nobody.
@@ -574,6 +623,24 @@ export function WorkspaceChat({
 
       {/* Composer */}
       <div className="border-t border-ink-800 p-3">
+        {/* A run is sending messages on the user's behalf — say so where they're
+            looking, and keep the stop button one click away. */}
+        {run && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/10 px-2.5 py-1.5 text-[11px] text-[#a5b4fc]">
+            <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent" />
+            <span className="min-w-0 flex-1 truncate">
+              {t("panel.runningStep")
+                .replace("{n}", String(run.index + 1))
+                .replace("{total}", String(run.steps.length))}
+            </span>
+            <button
+              onClick={onStopRun}
+              className="shrink-0 rounded-md border border-ink-700 px-2 py-0.5 text-neutral-400 transition-colors hover:text-neutral-100"
+            >
+              {t("panel.stopRun")}
+            </button>
+          </div>
+        )}
         {/* Attach controls — only for accounts that can actually host a bot;
             without hosting there's no runtime state to attach. */}
         {hostingAvailable && (

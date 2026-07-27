@@ -59,6 +59,9 @@ const bodySchema = z.object({
   // The tier the user picked in the workspace. Only honored if their plan
   // allows it (resolveTier) — the client can't unlock a paid tier.
   tier: z.enum(["standard", "advanced", "max"]).optional(),
+  // This message is one step of an automatic plan run — swaps open_plan for
+  // finish_step so the assistant reports the step's outcome itself.
+  stepMode: z.boolean().optional(),
 });
 
 // POST /api/ai/chat — the in-workspace coding assistant.

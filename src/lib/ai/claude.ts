@@ -58,6 +58,27 @@ const OPEN_PLAN_TOOL = {
   },
 };
 
+const FINISH_STEP_TOOL = {
+  name: "finish_step",
+  description:
+    'Report the outcome of the build-plan step you were handed, once, at the end of your turn. Use "done" only when the code for this step is written, reviewed and complete — it ticks the step off in the user\'s plan and starts the next one, so never claim work you did not do. Use "blocked" when you cannot finish it without something only the user can give you (a decision between two real options, a credential, a business rule); that stops the run so they can answer.',
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      status: {
+        type: "string",
+        enum: ["done", "blocked"],
+        description: 'Whether this step is now complete ("done") or you could not finish it ("blocked").',
+      },
+      note: {
+        type: "string",
+        description: "One sentence: what you built, or what you need in order to continue.",
+      },
+    },
+    required: ["status"],
+  },
+};
+
 const READ_FILE_TOOL = {
   name: "read_file",
   description:
@@ -91,6 +112,15 @@ const NO_THINKING_NOTE = `
 You are running without a separate reasoning pass, so be deliberate about acting: when the user asks for a change, call write_file — describing the change in prose instead of writing the file is not completing the task. A brief sentence before a tool call is fine.`;
 
 /**
+ * Auto-run mode: the workspace is walking the user's build plan step by step and
+ * this turn is one step. The checklist they watch is ticked from finish_step, so
+ * the turn has to end with an honest verdict rather than trailing off.
+ */
+const STEP_NOTE = `
+
+You have been handed ONE step of the user's build plan, and the workspace runs the steps in order — later steps are not your turn, so do only this one. Build it properly (write the files, read them back, fix what's weak), then end the turn by calling finish_step: "done" when the step is genuinely complete, "blocked" when you need something only the user can give you. Keep the closing summary to a sentence or two — they are watching several steps go by, not reading an essay each time.`;
+
+/**
  * The workspace assistant (Claude): an agent that answers questions about the
  * bot project and makes concrete file edits via tools. It streams prose as it's
  * generated and runs a bounded write→read→review→refine loop so edits are
@@ -107,10 +137,12 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   const model = params.model || ASSISTANT_MODEL;
   // Default matches the paid tiers; the route always passes an explicit config.
   const reasoning = params.reasoning ?? { thinking: true, effort: "high" as const };
+  const stepMode = !planning && !!params.stepMode;
   const system =
     buildSystemPrompt(params) +
     (planning ? "" : AGENT_NOTE) +
-    (!planning && !reasoning.thinking ? NO_THINKING_NOTE : "");
+    (!planning && !reasoning.thinking ? NO_THINKING_NOTE : "") +
+    (stepMode ? STEP_NOTE : "");
 
   // A server-side working copy of the project, seeded with the FULL (untruncated)
   // files the request carried. read_file serves from here — including the model's
@@ -139,11 +171,20 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
 
   // Planning mode returns a diagram + plan and must never touch files, so it
   // runs tool-less (which also makes the loop naturally end after one turn).
-  const tools = planning ? undefined : [WRITE_FILE_TOOL, READ_FILE_TOOL, OPEN_PLAN_TOOL];
+  // finish_step only exists while a plan run is in progress: an unused tool is
+  // schema the model re-reads (and pays for) on every ordinary message. In step
+  // mode open_plan is dropped instead — the plan is already open and being run.
+  const tools = planning
+    ? undefined
+    : stepMode
+      ? [WRITE_FILE_TOOL, READ_FILE_TOOL, FINISH_STEP_TOOL]
+      : [WRITE_FILE_TOOL, READ_FILE_TOOL, OPEN_PLAN_TOOL];
   const deadline = Date.now() + (params.budgetMs ?? DEFAULT_BUDGET_MS);
   let outOfTime = false;
   let truncated = false;
   let saidSomething = false;
+  // The model's verdict on this plan step, once it gives one (step mode only).
+  let stepVerdict: { status: "done" | "blocked"; note: string } | null = null;
   // Real token spend, summed across the loop's turns. Logged at the end so the
   // per-message cost is a measured number in the runtime logs rather than an
   // estimate — plan limits should be set from this, not from arithmetic.
@@ -258,6 +299,18 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
             is_error: true,
           });
         }
+      } else if (block.name === "finish_step") {
+        const input = block.input as { status?: string; note?: string };
+        const status = input.status === "blocked" ? "blocked" : "done";
+        stepVerdict = { status, note: (input.note ?? "").trim() };
+        // Surfaced immediately, like open_plan: the checklist ticks over while
+        // this turn is still wrapping up.
+        yield { type: "step", status, note: stepVerdict.note || undefined };
+        results.push({
+          type: "tool_result",
+          tool_use_id: block.id,
+          content: "Recorded. Nothing else to do on this step.",
+        });
       } else if (block.name === "read_file") {
         const input = block.input as { path?: string };
         const content = input.path ? working.get(input.path) : undefined;
@@ -279,6 +332,10 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
     messages.push({ role: "assistant", content: final.content as Anthropic.ContentBlockParam[] });
     messages.push({ role: "user", content: results });
 
+    // The model has declared the step finished — another turn would only buy a
+    // restatement of what it just said, at full price, for every step of a run.
+    if (stepVerdict) break;
+
     // Don't open another turn without enough time left to do anything with it.
     if (Date.now() > deadline - WRAP_UP_MS) break;
   }
@@ -299,6 +356,10 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
       delta:
         "This one hit my output limit while I was still working it out, so nothing came back. Ask for it in smaller pieces — one feature at a time — and it'll go through.",
     };
+  } else if (!saidSomething && stepVerdict?.note) {
+    // Ending the loop on finish_step can leave the turn with no prose at all —
+    // the note the model attached is exactly the sentence that belongs here.
+    yield { type: "text", delta: stepVerdict.note };
   } else if (!saidSomething && edits.size === 0) {
     yield {
       type: "text",

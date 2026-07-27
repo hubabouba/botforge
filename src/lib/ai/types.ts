@@ -32,7 +32,13 @@ export type AssistantStreamEvent =
   | { type: "thinking"; delta: string }
   | { type: "edit"; path: string; content: string }
   /** The user asked for a plan — the client opens Planning and builds it there. */
-  | { type: "plan"; goal: string };
+  | { type: "plan"; goal: string }
+  /**
+   * Verdict on the build-plan step this request was handed: the model saying
+   * whether it finished. The client ticks the step off (or stops the run) from
+   * this, so it must come from the model, not from guessing at its prose.
+   */
+  | { type: "step"; status: "done" | "blocked"; note?: string };
 
 /** User-tunable persona for the assistant (how it talks, not what it can do). */
 export interface AssistantPreferences {
@@ -97,6 +103,12 @@ export interface AssistantParams {
    * edits it already built) before the platform would kill the function.
    */
   budgetMs?: number;
+  /**
+   * This message is one step of the user's build plan, run automatically. Adds
+   * the finish_step tool so the assistant reports the outcome itself instead of
+   * the client inferring it from whether files happened to change.
+   */
+  stepMode?: boolean;
 }
 
 /** Turns the user's persona settings into extra system-prompt lines. */

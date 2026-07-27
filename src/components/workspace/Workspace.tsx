@@ -17,6 +17,7 @@ import {
   writeFile,
   type StoredProject,
 } from "@/lib/workspace/store";
+import { parsePlan, withDone } from "@/lib/workspace/plan";
 import { downloadZip } from "@/lib/workspace/zip";
 import { TopBar, type SaveStatus } from "./TopBar";
 import { FileTree, FileDot } from "./FileTree";
@@ -73,8 +74,13 @@ export function Workspace({ projectId }: { projectId: string }) {
   // reload doesn't lose it either.
   // ("buildPlan", not "plan" — `plan` in this file is the subscription tier.)
   const [buildPlan, setBuildPlan] = useState("");
-  // Text handed to the chat composer by "build this with the assistant".
-  const [chatSeed, setChatSeed] = useState("");
+  // A plan run: the assistant works through these steps one message at a time,
+  // ticking each off as it reports the step finished. Lives here, not in the
+  // chat or the panel, because the user is expected to move between the two
+  // tabs while it runs — either component unmounting would kill the run.
+  const [planRun, setPlanRun] = useState<{ steps: string[]; index: number } | null>(null);
+  // Why the last run ended before the end of the list.
+  const [runNote, setRunNote] = useState("");
   // Goal handed the other way — the assistant decided this is a planning
   // request and called open_plan, so we switch to Planning and build it there.
   const [planGoal, setPlanGoal] = useState("");
@@ -139,6 +145,61 @@ export function Workspace({ projectId }: { projectId: string }) {
   );
 
   useEffect(() => () => clearTimeout(planSaveTimer.current), []);
+
+  // ---- Plan run ------------------------------------------------------------
+
+  // The step's result arrives long after the message was sent, from a callback
+  // the chat captured at send time. Read the run and the plan through refs so a
+  // Stop pressed mid-step is actually honoured, instead of the stale closure
+  // quietly restarting the run it just cancelled.
+  const runRef = useRef<{ steps: string[]; index: number } | null>(null);
+  const planRef = useRef("");
+  useEffect(() => {
+    runRef.current = planRun;
+  }, [planRun]);
+  useEffect(() => {
+    planRef.current = buildPlan;
+  }, [buildPlan]);
+
+  const startRun = useCallback((steps: string[]) => {
+    if (!steps.length) return;
+    setRunNote("");
+    setPlanRun({ steps, index: 0 });
+  }, []);
+
+  const stopRun = useCallback(() => setPlanRun(null), []);
+
+  /**
+   * One step came back. A clean "done" ticks it off and moves on; anything else
+   * stops the run. Ploughing ahead past a step that didn't happen just builds
+   * the later ones on top of a hole — and the user is right there in the chat,
+   * reading whatever the assistant said instead.
+   */
+  const onStepResult = useCallback(
+    ({ done, blocked, failed }: { done: boolean; blocked: boolean; failed: boolean }) => {
+      const current = runRef.current;
+      if (!current) return; // stopped while this step was in flight
+      if (!done) {
+        setPlanRun(null);
+        setRunNote(
+          (blocked ? t("panel.runBlocked") : failed ? t("panel.runFailed") : t("panel.runNotDone")).replace(
+            "{n}",
+            String(current.index + 1),
+          ),
+        );
+        return;
+      }
+      onPlanChange(withDone(planRef.current, [...parsePlan(planRef.current).done, current.steps[current.index]]));
+      const next = current.index + 1;
+      if (next < current.steps.length) {
+        setPlanRun({ ...current, index: next });
+      } else {
+        setPlanRun(null);
+        setRunNote(t("panel.runFinished"));
+      }
+    },
+    [onPlanChange, t],
+  );
 
   // Persist whatever edit is pending right now (if any). Fire-and-forget.
   const flushSave = useCallback(() => {
@@ -309,6 +370,11 @@ export function Workspace({ projectId }: { projectId: string }) {
           );
           await writeFile(project.id, path, content);
         } else {
+          // Show the new file before the round-trip finishes. During a plan run
+          // the next step is sent the moment this one reports back, and it has
+          // to see the file this step just created — waiting on the server
+          // would hand the model a project that's one step out of date.
+          setProject((prev) => (prev ? { ...prev, files: [...prev.files, { path, content }] } : prev));
           refresh(await addFile(project.id, path, content));
         }
         setStatus("saved");
@@ -471,23 +537,21 @@ export function Workspace({ projectId }: { projectId: string }) {
                   onPlanChange={onPlanChange}
                   incomingGoal={planGoal}
                   onGoalConsumed={() => setPlanGoal("")}
-                  // One step at a time: hand it to the chat as a concrete ask
-                  // rather than making the user retype it.
-                  onBuildStep={(step) => {
-                    setChatSeed(t("panel.buildStepSeed").replace("{step}", step));
-                    setView("code");
-                    setMobileTab("chat");
+                  run={planRun}
+                  runNote={runNote}
+                  onStopRun={stopRun}
+                  // Start the run and make sure the chat is visible: the steps
+                  // are built there, and watching it work is half the point.
+                  onRunSteps={(steps) => {
+                    startRun(steps);
                     setChatOpen(true);
-                  }}
-                  // Hand the plan to the assistant: back to the editor view and
-                  // over to the chat (the only way to reach it on a phone), with
-                  // the composer pre-filled. The plan itself rides along as
-                  // context on every request, so the model can actually read it.
-                  onBuildWithAssistant={() => {
-                    setChatSeed(t("panel.buildWithAssistantSeed"));
-                    setView("code");
-                    setMobileTab("chat");
-                    setChatOpen(true);
+                    // On a phone the panel and the chat are separate tabs, so
+                    // reaching the chat means leaving Planning. On a desktop
+                    // both are on screen at once — stay put.
+                    if (compact) {
+                      setView("code");
+                      setMobileTab("chat");
+                    }
                   }}
                 />
               ) : (
@@ -568,8 +632,9 @@ export function Workspace({ projectId }: { projectId: string }) {
             onApplyEdit={onApplyEdit}
             compact={compact}
             buildPlan={buildPlan}
-            seed={chatSeed}
-            onSeedUsed={() => setChatSeed("")}
+            run={planRun}
+            onStepResult={onStepResult}
+            onStopRun={stopRun}
             onActivity={() => setHasChatted(true)}
             // The assistant asked for the Planning tab — take the user there.
             onOpenPlan={(goal) => {

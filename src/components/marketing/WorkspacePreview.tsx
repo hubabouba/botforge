@@ -50,7 +50,7 @@ export function WorkspacePreview() {
       <div className="grid grid-cols-[130px_1fr] sm:grid-cols-[160px_1fr]">
         {/* File tree */}
         <div className="border-r border-ink-800 p-3">
-          <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-neutral-600">Explorer</div>
+          <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-neutral-600">Explorer</div>
           <div className="mb-1 flex items-center gap-1.5 text-xs text-neutral-400">▾ bot_src</div>
           {files.map((f, i) => (
             <div
@@ -67,7 +67,7 @@ export function WorkspacePreview() {
         </div>
 
         {/* Code */}
-        <pre className="overflow-hidden p-4 font-mono text-[12px] leading-[1.7] text-neutral-300">
+        <pre className="overflow-hidden p-4 font-mono text-xs leading-[1.7] text-neutral-300">
           <code>
             <span className={C}># crypto-alert-bot · main.py</span>{"\n"}
             <span className={K}>from</span> telegram.ext <span className={K}>import</span> ApplicationBuilder, CommandHandler{"\n"}

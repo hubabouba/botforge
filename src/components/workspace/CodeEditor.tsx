@@ -479,7 +479,7 @@ export function CodeEditor({
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={onFindKeyDown}
               placeholder={t("editor.findPlaceholder")}
-              className="w-40 rounded bg-ink-950 px-2 py-1 font-mono text-[12px] text-neutral-100 outline-none placeholder:font-sans placeholder:text-neutral-600"
+              className="w-40 rounded bg-ink-950 px-2 py-1 font-mono text-xs text-neutral-100 outline-none placeholder:font-sans placeholder:text-neutral-600"
             />
             <span className="min-w-[3.25rem] shrink-0 text-center text-[11px] tabular-nums text-neutral-500">
               {matches.length ? `${Math.max(activeMatch, 0) + 1}/${matches.length}` : "0/0"}
@@ -534,7 +534,7 @@ export function CodeEditor({
                   }
                 }}
                 placeholder={t("editor.replacePlaceholder")}
-                className="w-40 rounded bg-ink-950 px-2 py-1 font-mono text-[12px] text-neutral-100 outline-none placeholder:font-sans placeholder:text-neutral-600"
+                className="w-40 rounded bg-ink-950 px-2 py-1 font-mono text-xs text-neutral-100 outline-none placeholder:font-sans placeholder:text-neutral-600"
               />
               <button
                 onClick={replaceOne}
@@ -633,7 +633,7 @@ export function CodeEditor({
 
         <span
           title={t("editor.shortcutsHint")}
-          className="ml-auto cursor-help select-none rounded border border-ink-700 px-1 text-[10px] text-neutral-500 hover:text-neutral-300"
+          className="ml-auto cursor-help select-none rounded border border-ink-700 px-1 text-[11px] text-neutral-500 hover:text-neutral-300"
         >
           ?
         </span>

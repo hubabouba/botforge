@@ -160,7 +160,7 @@ export function HostingPanel({ project }: { project: Project }) {
       </div>
 
       {statusHint && (
-        <p className={cn("text-[12px] leading-relaxed", st === "crash_looping" ? "text-rose-300/90" : "text-amber-300/90")}>
+        <p className={cn("text-xs leading-relaxed", st === "crash_looping" ? "text-rose-300/90" : "text-amber-300/90")}>
           {statusHint}
         </p>
       )}
@@ -230,7 +230,7 @@ export function HostingPanel({ project }: { project: Project }) {
             </button>
           )}
         </div>
-        <div ref={logBox} className="max-h-[60vh] min-h-[20rem] overflow-y-auto p-3 font-mono text-[12px] leading-relaxed">
+        <div ref={logBox} className="max-h-[60vh] min-h-[20rem] overflow-y-auto p-3 font-mono text-xs leading-relaxed">
           {logs.length === 0 ? (
             <p className="text-neutral-600">{loaded ? t("hosting.noLogsYet") : t("hosting.loadingLogs")}</p>
           ) : (

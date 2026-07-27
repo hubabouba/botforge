@@ -67,7 +67,7 @@ export function Infrastructure() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <div className="mt-1 font-display text-sm font-semibold text-white">{t(title)}</div>
-                <div className="font-mono text-[10px] uppercase tracking-wide text-white/40">{t(sub)}</div>
+                <div className="font-mono text-[11px] uppercase tracking-wide text-white/40">{t(sub)}</div>
               </div>
               {i < NODES.length - 1 && <Connector delay={i * 0.4} />}
             </div>

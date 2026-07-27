@@ -173,7 +173,7 @@ export function AdminDashboard() {
                 {stats.users.recent.map((s) => (
                   <div key={s.email + s.createdAt} className="flex items-center gap-3 py-2 text-sm">
                     <span className="min-w-0 flex-1 truncate text-neutral-300">{s.email}</span>
-                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium capitalize", PLAN_BADGE[s.plan])}>
+                    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize", PLAN_BADGE[s.plan])}>
                       {s.plan}
                     </span>
                     <span className="w-16 shrink-0 text-right text-xs text-neutral-500">{relTime(s.createdAt)}</span>

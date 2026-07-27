@@ -65,7 +65,7 @@ export function FirstRunChecklist({
       done: hasToken,
       // The one step people get stuck on, so it explains itself in place.
       body: (
-        <ol className="mt-2 space-y-1.5 text-[12px] leading-relaxed text-neutral-400">
+        <ol className="mt-2 space-y-1.5 text-xs leading-relaxed text-neutral-400">
           {[0, 1, 2, 3].map((i) => (
             <li key={i} className="flex gap-2">
               <span className="text-neutral-600">{i + 1}.</span>
@@ -122,7 +122,7 @@ export function FirstRunChecklist({
                   onClick={() => expandable && setOpen(expanded ? null : i)}
                   disabled={!expandable}
                   className={cn(
-                    "flex min-w-0 flex-1 items-center gap-1 text-left text-[12px] transition-colors",
+                    "flex min-w-0 flex-1 items-center gap-1 text-left text-xs transition-colors",
                     step.done ? "text-neutral-600 line-through" : "text-neutral-300",
                     expandable && "hover:text-white",
                   )}

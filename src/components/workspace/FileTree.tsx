@@ -368,7 +368,7 @@ export function FileTree({
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2.5">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{t("tree.explorer")}</span>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-neutral-500">{t("tree.explorer")}</span>
         <div className="flex items-center gap-0.5">
           <button
             aria-label={t("tree.newFile")}

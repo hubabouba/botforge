@@ -509,7 +509,7 @@ export function Workspace({ projectId }: { projectId: string }) {
                     if (e.button === 1) closeTab(path, e); // middle-click closes
                   }}
                   className={cn(
-                    "group/tab relative flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2.5 pr-1.5 text-[12px] transition-colors",
+                    "group/tab relative flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md pl-2.5 pr-1.5 text-xs transition-colors",
                     active
                       ? "bg-ink-800 text-white"
                       : "text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300",

@@ -35,7 +35,7 @@ export function MermaidDiagram({ code }: { code: string }) {
 
   if (failed) {
     return (
-      <pre className="overflow-x-auto rounded-xl border border-ink-800 bg-ink-950 p-3 font-mono text-[12px] leading-relaxed text-neutral-400">
+      <pre className="overflow-x-auto rounded-xl border border-ink-800 bg-ink-950 p-3 font-mono text-xs leading-relaxed text-neutral-400">
         {code}
       </pre>
     );
@@ -43,7 +43,7 @@ export function MermaidDiagram({ code }: { code: string }) {
 
   if (svg === null) {
     return (
-      <div className="grid place-items-center rounded-xl border border-ink-800 bg-ink-900/50 p-6 text-[12px] text-neutral-500">
+      <div className="grid place-items-center rounded-xl border border-ink-800 bg-ink-900/50 p-6 text-xs text-neutral-500">
         …
       </div>
     );

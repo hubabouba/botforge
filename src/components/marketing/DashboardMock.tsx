@@ -13,7 +13,7 @@ export function DashboardMock() {
           <span className="h-2.5 w-2.5 rounded-full bg-accent" />
           <span className="text-[13px] font-medium text-white/80">Botforge Analytics</span>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> live
         </span>
       </div>
@@ -68,7 +68,7 @@ function Metric({
         <span className={cn("font-mono font-semibold text-white", small ? "text-[15px]" : "text-lg")}>
           {value}
         </span>
-        <span className="font-mono text-[10px] text-emerald-400">{delta}</span>
+        <span className="font-mono text-[11px] text-emerald-400">{delta}</span>
       </div>
     </div>
   );

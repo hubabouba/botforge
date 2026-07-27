@@ -24,7 +24,7 @@ function Avatar({ email }: { email: string }) {
       href="/dashboard"
       title={email}
       aria-label="Dashboard"
-      className="grid h-9 w-9 place-items-center rounded-full bg-accent text-[12px] font-semibold text-white transition-colors hover:bg-accent-hover"
+      className="grid h-9 w-9 place-items-center rounded-full bg-accent text-xs font-semibold text-white transition-colors hover:bg-accent-hover"
     >
       {initials}
     </Link>

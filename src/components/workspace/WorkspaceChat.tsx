@@ -387,7 +387,7 @@ export function WorkspaceChat({
             <>
               <button className="fixed inset-0 z-10 cursor-default" aria-hidden onClick={() => setModelMenu(false)} />
               <div className="absolute right-0 top-8 z-20 w-60 overflow-hidden rounded-xl border border-ink-700 bg-ink-950 p-1 shadow-lift">
-                <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500">
+                <div className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
                   {t("chat.modelMenuTitle")}
                 </div>
                 {TIERS.map((m, i) => {
@@ -562,7 +562,7 @@ export function WorkspaceChat({
                 <button
                   key={key}
                   onClick={() => send(t(key))}
-                  className="rounded-full border border-ink-800 bg-ink-900 px-2.5 py-1 text-[12px] text-neutral-400 transition-colors hover:border-accent/40 hover:text-neutral-200"
+                  className="rounded-full border border-ink-800 bg-ink-900 px-2.5 py-1 text-xs text-neutral-400 transition-colors hover:border-accent/40 hover:text-neutral-200"
                 >
                   {t(key)}
                 </button>
@@ -669,7 +669,7 @@ function ThinkingBlock({ text, live }: { text: string; live: boolean }) {
       {expanded && (
         <div
           ref={bodyRef}
-          className="max-h-48 overflow-y-auto border-t border-ink-800 px-3 py-2 text-[12px] leading-relaxed whitespace-pre-wrap text-neutral-500"
+          className="max-h-48 overflow-y-auto border-t border-ink-800 px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap text-neutral-500"
         >
           {text}
         </div>

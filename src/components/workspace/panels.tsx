@@ -47,7 +47,7 @@ export function ViewSwitcher({
             key={v.id}
             onClick={() => onSelect(v.id)}
             className={cn(
-              "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] transition-colors",
+              "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-xs transition-colors",
               active ? "bg-ink-800 text-neutral-100" : "text-neutral-500 hover:bg-white/[0.04] hover:text-neutral-300",
             )}
           >
@@ -116,7 +116,7 @@ export function LogsPanel({
 
   return (
     <PanelShell icon={Terminal} title={t("panel.viewLogs")}>
-      <div className="rounded-xl border border-ink-800 bg-ink-950 font-mono text-[12px]">
+      <div className="rounded-xl border border-ink-800 bg-ink-950 font-mono text-xs">
         <div className="border-b border-ink-800 px-3 py-2 text-neutral-500">{t("hosting.console")}</div>
         <div className="p-4 text-neutral-500">
           <p className="text-neutral-400">{t("panel.noLiveLogsYet")}</p>

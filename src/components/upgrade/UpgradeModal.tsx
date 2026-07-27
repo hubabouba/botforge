@@ -120,12 +120,12 @@ export function UpgradeModal({
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold">{p.name}</span>
                   {isCurrent && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                       {t("upgrade.current")}
                     </span>
                   )}
                   {isHighlight && (
-                    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-medium text-accent">
+                    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-medium text-accent">
                       {t("upgrade.recommended")}
                     </span>
                   )}

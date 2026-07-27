@@ -5,6 +5,7 @@ import { getUserPlan } from "@/lib/subscription";
 import { effectiveHostingPlan } from "@/lib/plan";
 import { hostingAccessAllowed } from "@/lib/hosting/config";
 import { encryptSecret } from "@/lib/hosting/secrets";
+import { allowAction, rateLimitMessage } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,10 @@ export async function POST(req: Request, { params }: Ctx) {
   const plan = effectiveHostingPlan(await getUserPlan(supabase, user.id, user.email), user.email);
   if (!hostingAccessAllowed(plan)) {
     return NextResponse.json({ error: "Bot hosting isn't available on your account yet." }, { status: 403 });
+  }
+
+  if (!(await allowAction(user.id, "hosting.secret"))) {
+    return NextResponse.json({ error: rateLimitMessage("hosting.secret") }, { status: 429 });
   }
 
   const parsed = postSchema.safeParse(await req.json().catch(() => null));

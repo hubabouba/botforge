@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { stripe, stripeEnabled, priceIdForPlan, publicOrigin } from "@/lib/stripe";
+import { allowAction, rateLimitMessage } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,14 @@ export async function POST(req: Request) {
 
   if (!stripeEnabled() || !stripe) {
     return NextResponse.json({ error: "Payments aren't enabled yet." }, { status: 503 });
+  }
+
+  // Nothing stopped a signed-in account from opening Checkout sessions in a
+  // loop. It's not a hole in the money path — Stripe still has to be paid — but
+  // it's noise in the payments account, and Stripe detecting abuse on us is a
+  // worse outcome than a 429 here.
+  if (!(await allowAction(user.id, "checkout"))) {
+    return NextResponse.json({ error: rateLimitMessage("checkout") }, { status: 429 });
   }
 
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { allowAction, rateLimitMessage } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -12,6 +13,13 @@ export async function GET() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
+  // This dumps every file of every project and runs one RPC per project — and
+  // Pro has no project cap, so the cost of a single call is unbounded. A GDPR
+  // export is something you do occasionally, not in a loop.
+  if (!(await allowAction(user.id, "account.export"))) {
+    return NextResponse.json({ error: rateLimitMessage("account.export") }, { status: 429 });
+  }
 
   // Projects with full file contents (this is the portability payload, so unlike
   // the dashboard list we DO want the bodies). Folders included for a faithful copy.

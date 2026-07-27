@@ -6,6 +6,7 @@ import { fetchProject } from "@/lib/workspace/serverStore";
 import { getUserPlan } from "@/lib/subscription";
 import { effectiveHostingPlan, hostingLimitsFor } from "@/lib/plan";
 import { globalMachineCeiling, hostingAccessAllowed } from "@/lib/hosting/config";
+import { allowAction, rateLimitMessage } from "@/lib/rateLimit";
 import { generateRunToken, hashRunToken } from "@/lib/hosting/runToken";
 import { flyConfig, runnerImageFor, type FlyConfig } from "@/lib/hosting/fly";
 import { setStopped, appendLogs } from "@/lib/hosting/deployments";
@@ -36,6 +37,15 @@ export async function POST(req: Request, { params }: Ctx) {
   const plan = effectiveHostingPlan(await getUserPlan(supabase, user.id, user.email), user.email);
   if (!hostingAccessAllowed(plan)) {
     return NextResponse.json({ error: "Bot hosting isn't included in your plan." }, { status: 403 });
+  }
+
+  // Anti-abuse ceiling, before anything that costs money. begin_project_run
+  // caps how many bots run at once; it says nothing about how fast you may
+  // churn them, and start → stop → start in a loop bills machine-seconds and
+  // eats Fly API quota — which, once Fly throttles us, breaks hosting for
+  // every user, not just this one.
+  if (!(await allowAction(user.id, "hosting.start"))) {
+    return NextResponse.json({ error: rateLimitMessage("hosting.start") }, { status: 429 });
   }
 
   // Ownership + shape via the RLS client.

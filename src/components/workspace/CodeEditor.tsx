@@ -46,6 +46,8 @@ export function CodeEditor({
 }) {
   const { t, lang: uiLang } = useI18n();
   const ref = useRef<HTMLTextAreaElement>(null);
+  /** The editor's outer element — used to tell "visible" from "CSS-hidden". */
+  const rootRef = useRef<HTMLDivElement>(null);
   const [value, setValue] = useState(file.content);
   // Undo/redo: commit() sets the value programmatically, which throws away the
   // textarea's native undo stack — so we keep our own. Each entry is a full
@@ -228,6 +230,12 @@ export function CodeEditor({
       if (!(e.ctrlKey || e.metaKey)) return;
       const key = e.key.toLowerCase();
       if (key !== "f" && key !== "h") return;
+      // On a phone the editor stays mounted behind the Chat tab (CSS-hidden, so
+      // the conversation survives switching). Without this check, Ctrl+F while
+      // typing in the chat would open a find bar nobody can see and swallow the
+      // browser's own find. `offsetParent` is null exactly when an ancestor is
+      // display:none, which is what `hidden` sets.
+      if (!rootRef.current?.offsetParent) return;
       e.preventDefault();
       openFind(key === "h");
     };
@@ -469,7 +477,7 @@ export function CodeEditor({
   const activeLine = caret.line - 1;
 
   return (
-    <div className="relative flex h-full flex-col bg-ink-950">
+    <div ref={rootRef} className="relative flex h-full flex-col bg-ink-950">
       {findOpen && (
         <div className="absolute right-3 top-2 z-20 rounded-lg border border-ink-700 bg-ink-900/95 p-1.5 shadow-lift backdrop-blur">
           <div className="flex items-center gap-1">

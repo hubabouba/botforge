@@ -79,7 +79,15 @@ export async function POST(req: Request, { params }: Ctx) {
   // plus the platform-wide machine ceiling — all enforced atomically in the RPC.
   const limits = hostingLimitsFor(plan);
   const runToken = generateRunToken();
-  const { data: reserve, error: rpcError } = await supabase.rpc("begin_project_run", {
+  // Reserved through the ADMIN client, not the user's. The RPC used to be
+  // granted to `authenticated`, which let anyone POST straight to
+  // /rest/v1/rpc/begin_project_run with p_concurrent_limit = -1 — and, worse,
+  // choose p_run_token_hash, minting a credential the internal callback routes
+  // accept. It's service-role-only now (see supabase/harden.sql); ownership was
+  // already proven by the fetchProject call above, and the RPC re-checks it
+  // against p_user_id because it bypasses RLS.
+  const { data: reserve, error: rpcError } = await admin.rpc("begin_project_run", {
+    p_user_id: user.id,
     p_project_id: id,
     p_concurrent_limit: limits.concurrent,
     p_runtime_budget_seconds: limits.budgetSeconds,

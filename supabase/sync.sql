@@ -85,3 +85,10 @@ drop trigger if exists trg_trim_project_messages on public.project_messages;
 create trigger trg_trim_project_messages
   after insert on public.project_messages
   for each row execute function public.trim_project_messages();
+
+-- A trigger function must never be reachable as an RPC. Without this revoke it
+-- sat on /rest/v1/rpc/trim_project_messages callable by `anon` — SECURITY
+-- DEFINER, so it would have run with the owner's privileges. Triggers fire
+-- regardless of EXECUTE grants, so this costs nothing. (hosting.sql does the
+-- same for trim_project_logs; this copy was written later and missed it.)
+revoke all on function public.trim_project_messages() from public, anon, authenticated;

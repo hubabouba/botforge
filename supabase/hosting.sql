@@ -301,11 +301,20 @@ $$;
 --            | "global_ceiling" | "budget_exhausted" | "already_running" }
 -- ===========================================================================
 
--- Stage 2 changed the signature (added p_global_ceiling); CREATE OR REPLACE
--- would leave the old 4-arg overload behind, still granted — drop it explicitly.
+-- The signature has changed twice; CREATE OR REPLACE would leave the older
+-- overloads behind, still granted — drop them explicitly.
 drop function if exists public.begin_project_run(uuid, integer, bigint, text);
+drop function if exists public.begin_project_run(uuid, integer, bigint, text, integer);
 
+-- The caller's identity is a PARAMETER, not auth.uid(), and only service_role
+-- may execute — same treatment as attempt_auto_restart, for the same reason.
+-- Granted to `authenticated` this was a browser-reachable endpoint whose own
+-- limits (concurrency, budget, ceiling) arrived as arguments, and whose
+-- p_run_token_hash the caller chose — i.e. a way to mint a credential the
+-- internal callback routes accept. The Node start route verifies ownership
+-- through the RLS client first and then calls this with the admin client.
 create or replace function public.begin_project_run(
+  p_user_id                uuid,
   p_project_id             uuid,
   p_concurrent_limit       integer,   -- -1 = unlimited
   p_runtime_budget_seconds bigint,    -- -1 = unlimited
@@ -318,7 +327,7 @@ security definer
 set search_path = public
 as $$
 declare
-  v_user    uuid := auth.uid();
+  v_user    uuid := p_user_id;
   v_month   text := to_char((now() at time zone 'utc'), 'YYYY-MM');
   v_running integer;
   v_used    bigint;
@@ -513,12 +522,22 @@ grant execute on function public.bump_hosting_usage(uuid, bigint)               
 revoke all on function public.attempt_auto_restart(uuid, uuid, integer, bigint, text, integer) from public, anon, authenticated;
 grant execute on function public.attempt_auto_restart(uuid, uuid, integer, bigint, text, integer) to service_role;
 
+-- begin_project_run takes the user id as a parameter now (no auth.uid()), so
+-- like attempt_auto_restart it MUST be service-role only.
+revoke all on function public.begin_project_run(uuid, uuid, integer, bigint, text, integer) from public, anon, authenticated;
+grant execute on function public.begin_project_run(uuid, uuid, integer, bigint, text, integer) to service_role;
+
 revoke all on function public.set_project_secret(uuid, text, text, text, integer)   from public, anon;
 revoke all on function public.list_project_secret_names(uuid)                         from public, anon;
 revoke all on function public.delete_project_secret(uuid, text)                       from public, anon;
-revoke all on function public.begin_project_run(uuid, integer, bigint, text, integer) from public, anon;
 
 grant execute on function public.set_project_secret(uuid, text, text, text, integer)  to authenticated;
 grant execute on function public.list_project_secret_names(uuid)                       to authenticated;
 grant execute on function public.delete_project_secret(uuid, text)                     to authenticated;
-grant execute on function public.begin_project_run(uuid, integer, bigint, text, integer) to authenticated;
+
+-- Every internal callback (a log batch from every running bot) looks a
+-- deployment up by this column. Partial because it's null unless a run is live;
+-- unique because two live runs must never share a credential.
+create unique index if not exists project_deployments_run_token_hash_idx
+  on public.project_deployments (run_token_hash)
+  where run_token_hash is not null;

@@ -280,6 +280,11 @@ begin
 end;
 $$;
 
+-- Trigger functions are called by Postgres, never by a client — keep them out
+-- of the exposed API entirely (grants don't affect trigger execution).
+revoke all on function public.touch_project()              from public, anon, authenticated;
+revoke all on function public.enforce_project_file_limit() from public, anon, authenticated;
+
 -- Lock down function execution to signed-in users only.
 revoke all on function public.project_json(public.projects) from public, anon;
 revoke all on function public.create_project(integer, text, text, text, text, text, jsonb, text[]) from public, anon;

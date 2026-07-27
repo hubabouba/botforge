@@ -16,6 +16,21 @@ export function stripeEnabled(): boolean {
   return Boolean(secret);
 }
 
+/**
+ * The origin to build Stripe return URLs from. `BOTFORGE_PUBLIC_URL` when it's
+ * set (the same env the hosting runners already call back to), otherwise the
+ * request's own origin.
+ *
+ * Never the Origin *header*: the caller sets it, and it ends up in `success_url`
+ * / `return_url` — an attacker-supplied one sends the customer to their page the
+ * moment the payment clears, which is exactly when the customer trusts us most.
+ */
+export function publicOrigin(req: Request): string {
+  const configured = (process.env.BOTFORGE_PUBLIC_URL || "").trim().replace(/\/$/, "");
+  if (configured) return configured;
+  return new URL(req.url).origin;
+}
+
 /** Stripe Price ID for a paid plan (from env). */
 export function priceIdForPlan(plan: Plan): string | null {
   if (plan === "basic") return process.env.STRIPE_PRICE_BASIC ?? null;

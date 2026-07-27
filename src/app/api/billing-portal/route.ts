@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { stripe, stripeEnabled } from "@/lib/stripe";
+import { stripe, stripeEnabled, publicOrigin } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
@@ -28,7 +28,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No active subscription to manage." }, { status: 400 });
   }
 
-  const origin = req.headers.get("origin") ?? new URL(req.url).origin;
+  // Our own URL, not the caller's Origin header — see publicOrigin.
+  const origin = publicOrigin(req);
   try {
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,

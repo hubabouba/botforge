@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { stripe, stripeEnabled, priceIdForPlan } from "@/lib/stripe";
+import { stripe, stripeEnabled, priceIdForPlan, publicOrigin } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
@@ -27,7 +27,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `No price configured for ${parsed.data.plan}.` }, { status: 503 });
   }
 
-  const origin = req.headers.get("origin") ?? new URL(req.url).origin;
+  // Our own public URL first. The Origin header is set by whoever made the
+  // request, and it lands in success_url — so trusting it lets anyone build a
+  // link that takes a customer to their page the instant the payment goes
+  // through, at the moment the customer trusts us most. Same reasoning as the
+  // `next` guard in /auth/callback.
+  const origin = publicOrigin(req);
 
   // Both opt-in and default OFF: each depends on a Stripe Dashboard setting
   // that must exist first (a Terms of Service URL; Stripe Tax registrations).

@@ -54,10 +54,14 @@ export function HostingPanel({ project }: { project: Project }) {
   const statusHint =
     st === "crashed" ? t("hosting.crashedHint") : st === "crash_looping" ? t("hosting.crashLoopingHint") : "";
 
-  // Poll logs after the last-seen id while the panel is mounted.
+  // Poll logs after the last-seen id while the panel is mounted. A stopped bot
+  // emits nothing, so polling it every 2.5s is pure waste — that cadence is for
+  // a run that's actually producing output. (Measured: one user, one bot, six
+  // hours, 583 log requests.) `active` is a dependency so a Start re-arms the
+  // fast cadence immediately instead of waiting out the slow one.
   useEffect(() => {
     let stop = false;
-    let t: ReturnType<typeof setTimeout>;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const ctrl = new AbortController();
     const tick = async () => {
       if (document.visibilityState === "visible") {
@@ -71,15 +75,15 @@ export function HostingPanel({ project }: { project: Project }) {
           /* transient */
         }
       }
-      if (!stop) t = setTimeout(tick, 2500);
+      if (!stop) timer = setTimeout(tick, active ? 2500 : 15000);
     };
     tick();
     return () => {
       stop = true;
-      clearTimeout(t);
+      clearTimeout(timer);
       ctrl.abort();
     };
-  }, [project.id]);
+  }, [project.id, active]);
 
   // Auto-scroll to the newest line.
   useEffect(() => {

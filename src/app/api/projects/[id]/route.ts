@@ -69,7 +69,12 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
 
-  const { error } = await supabase.from("projects").delete().eq("id", id);
+  // RLS turns "someone else's project" into "zero rows matched", not an error —
+  // so without checking what came back, deleting a stranger's id answers
+  // `{ ok: true }` and the UI happily drops a card that still exists. Ask for
+  // the deleted rows and report a miss as a 404.
+  const { data, error } = await supabase.from("projects").delete().eq("id", id).select("id");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data?.length) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

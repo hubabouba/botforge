@@ -10,6 +10,7 @@ interface Stats {
   users: { total: number; newToday: number; new7d: number; truncated: boolean; recent: Signup[] };
   plans: { free: number; basic: number; pro: number; max: number };
   mrr: number;
+  annualSubscribers: number;
   ai: {
     messagesToday: number;
     messagesThisMonth: number;
@@ -145,8 +146,10 @@ export function AdminDashboard() {
               <Card
                 icon={Chart}
                 label="MRR"
-                value={`$${stats.mrr.toLocaleString()}`}
-                sub={`${stats.plans.basic} Basic · ${stats.plans.pro} Pro · ${stats.plans.max} Max`}
+                value={`$${stats.mrr.toFixed(2)}`}
+                sub={`${stats.plans.basic} Basic · ${stats.plans.pro} Pro · ${stats.plans.max} Max${
+                  stats.annualSubscribers > 0 ? ` · ${stats.annualSubscribers} annual` : ""
+                }`}
               />
               <Card
                 icon={ListChecks}

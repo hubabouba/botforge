@@ -293,6 +293,19 @@ export function annualMonthlyEquivalent(plan: Plan): string {
 /** Months not charged on an annual plan — the saving, as a count. */
 export const ANNUAL_MONTHS_FREE = 12 - ANNUAL_MONTHS_CHARGED;
 
+/**
+ * What a subscriber contributes per month, whichever way they pay.
+ *
+ * The distinction is the whole reason `billing_interval` exists on the
+ * subscriptions row: valuing an annual Pro at the monthly $19 instead of the
+ * $15.83 it actually works out to overstates every revenue figure by a sixth —
+ * in precisely the numbers used to decide whether a tier pays for itself.
+ */
+export function monthlyRevenue(plan: Plan, interval: BillingInterval | null | undefined): number {
+  if (interval === "year") return annualPrice(plan) / 12;
+  return planMeta(plan).price;
+}
+
 export const PLANS: PlanMeta[] = [
   {
     id: "free",

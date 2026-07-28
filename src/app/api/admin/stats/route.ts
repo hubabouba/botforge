@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/admin";
-import { planMeta, type Plan } from "@/lib/plan";
+import { monthlyRevenue, type Plan } from "@/lib/plan";
 
 export const runtime = "nodejs";
 
@@ -38,13 +38,20 @@ export async function GET() {
 
   const { data: subsRows } = await admin
     .from("subscriptions")
-    .select("user_id, plan, status, current_period_end");
+    .select("user_id, plan, status, current_period_end, billing_interval");
   const planByUser = new Map<string, Plan>();
+  // Monthly-equivalent revenue per subscriber. Annual pays 10 months for 12, so
+  // counting one at the monthly price inflates every revenue figure by a sixth.
+  const revenueByUser = new Map<string, number>();
+  let annualSubscribers = 0;
   for (const row of subsRows ?? []) {
     const active = row.status === "active" || row.status === "trialing";
     const notExpired = !row.current_period_end || new Date(row.current_period_end).getTime() > now.getTime();
     if (active && notExpired && (row.plan === "basic" || row.plan === "pro" || row.plan === "max")) {
       planByUser.set(row.user_id, row.plan);
+      const interval = row.billing_interval === "year" ? "year" : "month";
+      revenueByUser.set(row.user_id, monthlyRevenue(row.plan, interval));
+      if (interval === "year") annualSubscribers += 1;
     }
   }
   const planCounts: Record<Plan, number> = { free: 0, basic: 0, pro: 0, max: 0 };
@@ -52,7 +59,7 @@ export async function GET() {
     const plan = planByUser.get(u.id) ?? "free";
     planCounts[plan]++;
   }
-  const mrr = (["basic", "pro", "max"] as const).reduce((sum, p) => sum + planCounts[p] * planMeta(p).price, 0);
+  const mrr = [...revenueByUser.values()].reduce((sum, v) => sum + v, 0);
 
   const { data: aiRows } = await admin
     .from("ai_usage")
@@ -125,8 +132,10 @@ export async function GET() {
         messages: messagesByUser.get(userId) ?? 0,
         usd: Math.round(usd * 100) / 100,
         // What they pay us this month against what they cost us. Negative means
-        // this account is being subsidised by the others.
-        marginUsd: Math.round((planMeta(plan).price - usd) * 100) / 100,
+        // this account is being subsidised by the others. Uses the real
+        // monthly-equivalent — a free account contributes nothing, and an
+        // annual one contributes a tenth less than its sticker price.
+        marginUsd: Math.round(((revenueByUser.get(userId) ?? 0) - usd) * 100) / 100,
       };
     });
 
@@ -146,7 +155,9 @@ export async function GET() {
   return NextResponse.json({
     users: { total: totalUsers, newToday, new7d, truncated: totalUsers >= 1000, recent: recentSignups },
     plans: planCounts,
-    mrr,
+    // Monthly-equivalent, so annual and monthly subscribers are comparable.
+    mrr: Math.round(mrr * 100) / 100,
+    annualSubscribers,
     ai: {
       messagesToday,
       messagesThisMonth,

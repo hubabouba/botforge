@@ -125,6 +125,12 @@ async function upsert(sub: Stripe.Subscription, userId?: string | null) {
   }
   const plan = mapped ?? "free";
 
+  // Which interval they're actually on, straight from the price Stripe billed.
+  // Not from our own checkout metadata: a customer who switches monthly→annual
+  // in the billing portal never passes through our checkout, so metadata would
+  // be stale exactly for the conversion we most want to see.
+  const interval = sub.items?.data?.[0]?.price?.recurring?.interval ?? null;
+
   const admin = createAdminClient();
   await admin.from("subscriptions").upsert(
     {
@@ -134,6 +140,7 @@ async function upsert(sub: Stripe.Subscription, userId?: string | null) {
       stripe_customer_id: typeof sub.customer === "string" ? sub.customer : sub.customer?.id ?? null,
       stripe_subscription_id: sub.id,
       current_period_end: periodEndIso(sub),
+      billing_interval: interval,
       updated_at: new Date().toISOString(),
     },
     { onConflict: "user_id" },

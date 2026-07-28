@@ -39,6 +39,13 @@ function isActive(v: DeploymentView | null): boolean {
 
 async function poll(projectId: string, entry: Entry): Promise<void> {
   const epoch = entry.epoch;
+  // Take ownership of the schedule before awaiting anything. Without this, a
+  // manual refresh (pressing Start) that lands while a scheduled poll is in
+  // flight leaves both of them alive, and each schedules its own next tick —
+  // one orphaned timer per Start, permanently doubling the request rate the
+  // shared loop exists to prevent.
+  if (entry.timer) clearTimeout(entry.timer);
+  entry.timer = null;
   if (document.visibilityState === "visible") {
     entry.abort?.abort();
     const ctrl = new AbortController();
@@ -57,6 +64,9 @@ async function poll(projectId: string, entry: Entry): Promise<void> {
     }
   }
   if (entry.epoch !== epoch || entry.listeners.size === 0) return;
+  // Whichever of two overlapping polls finishes first owns the next tick; the
+  // other must not add a second one.
+  if (entry.timer) return;
   entry.timer = setTimeout(() => void poll(projectId, entry), isActive(entry.status) ? ACTIVE_MS : IDLE_MS);
 }
 
@@ -89,9 +99,7 @@ function subscribe(projectId: string, fn: (v: DeploymentView | null) => void): (
 async function refreshNow(projectId: string): Promise<void> {
   const entry = loops.get(projectId);
   if (!entry) return;
-  if (entry.timer) clearTimeout(entry.timer);
-  entry.timer = null;
-  await poll(projectId, entry);
+  await poll(projectId, entry); // poll() clears the pending tick itself
 }
 
 export function useHostingStatus(projectId: string, enabled: boolean) {

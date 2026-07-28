@@ -106,7 +106,29 @@ export async function GET() {
       usdPerMessage: m.messages ? Math.round((m.usd / m.messages) * 10000) / 10000 : 0,
     }))
     .sort((a, b) => b.usd - a.usd);
-  const topSpender = [...costByUser.entries()].sort((a, b) => b[1] - a[1])[0];
+  // Per-account spend, dearest first. The whole point of collecting this is to
+  // see the shape of the distribution: if the top account costs more than its
+  // plan brings in, the cap is wrong — and an average would have hidden it.
+  // Paired with what that account pays, so the comparison is on one line.
+  const messagesByUser = new Map<string, number>();
+  for (const row of spendRows ?? []) {
+    messagesByUser.set(row.user_id, (messagesByUser.get(row.user_id) ?? 0) + Number(row.messages ?? 0));
+  }
+  const topAccounts = [...costByUser.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 15)
+    .map(([userId, usd]) => {
+      const plan = planByUser.get(userId) ?? "free";
+      return {
+        email: users.find((u) => u.id === userId)?.email ?? "(unknown)",
+        plan,
+        messages: messagesByUser.get(userId) ?? 0,
+        usd: Math.round(usd * 100) / 100,
+        // What they pay us this month against what they cost us. Negative means
+        // this account is being subsidised by the others.
+        marginUsd: Math.round((planMeta(plan).price - usd) * 100) / 100,
+      };
+    });
 
   const { data: projectRows } = await admin.from("projects").select("id, created_at");
   const totalProjects = projectRows?.length ?? 0;
@@ -135,10 +157,7 @@ export async function GET() {
       // cap, whereas this line is the one that can go negative.
       grossThisMonth: Math.round((mrr - aiCostThisMonth) * 100) / 100,
       perModel,
-      topSpenderUsd: topSpender ? Math.round(topSpender[1] * 100) / 100 : 0,
-      topSpenderEmail: topSpender
-        ? (users.find((u) => u.id === topSpender[0])?.email ?? "(unknown)")
-        : null,
+      topAccounts,
     },
     hosting: { runningNow: runningDeployments?.length ?? 0, minutesThisMonth: Math.round(secondsThisMonth / 60) },
     projects: { total: totalProjects, newToday: projectsToday },

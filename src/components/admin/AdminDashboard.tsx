@@ -17,8 +17,7 @@ interface Stats {
     costThisMonth: number;
     grossThisMonth: number;
     perModel: { model: string; messages: number; usd: number; usdPerMessage: number }[];
-    topSpenderUsd: number;
-    topSpenderEmail: string | null;
+    topAccounts: { email: string; plan: Signup["plan"]; messages: number; usd: number; marginUsd: number }[];
   };
   hosting: { runningNow: number; minutesThisMonth: number };
   projects: { total: number; newToday: number };
@@ -216,13 +215,54 @@ export function AdminDashboard() {
                   </div>
                 ))}
               </div>
-              {stats.ai.topSpenderEmail && (
-                <p className="mt-3 border-t border-ink-800 pt-3 text-xs text-neutral-500">
-                  Most expensive account this month:{" "}
-                  <span className="text-neutral-300">{stats.ai.topSpenderEmail}</span> — $
-                  {stats.ai.topSpenderUsd.toFixed(2)}
-                </p>
-              )}
+            </div>
+
+            {/* Per account, dearest first. The distribution is the point: if the
+                top account costs more than its plan brings in, the cap is wrong,
+                and an average would never have shown it. */}
+            <div className="mt-6 rounded-xl border border-ink-800 bg-ink-900/60 p-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Spend by account, this month
+              </h2>
+              <div className="mt-3 divide-y divide-ink-800">
+                {stats.ai.topAccounts.length === 0 && (
+                  <p className="py-3 text-sm text-neutral-600">Nothing recorded yet.</p>
+                )}
+                {stats.ai.topAccounts.map((a) => (
+                  <div key={a.email} className="flex items-center gap-3 py-2 text-sm">
+                    <span className="min-w-0 flex-1 truncate text-neutral-300">{a.email}</span>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
+                        PLAN_BADGE[a.plan],
+                      )}
+                    >
+                      {a.plan}
+                    </span>
+                    <span className="w-20 shrink-0 text-right text-xs text-neutral-500">
+                      {a.messages.toLocaleString()} msg
+                    </span>
+                    <span className="w-20 shrink-0 text-right font-mono text-xs text-neutral-300">
+                      ${a.usd.toFixed(2)}
+                    </span>
+                    {/* What they pay minus what they cost. Red means the rest of
+                        the customers are paying for this one. */}
+                    <span
+                      className={cn(
+                        "w-24 shrink-0 text-right font-mono text-xs",
+                        a.marginUsd < 0 ? "text-rose-400" : "text-emerald-400",
+                      )}
+                    >
+                      {a.marginUsd < 0 ? "−" : "+"}${Math.abs(a.marginUsd).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 border-t border-ink-800 pt-3 text-[11px] leading-relaxed text-neutral-600">
+                Last column is what the plan brings in this month minus what the assistant cost.
+                Red means that account is being subsidised by the others — expected for a few, a
+                problem when it is the norm for a tier.
+              </p>
             </div>
 
             <div className="mt-6 rounded-xl border border-ink-800 bg-ink-900/60 p-4">

@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { assistantChatStream } from "@/lib/ai/claude";
 import { assistantChatGeminiStream } from "@/lib/ai/gemini";
 import { buildRuntimeContext } from "@/lib/ai/runtimeContext";
-import type { AssistantStreamEvent } from "@/lib/ai/types";
+import type { AssistantSpend, AssistantStreamEvent } from "@/lib/ai/types";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   aiDailyLimit,
   aiMonthlyLimit,
@@ -79,6 +80,29 @@ export async function POST(req: Request) {
     // with zero server-side signal. Capture it and answer with real JSON instead.
     Sentry.captureException(e);
     return NextResponse.json({ error: "The assistant failed to start. Please try again." }, { status: 500 });
+  }
+}
+
+/**
+ * Keep what a request cost. Deliberately swallowing every failure: a reply the
+ * user is reading must never be disturbed by bookkeeping, and a missing row
+ * costs us one data point out of thousands. Written with the admin client
+ * because record_ai_spend is service-role only — cost figures a browser could
+ * forge would poison the very numbers pricing gets decided from.
+ */
+async function recordSpend(userId: string, s: AssistantSpend): Promise<void> {
+  try {
+    await createAdminClient().rpc("record_ai_spend", {
+      p_user_id: userId,
+      p_model: s.model,
+      p_input: s.inputTokens,
+      p_output: s.outputTokens,
+      p_cache_write: s.cacheWriteTokens,
+      p_cache_read: s.cacheReadTokens,
+      p_usd: s.usd,
+    });
+  } catch {
+    /* the [ai/spend] log line still carries it for anyone watching live */
   }
 }
 
@@ -186,6 +210,7 @@ async function handlePost(req: Request) {
           maxTurns: maxToolTurnsFor(plan),
           clarify: planAllows(plan, "assistant.clarify"),
           budgetMs: LOOP_BUDGET_MS,
+          onSpend: (s) => void recordSpend(user.id, s),
         })
       : assistantChatGeminiStream({ ...parsed.data, runtime });
 

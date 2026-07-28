@@ -109,6 +109,26 @@ export interface AssistantParams {
    * the client inferring it from whether files happened to change.
    */
   stepMode?: boolean;
+  /**
+   * Called once when the request finishes, with what it actually cost.
+   *
+   * The provider computes this because only it sees the token counts; the route
+   * decides what to do with it because only it has a database client. Both
+   * sides treat it as fire-and-forget — bookkeeping must never be able to
+   * disturb a reply the user is already reading.
+   */
+  onSpend?: (spend: AssistantSpend) => void;
+}
+
+/** What one assistant request cost, measured rather than estimated. */
+export interface AssistantSpend {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheWriteTokens: number;
+  cacheReadTokens: number;
+  /** USD at the rates in claude.ts, computed at call time. */
+  usd: number;
 }
 
 /** Turns the user's persona settings into extra system-prompt lines. */

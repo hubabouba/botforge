@@ -372,6 +372,29 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   }
 
   logSpend(model, reasoning, spend, edits.size);
+  // Hand the same numbers to whoever wants to keep them. The log line above
+  // stays — it's still the fastest way to watch a single request live — but it
+  // is not retrievable after the fact, which is why this exists.
+  params.onSpend?.({
+    model,
+    inputTokens: spend.input,
+    outputTokens: spend.output,
+    cacheWriteTokens: spend.cacheWrite,
+    cacheReadTokens: spend.cacheRead,
+    usd: usdFor(model, spend),
+  });
+}
+
+/** Cost of a finished request in USD, at the rates below. */
+function usdFor(
+  model: string,
+  s: { input: number; output: number; cacheWrite: number; cacheRead: number },
+): number {
+  const rate = RATES[model] ?? RATES["claude-sonnet-5"];
+  return (
+    (s.input * rate.in + s.cacheWrite * rate.in * 1.25 + s.cacheRead * rate.in * 0.1 + s.output * rate.out) /
+    1_000_000
+  );
 }
 
 /**
@@ -390,9 +413,7 @@ function logSpend(
   s: { input: number; output: number; cacheWrite: number; cacheRead: number; turns: number },
   edits: number,
 ): void {
-  const rate = RATES[model] ?? RATES["claude-sonnet-5"];
-  const usd =
-    (s.input * rate.in + s.cacheWrite * rate.in * 1.25 + s.cacheRead * rate.in * 0.1 + s.output * rate.out) / 1_000_000;
+  const usd = usdFor(model, s);
   console.log(
     `[ai/spend] ${JSON.stringify({
       model,

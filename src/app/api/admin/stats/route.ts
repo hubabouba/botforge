@@ -75,6 +75,39 @@ export async function GET() {
     .eq("month", monthStr);
   const secondsThisMonth = (hostingRows ?? []).reduce((sum, r) => sum + (r.seconds_used ?? 0), 0);
 
+  // What the assistant actually cost, measured per call (supabase/ai_spend.sql).
+  // The point of this block is the last two numbers: revenue is meaningless
+  // without knowing what serving it costs, and every message cap and model
+  // choice in plan.ts is currently set from arithmetic rather than data.
+  const { data: spendRows } = await admin
+    .from("ai_spend")
+    .select("user_id, day, model, messages, usd")
+    .gte("day", `${monthStr}-01`);
+  let aiCostToday = 0;
+  let aiCostThisMonth = 0;
+  const costByUser = new Map<string, number>();
+  const costByModel = new Map<string, { usd: number; messages: number }>();
+  for (const row of spendRows ?? []) {
+    const usd = Number(row.usd ?? 0);
+    aiCostThisMonth += usd;
+    if (row.day === todayStr) aiCostToday += usd;
+    costByUser.set(row.user_id, (costByUser.get(row.user_id) ?? 0) + usd);
+    const m = costByModel.get(row.model) ?? { usd: 0, messages: 0 };
+    costByModel.set(row.model, { usd: m.usd + usd, messages: m.messages + Number(row.messages ?? 0) });
+  }
+  // Cost per message per model is the number that decides whether a tier can
+  // carry its price — an average hides the one account that eats a plan's
+  // margin, so the worst account this month is reported alongside it.
+  const perModel = [...costByModel.entries()]
+    .map(([model, m]) => ({
+      model,
+      messages: m.messages,
+      usd: Math.round(m.usd * 100) / 100,
+      usdPerMessage: m.messages ? Math.round((m.usd / m.messages) * 10000) / 10000 : 0,
+    }))
+    .sort((a, b) => b.usd - a.usd);
+  const topSpender = [...costByUser.entries()].sort((a, b) => b[1] - a[1])[0];
+
   const { data: projectRows } = await admin.from("projects").select("id, created_at");
   const totalProjects = projectRows?.length ?? 0;
   const projectsToday = (projectRows ?? []).filter((p) => p.created_at >= todayStartIso).length;
@@ -92,7 +125,21 @@ export async function GET() {
     users: { total: totalUsers, newToday, new7d, truncated: totalUsers >= 1000, recent: recentSignups },
     plans: planCounts,
     mrr,
-    ai: { messagesToday, messagesThisMonth },
+    ai: {
+      messagesToday,
+      messagesThisMonth,
+      costToday: Math.round(aiCostToday * 100) / 100,
+      costThisMonth: Math.round(aiCostThisMonth * 100) / 100,
+      // MRR minus what the assistant cost this month. Hosting isn't in here —
+      // it's a couple of dollars a machine and bounded by the plan's concurrency
+      // cap, whereas this line is the one that can go negative.
+      grossThisMonth: Math.round((mrr - aiCostThisMonth) * 100) / 100,
+      perModel,
+      topSpenderUsd: topSpender ? Math.round(topSpender[1] * 100) / 100 : 0,
+      topSpenderEmail: topSpender
+        ? (users.find((u) => u.id === topSpender[0])?.email ?? "(unknown)")
+        : null,
+    },
     hosting: { runningNow: runningDeployments?.length ?? 0, minutesThisMonth: Math.round(secondsThisMonth / 60) },
     projects: { total: totalProjects, newToday: projectsToday },
     generatedAt: now.toISOString(),

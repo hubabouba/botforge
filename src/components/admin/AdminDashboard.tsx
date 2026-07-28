@@ -10,7 +10,16 @@ interface Stats {
   users: { total: number; newToday: number; new7d: number; truncated: boolean; recent: Signup[] };
   plans: { free: number; basic: number; pro: number; max: number };
   mrr: number;
-  ai: { messagesToday: number; messagesThisMonth: number };
+  ai: {
+    messagesToday: number;
+    messagesThisMonth: number;
+    costToday: number;
+    costThisMonth: number;
+    grossThisMonth: number;
+    perModel: { model: string; messages: number; usd: number; usdPerMessage: number }[];
+    topSpenderUsd: number;
+    topSpenderEmail: string | null;
+  };
   hosting: { runningNow: number; minutesThisMonth: number };
   projects: { total: number; newToday: number };
   generatedAt: string;
@@ -146,6 +155,20 @@ export function AdminDashboard() {
                 value={stats.ai.messagesToday.toLocaleString()}
                 sub={`${stats.ai.messagesThisMonth.toLocaleString()} this month`}
               />
+              {/* The two numbers the pricing depends on. MRR alone says nothing
+                  about whether a plan carries its own cost. */}
+              <Card
+                icon={Chart}
+                label="AI cost"
+                value={`$${stats.ai.costToday.toFixed(2)}`}
+                sub={`$${stats.ai.costThisMonth.toFixed(2)} this month`}
+              />
+              <Card
+                icon={Chart}
+                label="MRR minus AI cost"
+                value={`$${stats.ai.grossThisMonth.toFixed(2)}`}
+                sub={stats.ai.grossThisMonth < 0 ? "negative — a tier is underpriced" : "this month, before hosting"}
+              />
               <Card
                 icon={Bot}
                 label="Bots running now"
@@ -164,6 +187,42 @@ export function AdminDashboard() {
                 value={stats.plans.free.toLocaleString()}
                 sub="never converted (yet)"
               />
+            </div>
+
+            {/* Cost per message per model — the figure every message cap and
+                model choice in plan.ts was guessed at. Plus the single most
+                expensive account, because an average hides the one user who
+                eats a tier's whole margin. */}
+            <div className="mt-6 rounded-xl border border-ink-800 bg-ink-900/60 p-4">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                Cost per message, this month
+              </h2>
+              <div className="mt-3 divide-y divide-ink-800">
+                {stats.ai.perModel.length === 0 && (
+                  <p className="py-3 text-sm text-neutral-600">
+                    Nothing recorded yet — send an assistant message on a paid plan.
+                  </p>
+                )}
+                {stats.ai.perModel.map((m) => (
+                  <div key={m.model} className="flex items-center gap-3 py-2 text-sm">
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-300">{m.model}</span>
+                    <span className="w-24 shrink-0 text-right text-xs text-neutral-500">
+                      {m.messages.toLocaleString()} msg
+                    </span>
+                    <span className="w-20 shrink-0 text-right text-xs text-neutral-500">${m.usd.toFixed(2)}</span>
+                    <span className="w-24 shrink-0 text-right font-mono text-xs text-neutral-200">
+                      ${m.usdPerMessage.toFixed(4)}/msg
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {stats.ai.topSpenderEmail && (
+                <p className="mt-3 border-t border-ink-800 pt-3 text-xs text-neutral-500">
+                  Most expensive account this month:{" "}
+                  <span className="text-neutral-300">{stats.ai.topSpenderEmail}</span> — $
+                  {stats.ai.topSpenderUsd.toFixed(2)}
+                </p>
+              )}
             </div>
 
             <div className="mt-6 rounded-xl border border-ink-800 bg-ink-900/60 p-4">

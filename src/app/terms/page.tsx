@@ -51,9 +51,12 @@ export default function TermsPage() {
 
       <h2>Subscriptions and payment</h2>
       <p>
-        Paid plans are subscriptions billed monthly through <strong>Stripe</strong>, our payment
-        processor. Stripe handles your card details securely; we never see or store your full card
-        data. Your subscription renews automatically each month until you cancel.
+        Paid plans are subscriptions billed through <strong>Stripe</strong>, our payment processor.
+        You choose the billing period when you subscribe: <strong>monthly</strong>, or{" "}
+        <strong>annually</strong> at a discount, charged in full at the start of the year. Stripe
+        handles your card details securely; we never see or store your full card data. Your
+        subscription renews automatically at the end of each paid period — each month on a monthly
+        plan, each year on an annual one — until you cancel.
       </p>
 
       <h2>Cancellation and refunds</h2>
@@ -62,16 +65,28 @@ export default function TermsPage() {
         end of the current paid period and then does not renew — you are not charged again.
       </p>
       <p>
-        <strong>Just after purchase.</strong> If you cancel within 7 days of a payment and have made
-        only minimal use of the paid features — no more than 5 assistant messages sent on the paid
-        plan, and no bot started on Botforge hosting — contact us and we will normally refund that
-        payment. We can verify both from your account.
+        <strong>Just after purchase.</strong> If you cancel within 14 days of a payment and have
+        made only minimal use of the paid features — no more than 5 assistant messages sent on the
+        paid plan, and no bot started on Botforge hosting — contact us and we will refund that
+        payment in full. We can verify both from your account.
       </p>
       <p>
-        <strong>Partway through a period.</strong> Once you have used the paid features beyond that,
-        the paid period has been delivered and is not refundable — but your access continues until
-        the end of that period. Generated code you have already produced or downloaded is yours to
-        keep either way, which is why usage beyond the threshold above is treated as delivered.
+        <strong>Used a little, then changed your mind.</strong> If you cancel within those 14 days
+        having used more than that, we refund the payment minus a proportionate amount for what you
+        actually used, rather than nothing at all.
+      </p>
+      <p>
+        <strong>Annual plans, at any time.</strong> An annual plan is paid a year ahead, so if you
+        cancel partway through we refund the whole months you have not used. Cancel in month four of
+        twelve and eight months come back to you. This applies whenever you cancel — there is no
+        deadline on it, and you do not need a reason.
+      </p>
+      <p>
+        <strong>Monthly plans, partway through a month.</strong> Once you have used the paid
+        features beyond the threshold above, that month has been delivered and is not refundable —
+        but your access continues until the end of it. Generated code you have already produced or
+        downloaded is yours to keep either way, which is why usage beyond the threshold is treated
+        as delivered.
       </p>
       <p>
         <strong>Accidental or mistaken charges.</strong> If you were charged in error, or forgot to
@@ -82,8 +97,9 @@ export default function TermsPage() {
         live. When you subscribe, you expressly request and consent that we begin providing the
         service immediately — access to the paid features is granted the moment payment completes —
         and you acknowledge that, once performance has begun, you lose the statutory 14-day right of
-        withdrawal for that purchase. The goodwill refund described above is offered on top of that,
-        at our discretion.
+        withdrawal for that purchase. We do not rely on that: the refunds described above are
+        offered on top of it, and the 14-day window and the annual pro-rata refund are given as a
+        matter of policy whether or not the statutory right still applies.
       </p>
 
       <h2>Disclaimer</h2>

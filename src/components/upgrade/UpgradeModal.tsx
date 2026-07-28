@@ -273,6 +273,16 @@ export function UpgradeModal({
           })}
         </div>
 
+        {/* The refund terms, where the decision is made. Burying them in /terms
+            and hoping nobody reads is how you get a dispute instead of an email
+            — and on annual it's the sentence that makes committing to a year
+            feel survivable. */}
+        {STRIPE_ENABLED && (
+          <div className="mx-5 mb-1 mt-1 rounded-lg border border-border bg-muted/40 px-3 py-2 text-center text-[11px] leading-relaxed text-muted-foreground">
+            {annual ? t("upgrade.refundAnnual") : t("upgrade.refundMonthly")}
+          </div>
+        )}
+
         <div className="border-t border-border px-5 py-3 text-center text-[11px] text-muted-foreground">
           {STRIPE_ENABLED ? t("upgrade.footerSecure") : t("upgrade.footerSoon")}
           {t("upgrade.agreeToOur")}{" "}

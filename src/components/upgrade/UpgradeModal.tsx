@@ -178,20 +178,25 @@ export function UpgradeModal({
                     </span>
                   )}
                 </div>
-                {/* Annual shows the per-month equivalent big and the real
-                    yearly charge underneath. The number people compare between
-                    plans is the monthly one; the number they'll be billed is
-                    the yearly one, and hiding either is how a "surprise" charge
-                    becomes a chargeback. Free has no annual price to show. */}
+                {/* On annual the YEAR is the headline, because that is what
+                    leaves the customer's account. Leading with "$15.83/mo"
+                    while a badge said "2 months free" was two ways of counting
+                    in one glance — the eye catches "/mo" and concludes it's a
+                    monthly charge. The per-month figure stays underneath for
+                    comparing tiers: both numbers visible, neither hidden, which
+                    is what keeps a "surprise" charge from becoming a dispute.
+                    Free has no annual price to show. */}
                 <div className="mt-2 flex items-baseline gap-1">
                   <span className="text-2xl font-semibold tracking-tight">
-                    ${annual && p.price > 0 ? annualMonthlyEquivalent(p.id) : p.price}
+                    ${annual && p.price > 0 ? annualPrice(p.id) : p.price}
                   </span>
-                  <span className="text-xs text-muted-foreground">{t("upgrade.perMonth")}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t(annual && p.price > 0 ? "upgrade.perYear" : "upgrade.perMonth")}
+                  </span>
                 </div>
                 {annual && p.price > 0 && (
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    {t("upgrade.billedAnnually").replace("{total}", `$${annualPrice(p.id)}`)}
+                    {t("upgrade.worksOutTo").replace("{price}", `$${annualMonthlyEquivalent(p.id)}`)}
                     {" · "}
                     {/* Auto-renewal, said plainly next to the price. A yearly
                         charge nobody remembers agreeing to is the classic

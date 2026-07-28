@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { pricingTiers } from "@/lib/brand";
-import { annualMonthlyEquivalent } from "@/lib/plan";
+import { annualPrice } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 import { Check } from "@/components/icons";
 import { AnnualRibbon } from "./AnnualRibbon";
@@ -64,7 +64,7 @@ export function Pricing({ annualBilling = false }: { annualBilling?: boolean }) 
               {annualBilling &&
                 (tier.price > 0 ? (
                   <p className="mt-1 text-xs text-emerald-400">
-                    {t("pricing.orAnnual").replace("{price}", `$${annualMonthlyEquivalent(tier.id)}`)}
+                    {t("pricing.orAnnual").replace("{total}", `$${annualPrice(tier.id)}`)}
                   </p>
                 ) : (
                   <p aria-hidden className="mt-1 text-xs text-transparent">

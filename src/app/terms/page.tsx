@@ -65,28 +65,25 @@ export default function TermsPage() {
         end of the current paid period and then does not renew — you are not charged again.
       </p>
       <p>
-        <strong>Just after purchase.</strong> If you cancel within 14 days of a payment and have
-        made only minimal use of the paid features — no more than 5 assistant messages sent on the
-        paid plan, and no bot started on Botforge hosting — contact us and we will refund that
-        payment in full. We can verify both from your account.
+        <strong>Changed your mind early.</strong> You can ask for a refund of a payment within{" "}
+        <strong>7 days</strong> on a monthly plan, or <strong>14 days</strong> on an annual one — no
+        reason needed. On the first day that is the full amount; after that we refund the part of
+        the period you have not used yet, so the sooner you ask, the more comes back. Contact us and
+        we will work it out from your account.
       </p>
       <p>
-        <strong>Used a little, then changed your mind.</strong> If you cancel within those 14 days
-        having used more than that, we refund the payment minus a proportionate amount for what you
-        actually used, rather than nothing at all.
+        <strong>Once the plan has done its job.</strong> If you have downloaded your bot&apos;s code
+        or started a bot on Botforge hosting, that is what you paid for and it has been delivered —
+        the current period is not refundable after that. The code you generated stays yours either
+        way, which is precisely why we treat it as delivered rather than asking for it back. Your
+        access continues to the end of the period you paid for.
       </p>
       <p>
-        <strong>Annual plans, at any time.</strong> An annual plan is paid a year ahead, so if you
-        cancel partway through we refund the whole months you have not used. Cancel in month four of
-        twelve and eight months come back to you. This applies whenever you cancel — there is no
-        deadline on it, and you do not need a reason.
-      </p>
-      <p>
-        <strong>Monthly plans, partway through a month.</strong> Once you have used the paid
-        features beyond the threshold above, that month has been delivered and is not refundable —
-        but your access continues until the end of it. Generated code you have already produced or
-        downloaded is yours to keep either way, which is why usage beyond the threshold is treated
-        as delivered.
+        <strong>Annual plans, at any time.</strong> Months you have not reached yet are a different
+        matter: they have not been delivered, whatever you did in the months before. So if you
+        cancel partway through a year we refund the whole months remaining — cancel in month four of
+        twelve and eight months come back to you. This has no deadline and needs no reason, and it
+        applies even once the current period counts as delivered above.
       </p>
       <p>
         <strong>Accidental or mistaken charges.</strong> If you were charged in error, or forgot to

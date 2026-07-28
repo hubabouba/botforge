@@ -65,14 +65,50 @@ export function FirstRunChecklist({
       done: hasToken,
       // The one step people get stuck on, so it explains itself in place.
       body: (
-        <ol className="mt-2 space-y-1.5 text-xs leading-relaxed text-neutral-400">
-          {[0, 1, 2, 3].map((i) => (
-            <li key={i} className="flex gap-2">
-              <span className="text-neutral-600">{i + 1}.</span>
-              <span>{t(`firstrun.token.${telegram ? "tg" : "dc"}.${i}`)}</span>
-            </li>
-          ))}
-        </ol>
+        <div className="mt-2">
+          <ol className="space-y-1.5 text-xs leading-relaxed text-neutral-400">
+            {[0, 1, 2, 3].map((i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-neutral-600">{i + 1}.</span>
+                <span>{t(`firstrun.token.${telegram ? "tg" : "dc"}.${i}`)}</span>
+              </li>
+            ))}
+          </ol>
+
+          {/* A door and a manual. The first link opens the exact place step one
+              describes — for someone who has never heard of BotFather, "go find
+              @BotFather" and a button that opens it are not the same thing. The
+              second is the platform's own documentation: it can't rot the way a
+              third-party video can, and it's the authority if our four lines
+              ever fall behind a UI change. */}
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <a
+              href={telegram ? "https://t.me/BotFather" : "https://discord.com/developers/applications"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-md border border-ink-700 px-2 py-0.5 text-[11px] text-neutral-300 transition-colors hover:border-accent/50 hover:text-white"
+            >
+              {t(telegram ? "firstrun.token.openTg" : "firstrun.token.openDc")}
+            </a>
+            <a
+              href={
+                telegram
+                  ? "https://core.telegram.org/bots/features#botfather"
+                  : "https://discord.com/developers/docs/quick-start/getting-started"
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-neutral-500 underline decoration-neutral-700 underline-offset-2 transition-colors hover:text-neutral-300"
+            >
+              {t("firstrun.token.docs")}
+            </a>
+          </div>
+
+          {/* The fallback is our own assistant, not "go ask another AI". It is
+              two panels away, it can see this project, and sending people to a
+              competitor at the moment they're stuck says we don't back our own. */}
+          <p className="mt-2 text-[11px] leading-relaxed text-neutral-500">{t("firstrun.token.stuck")}</p>
+        </div>
       ),
     },
     { key: "run", done: hasRun, body: null },

@@ -7,9 +7,11 @@ interface PlanInfo {
   plan: Plan;
   /** Whether this account's plan unlocks bot hosting (real `hosting.run` check). */
   hostingAvailable: boolean;
+  /** Whether every annual Stripe price is configured — drives the billing toggle. */
+  annualBilling: boolean;
 }
 
-const FREE: PlanInfo = { plan: "free", hostingAvailable: false };
+const FREE: PlanInfo = { plan: "free", hostingAvailable: false, annualBilling: false };
 
 // Module-level cache so many components share one /api/plan fetch per page load.
 let cache: PlanInfo | null = null;
@@ -20,7 +22,14 @@ async function fetchPlan(): Promise<PlanInfo> {
   if (!inflight) {
     inflight = fetch("/api/plan")
       .then((r) => (r.ok ? r.json() : FREE))
-      .then((d) => (cache = { plan: (d.plan as Plan) ?? "free", hostingAvailable: Boolean(d.hostingAvailable) }))
+      .then(
+        (d) =>
+          (cache = {
+            plan: (d.plan as Plan) ?? "free",
+            hostingAvailable: Boolean(d.hostingAvailable),
+            annualBilling: Boolean(d.annualBilling),
+          }),
+      )
       .catch(() => (cache = FREE));
   }
   return inflight;
@@ -46,6 +55,7 @@ export function usePlan() {
   return {
     plan: info.plan,
     hostingAvailable: info.hostingAvailable,
+    annualBilling: info.annualBilling,
     loading,
     allows: (cap: Capability) => planAllows(info.plan, cap),
   };

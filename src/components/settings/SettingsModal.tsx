@@ -212,7 +212,10 @@ export function SettingsModal({
                 onClick={onOpenUpgrade}
                 className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition-colors hover:bg-accent-hover"
               >
-                {plan === "pro" ? t("settings.manage") : t("settings.upgrade")}
+                {/* Any paying plan manages; only free upgrades. Was `plan === "pro"`,
+                    which showed a Max subscriber an "Upgrade" button with nothing
+                    above their tier to upgrade to. */}
+                {plan === "free" ? t("settings.upgrade") : t("settings.manage")}
               </button>
             </div>
           </section>

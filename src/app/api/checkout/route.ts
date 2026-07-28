@@ -6,7 +6,12 @@ import { allowAction, rateLimitMessage } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
-const bodySchema = z.object({ plan: z.enum(["basic", "pro", "max"]) });
+const bodySchema = z.object({
+  plan: z.enum(["basic", "pro", "max"]),
+  // Absent means monthly, so an older client that doesn't know about annual
+  // keeps working exactly as before.
+  interval: z.enum(["month", "year"]).optional(),
+});
 
 // POST /api/checkout — start a Stripe Checkout session for a paid plan.
 export async function POST(req: Request) {
@@ -31,9 +36,13 @@ export async function POST(req: Request) {
   const parsed = bodySchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
-  const priceId = priceIdForPlan(parsed.data.plan);
+  const interval = parsed.data.interval ?? "month";
+  const priceId = priceIdForPlan(parsed.data.plan, interval);
   if (!priceId) {
-    return NextResponse.json({ error: `No price configured for ${parsed.data.plan}.` }, { status: 503 });
+    return NextResponse.json(
+      { error: `No ${interval === "year" ? "annual" : "monthly"} price configured for ${parsed.data.plan}.` },
+      { status: 503 },
+    );
   }
 
   // Our own public URL first. The Origin header is set by whoever made the
@@ -56,8 +65,8 @@ export async function POST(req: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       customer_email: user.email ?? undefined,
       client_reference_id: user.id,
-      subscription_data: { metadata: { user_id: user.id, plan: parsed.data.plan } },
-      metadata: { user_id: user.id, plan: parsed.data.plan },
+      subscription_data: { metadata: { user_id: user.id, plan: parsed.data.plan, interval } },
+      metadata: { user_id: user.id, plan: parsed.data.plan, interval },
       success_url: `${origin}/dashboard?checkout=success`,
       cancel_url: `${origin}/dashboard?checkout=cancel`,
       allow_promotion_codes: true,

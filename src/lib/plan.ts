@@ -232,6 +232,17 @@ export function hostingLimitsFor(plan: Plan): { concurrent: number; budgetSecond
   };
 }
 
+/** How a subscription is billed. Annual exists only for the paid plans. */
+export type BillingInterval = "month" | "year";
+
+/**
+ * Months charged on an annual plan. Two months free is the usual shape and the
+ * reason annual is worth offering at all: the customer saves real money and we
+ * trade a discount for twelve months of committed revenue instead of a monthly
+ * decision to keep paying.
+ */
+export const ANNUAL_MONTHS_CHARGED = 10;
+
 export interface PlanMeta {
   id: Plan;
   name: string;
@@ -239,6 +250,16 @@ export interface PlanMeta {
   price: number;
   tagline: string;
   highlights: string[];
+}
+
+/** What a year of this plan costs up front. Free stays 0. */
+export function annualPrice(plan: Plan): number {
+  return planMeta(plan).price * ANNUAL_MONTHS_CHARGED;
+}
+
+/** The per-month figure to show beside an annual price, rounded for display. */
+export function annualMonthlyEquivalent(plan: Plan): number {
+  return Math.round((annualPrice(plan) / 12) * 100) / 100;
 }
 
 export const PLANS: PlanMeta[] = [

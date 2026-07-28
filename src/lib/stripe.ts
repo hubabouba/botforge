@@ -4,7 +4,7 @@
  * once the keys are set does checkout/webhook go live.
  */
 import Stripe from "stripe";
-import type { Plan } from "./plan";
+import type { BillingInterval, Plan } from "./plan";
 
 const secret = process.env.STRIPE_SECRET_KEY;
 
@@ -31,19 +31,49 @@ export function publicOrigin(req: Request): string {
   return new URL(req.url).origin;
 }
 
-/** Stripe Price ID for a paid plan (from env). */
-export function priceIdForPlan(plan: Plan): string | null {
-  if (plan === "basic") return process.env.STRIPE_PRICE_BASIC ?? null;
-  if (plan === "pro") return process.env.STRIPE_PRICE_PRO ?? null;
-  if (plan === "max") return process.env.STRIPE_PRICE_MAX ?? null;
+/**
+ * Env var holding each plan/interval's Stripe Price ID. Monthly names are
+ * unchanged so existing deployments keep working; annual is additive, and a
+ * missing annual id simply means annual isn't offered (see `annualBillingEnabled`).
+ */
+const PRICE_ENV: Record<Exclude<Plan, "free">, Record<BillingInterval, string>> = {
+  basic: { month: "STRIPE_PRICE_BASIC", year: "STRIPE_PRICE_BASIC_ANNUAL" },
+  pro: { month: "STRIPE_PRICE_PRO", year: "STRIPE_PRICE_PRO_ANNUAL" },
+  max: { month: "STRIPE_PRICE_MAX", year: "STRIPE_PRICE_MAX_ANNUAL" },
+};
+
+/** Stripe Price ID for a paid plan at a billing interval (from env). */
+export function priceIdForPlan(plan: Plan, interval: BillingInterval = "month"): string | null {
+  if (plan === "free") return null;
+  return process.env[PRICE_ENV[plan][interval]] ?? null;
+}
+
+/**
+ * Reverse map: which plan a Stripe Price ID corresponds to, at either interval.
+ *
+ * This is the function the webhook depends on, and getting it wrong costs a
+ * paying customer their plan: an unrecognised price falls through to "free"
+ * (see the upsert in the webhook, which shouts to Sentry when that happens to
+ * an active subscription). So annual ids MUST be listed here — adding an annual
+ * price in Stripe without setting its env var here would silently downgrade
+ * everyone who buys it.
+ */
+export function planForPriceId(priceId: string | null | undefined): Plan | null {
+  if (!priceId) return null;
+  for (const plan of ["max", "pro", "basic"] as const) {
+    for (const interval of ["month", "year"] as const) {
+      const configured = process.env[PRICE_ENV[plan][interval]];
+      if (configured && priceId === configured) return plan;
+    }
+  }
   return null;
 }
 
-/** Reverse map: which plan a Stripe Price ID corresponds to. */
-export function planForPriceId(priceId: string | null | undefined): Plan | null {
-  if (!priceId) return null;
-  if (priceId === process.env.STRIPE_PRICE_MAX) return "max";
-  if (priceId === process.env.STRIPE_PRICE_PRO) return "pro";
-  if (priceId === process.env.STRIPE_PRICE_BASIC) return "basic";
-  return null;
+/**
+ * Whether to show the annual option at all. All three annual prices must exist:
+ * offering annual on some tiers and not others reads as a mistake, and the
+ * toggle would silently do nothing on the tiers that lack one.
+ */
+export function annualBillingEnabled(): boolean {
+  return (["basic", "pro", "max"] as const).every((plan) => !!priceIdForPlan(plan, "year"));
 }

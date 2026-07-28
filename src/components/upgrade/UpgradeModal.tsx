@@ -3,8 +3,17 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { PLANS, PLAN_RANK, type Plan } from "@/lib/plan";
+import {
+  ANNUAL_MONTHS_CHARGED,
+  PLANS,
+  PLAN_RANK,
+  annualMonthlyEquivalent,
+  annualPrice,
+  type BillingInterval,
+  type Plan,
+} from "@/lib/plan";
 import { track } from "@/lib/analytics";
+import { usePlan } from "@/hooks/usePlan";
 import { Close, Check, Lock } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
@@ -25,9 +34,15 @@ export function UpgradeModal({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  // Whether annual is offered comes from the server (every annual price
+  // configured), not a second public env flag that could drift out of sync with
+  // the real Stripe setup and 503 at checkout.
+  const { annualBilling } = usePlan();
   const [busy, setBusy] = useState<Plan | null>(null);
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [interval, setInterval] = useState<BillingInterval>("month");
+  const annual = interval === "year";
 
   useEffect(() => {
     setMounted(true);
@@ -43,12 +58,12 @@ export function UpgradeModal({
     }
     setBusy(plan);
     setError("");
-    track("upgrade_clicked", { plan });
+    track("upgrade_clicked", { plan, interval });
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ plan, interval }),
       });
       const data = await res.json().catch(() => ({}));
       if (data.url) window.location.href = data.url;
@@ -104,6 +119,33 @@ export function UpgradeModal({
           </div>
         )}
 
+        {/* Monthly / annual. Only rendered when every annual price exists —
+            a toggle that works on some tiers and not others is worse than none. */}
+        {annualBilling && STRIPE_ENABLED && (
+          <div className="flex items-center justify-center gap-3 pt-5">
+            <div className="inline-flex rounded-lg border border-border bg-muted/50 p-0.5">
+              {(["month", "year"] as const).map((value) => (
+                <button
+                  key={value}
+                  onClick={() => setInterval(value)}
+                  aria-pressed={interval === value}
+                  className={cn(
+                    "rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
+                    interval === value
+                      ? "bg-background text-foreground shadow-soft"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {t(value === "month" ? "upgrade.monthly" : "upgrade.annual")}
+                </button>
+              ))}
+            </div>
+            <span className="text-xs font-medium text-emerald-500">
+              {t("upgrade.annualSaving").replace("{months}", String(12 - ANNUAL_MONTHS_CHARGED))}
+            </span>
+          </div>
+        )}
+
         <div className="grid gap-3 overflow-y-auto p-5 sm:grid-cols-2 lg:grid-cols-4">
           {PLANS.map((p) => {
             const isCurrent = p.id === current;
@@ -130,10 +172,22 @@ export function UpgradeModal({
                     </span>
                   )}
                 </div>
+                {/* Annual shows the per-month equivalent big and the real
+                    yearly charge underneath. The number people compare between
+                    plans is the monthly one; the number they'll be billed is
+                    the yearly one, and hiding either is how a "surprise" charge
+                    becomes a chargeback. Free has no annual price to show. */}
                 <div className="mt-2 flex items-baseline gap-1">
-                  <span className="text-2xl font-semibold tracking-tight">${p.price}</span>
+                  <span className="text-2xl font-semibold tracking-tight">
+                    ${annual && p.price > 0 ? annualMonthlyEquivalent(p.id) : p.price}
+                  </span>
                   <span className="text-xs text-muted-foreground">{t("upgrade.perMonth")}</span>
                 </div>
+                {annual && p.price > 0 && (
+                  <div className="mt-0.5 text-[11px] text-muted-foreground">
+                    {t("upgrade.billedAnnually").replace("{total}", `$${annualPrice(p.id)}`)}
+                  </div>
+                )}
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t(`plan.${p.id}.tagline`)}</p>
                 <ul className="mt-3 space-y-1.5">
                   {p.highlights.map((h, i) => (

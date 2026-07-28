@@ -19,11 +19,20 @@ create policy "read own ai usage"
   on public.ai_usage for select
   using ((select auth.uid()) = user_id);
 
--- Atomic "check limit and increment" for the calling user (auth.uid()).
--- Returns the new count for today, or -1 when the daily limit is reached.
+-- Atomic "check limits and increment" for the calling user (auth.uid()).
+-- Returns the new count for today, or -1 when EITHER cap is reached.
 -- SECURITY DEFINER lets it write past RLS; the user id comes from the JWT,
 -- so a caller can only ever touch their own row (and only increase it).
-create or replace function public.increment_ai_usage(p_limit integer)
+--
+-- Two caps, because the daily one alone permits 30x its number per month and
+-- model calls are what this product actually spends money on. p_monthly_limit
+-- is a circuit-breaker against a single runaway account, not a quota anyone
+-- normal will meet — see AI_MONTHLY_MESSAGES in lib/plan.ts. It defaults to -1
+-- (off) so an older deployment calling this with one argument still works.
+create or replace function public.increment_ai_usage(
+  p_limit         integer,
+  p_monthly_limit integer default -1
+)
 returns integer
 language plpgsql
 security definer
@@ -32,10 +41,24 @@ as $$
 declare
   v_user  uuid := auth.uid();
   v_day   date := (now() at time zone 'utc')::date;
+  v_month date := date_trunc('month', (now() at time zone 'utc'))::date;
+  v_month_total bigint;
   v_count integer;
 begin
   if v_user is null or p_limit <= 0 then
     return -1;
+  end if;
+
+  -- Month first: it's the cheaper refusal, and it makes the daily row's own
+  -- count meaningless to check afterwards. Summed from the same per-day rows,
+  -- so there's no second counter to keep in step.
+  if p_monthly_limit is not null and p_monthly_limit >= 0 then
+    select coalesce(sum(count), 0) into v_month_total
+    from public.ai_usage
+    where user_id = v_user and day >= v_month;
+    if v_month_total >= p_monthly_limit then
+      return -1;
+    end if;
   end if;
 
   insert into public.ai_usage as u (user_id, day, count)
@@ -49,5 +72,13 @@ begin
 end;
 $$;
 
-revoke all on function public.increment_ai_usage(integer) from public, anon;
-grant execute on function public.increment_ai_usage(integer) to authenticated;
+-- Sums are per user and per month; without this every check scans the table.
+create index if not exists ai_usage_user_day_idx on public.ai_usage (user_id, day);
+
+-- The old single-argument overload would otherwise linger, still granted, and
+-- PostgREST would happily route a one-arg call to it — i.e. the monthly cap
+-- silently not applying.
+drop function if exists public.increment_ai_usage(integer);
+
+revoke all on function public.increment_ai_usage(integer, integer) from public, anon;
+grant execute on function public.increment_ai_usage(integer, integer) to authenticated;

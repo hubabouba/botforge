@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
-  ANNUAL_MONTHS_CHARGED,
+  ANNUAL_MONTHS_FREE,
   PLANS,
   PLAN_RANK,
   annualMonthlyEquivalent,
@@ -16,6 +16,7 @@ import { track } from "@/lib/analytics";
 import { usePlan } from "@/hooks/usePlan";
 import { Close, Check, Lock } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
+import { plural } from "@/lib/i18n/plural";
 import { cn } from "@/lib/utils";
 
 // Flip on once Stripe Checkout is wired (Part 5). Until then the CTA is a
@@ -33,7 +34,7 @@ export function UpgradeModal({
   reason?: string;
   onClose: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   // Whether annual is offered comes from the server (every annual price
   // configured), not a second public env flag that could drift out of sync with
   // the real Stripe setup and 503 at checkout.
@@ -141,7 +142,12 @@ export function UpgradeModal({
               ))}
             </div>
             <span className="text-xs font-medium text-emerald-500">
-              {t("upgrade.annualSaving").replace("{months}", String(12 - ANNUAL_MONTHS_CHARGED))}
+              {ANNUAL_MONTHS_FREE}{" "}
+              {plural(lang, ANNUAL_MONTHS_FREE, {
+                en: ["month", "months"],
+                ru: ["месяц", "месяца", "месяцев"],
+              })}{" "}
+              {t("upgrade.annualSaving")}
             </span>
           </div>
         )}
@@ -186,6 +192,11 @@ export function UpgradeModal({
                 {annual && p.price > 0 && (
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
                     {t("upgrade.billedAnnually").replace("{total}", `$${annualPrice(p.id)}`)}
+                    {" · "}
+                    {/* Auto-renewal, said plainly next to the price. A yearly
+                        charge nobody remembers agreeing to is the classic
+                        dispute, and a dispute costs more than the sale. */}
+                    {t("upgrade.renewsYearly")}
                   </div>
                 )}
                 <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{t(`plan.${p.id}.tagline`)}</p>
@@ -200,12 +211,32 @@ export function UpgradeModal({
                 <div className="mt-4 pt-1">
                   {isCurrent ? (
                     STRIPE_ENABLED && p.id !== "free" ? (
+                      // Already on this plan. With annual selected the button
+                      // becomes "switch to annual" — the single most valuable
+                      // move a subscriber can make, and until now there was no
+                      // way to do it: the card just said "Manage" whichever
+                      // interval was showing.
+                      //
+                      // It opens the billing portal rather than Checkout on
+                      // purpose. Checkout in subscription mode creates a NEW
+                      // subscription, so someone with a monthly plan would end
+                      // up paying twice. The portal knows what they're actually
+                      // on and prorates the swap.
                       <button
                         onClick={manage}
                         disabled={busy === p.id}
-                        className="w-full rounded-lg border border-border py-2 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
+                        className={cn(
+                          "w-full rounded-lg py-2 text-xs font-medium transition-colors disabled:opacity-60",
+                          annual
+                            ? "bg-accent text-accent-foreground hover:bg-accent-hover"
+                            : "border border-border hover:bg-muted",
+                        )}
                       >
-                        {busy === p.id ? t("upgrade.opening") : t("upgrade.manage")}
+                        {busy === p.id
+                          ? t("upgrade.opening")
+                          : annual
+                            ? t("upgrade.switchToAnnual")
+                            : t("upgrade.manage")}
                       </button>
                     ) : (
                       <button

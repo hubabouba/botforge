@@ -2,11 +2,19 @@
 
 import Link from "next/link";
 import { pricingTiers } from "@/lib/brand";
+import { annualMonthlyEquivalent } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 import { Check } from "@/components/icons";
+import { AnnualRibbon } from "./AnnualRibbon";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 
-export function Pricing() {
+/**
+ * `annualBilling` is passed down from the server page rather than fetched here.
+ * The landing is the one page that must stay light for a phone arriving from an
+ * ad, and this is a fact the server already knows — no reason to spend a
+ * round-trip discovering it in the browser.
+ */
+export function Pricing({ annualBilling = false }: { annualBilling?: boolean }) {
   const { t } = useI18n();
   return (
     <section id="pricing" className="relative scroll-mt-24 py-24">
@@ -32,6 +40,7 @@ export function Pricing() {
                   : "border-white/10 bg-white/[0.02] hover:-translate-y-1 hover:border-white/20",
               )}
             >
+              {annualBilling && tier.highlighted && <AnnualRibbon />}
               <div className="flex items-center justify-between">
                 <h3 className="font-display font-semibold text-white">{tier.name}</h3>
                 {tier.highlighted && (
@@ -48,6 +57,20 @@ export function Pricing() {
                 </span>
                 <span className="text-sm text-white/45">/mo</span>
               </div>
+              {/* The ribbon states the offer; this is what makes it actionable —
+                  the actual figure you'd pay per month on a yearly plan. Free
+                  has no annual price, so it gets a spacer instead and the CTAs
+                  stay aligned across the row. */}
+              {annualBilling &&
+                (tier.price > 0 ? (
+                  <p className="mt-1 text-xs text-emerald-400">
+                    {t("pricing.orAnnual").replace("{price}", `$${annualMonthlyEquivalent(tier.id)}`)}
+                  </p>
+                ) : (
+                  <p aria-hidden className="mt-1 text-xs text-transparent">
+                    &nbsp;
+                  </p>
+                ))}
 
               <Link
                 href="/signup"

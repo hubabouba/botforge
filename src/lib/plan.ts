@@ -26,6 +26,28 @@ export function projectLimit(plan: Plan): number {
 export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 3, basic: 20, pro: 40, max: 80 };
 
 /**
+ * Monthly cap, on top of the daily one. A circuit-breaker, not a quota.
+ *
+ * The daily cap alone permits 30x its number every month — 600 messages on
+ * Basic, 2400 on Max. Model calls are the dominant cost in this product, and at
+ * any plausible per-message price those ceilings run every tier at a loss if a
+ * single user actually reaches them. The business works because average use is
+ * a fraction of the cap; this exists so one outlier can't eat the margin of
+ * everyone else.
+ *
+ * Set around 40% of daily x 30 — roughly twelve days of flat-out use in a
+ * month, which no ordinary user approaches and a runaway script passes quickly.
+ *
+ * It matters most on annual plans: a monthly subscriber who turns unprofitable
+ * can be re-priced next month, an annual one is locked in for twelve.
+ */
+export const AI_MONTHLY_MESSAGES: Record<Plan, number> = { free: 30, basic: 250, pro: 500, max: 1000 };
+
+export function aiMonthlyLimit(plan: Plan): number {
+  return AI_MONTHLY_MESSAGES[plan];
+}
+
+/**
  * What the user picks in the workspace model selector. This is the product-level
  * concept; `Provider` below is just which SDK the server calls for it.
  */
@@ -257,10 +279,19 @@ export function annualPrice(plan: Plan): number {
   return planMeta(plan).price * ANNUAL_MONTHS_CHARGED;
 }
 
-/** The per-month figure to show beside an annual price, rounded for display. */
-export function annualMonthlyEquivalent(plan: Plan): number {
-  return Math.round((annualPrice(plan) / 12) * 100) / 100;
+/**
+ * The per-month figure shown beside an annual price, as a display string.
+ *
+ * A string, not a number, because a number renders $90/12 as "$7.5" — a price
+ * with one decimal reads as a typo. Always two decimals here; the monthly
+ * prices are whole and print as "$9".
+ */
+export function annualMonthlyEquivalent(plan: Plan): string {
+  return (annualPrice(plan) / 12).toFixed(2);
 }
+
+/** Months not charged on an annual plan — the saving, as a count. */
+export const ANNUAL_MONTHS_FREE = 12 - ANNUAL_MONTHS_CHARGED;
 
 export const PLANS: PlanMeta[] = [
   {

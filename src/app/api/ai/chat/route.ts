@@ -8,6 +8,7 @@ import { buildRuntimeContext } from "@/lib/ai/runtimeContext";
 import type { AssistantStreamEvent } from "@/lib/ai/types";
 import {
   aiDailyLimit,
+  aiMonthlyLimit,
   isAiLimitExempt,
   maxToolTurnsFor,
   modelForTier,
@@ -116,10 +117,12 @@ async function handlePost(req: Request) {
   // (supabase/ai_usage.sql). Fails open if the migration hasn't run yet,
   // so a missing table never takes the assistant down.
   const limit = aiDailyLimit(plan);
+  const monthlyLimit = aiMonthlyLimit(plan);
   let used: number | null = null;
   if (!isAiLimitExempt(user.email)) {
     const { data: count, error: usageError } = await supabase.rpc("increment_ai_usage", {
       p_limit: limit,
+      p_monthly_limit: monthlyLimit,
     });
     if (usageError) {
       // Deliberately fail-open (a missing table must not take the assistant
@@ -131,15 +134,22 @@ async function handlePost(req: Request) {
         extra: { message: usageError.message, plan },
       });
     } else if (count === -1) {
-      const hint =
-        plan === "pro"
-          ? "It resets at midnight UTC."
-          : "It resets at midnight UTC — or upgrade your plan for a higher limit.";
+      // -1 covers both caps. Which one it was matters to the person reading it:
+      // "come back tomorrow" is useless advice if the month is what ran out.
+      const { data: monthUsed } = await supabase
+        .from("ai_usage")
+        .select("count")
+        .gte("day", new Date(new Date().toISOString().slice(0, 8) + "01").toISOString().slice(0, 10));
+      const monthTotal = (monthUsed ?? []).reduce((sum, r) => sum + Number(r.count ?? 0), 0);
+      const monthlyHit = monthlyLimit >= 0 && monthTotal >= monthlyLimit;
+
+      const upgradeHint = plan === "max" ? "" : " Upgrading raises it.";
+      const error = monthlyHit
+        ? `Monthly assistant limit reached (${monthlyLimit} messages/month on the ${plan} plan). It resets on the 1st.${upgradeHint}`
+        : `Daily assistant limit reached (${limit} messages/day on the ${plan} plan). It resets at midnight UTC.${upgradeHint}`;
+
       return NextResponse.json(
-        {
-          error: `Daily assistant limit reached (${limit} messages/day on the ${plan} plan). ${hint}`,
-          usage: { used: limit, limit },
-        },
+        { error, usage: { used: limit, limit } },
         { status: 429 },
       );
     } else if (typeof count === "number") {

@@ -96,7 +96,16 @@ describe("annual pricing arithmetic", () => {
 
   it("shows a per-month figure below the monthly price", () => {
     for (const plan of ["basic", "pro", "max"] as const) {
-      expect(annualMonthlyEquivalent(plan)).toBeLessThan(planMeta(plan).price);
+      expect(Number(annualMonthlyEquivalent(plan))).toBeLessThan(planMeta(plan).price);
     }
+  });
+
+  // $90/12 is 7.5, and "$7.5/mo" beside "$19/mo" reads as a typo rather than a
+  // price. Always two decimals.
+  it("always formats the per-month figure to two decimals", () => {
+    for (const plan of ["basic", "pro", "max"] as const) {
+      expect(annualMonthlyEquivalent(plan)).toMatch(/^\d+\.\d{2}$/);
+    }
+    expect(annualMonthlyEquivalent("basic")).toBe("7.50");
   });
 });

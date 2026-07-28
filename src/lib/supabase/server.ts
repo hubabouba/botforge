@@ -3,9 +3,13 @@ import { cookies } from "next/headers";
 
 /**
  * Supabase client for Server Components, Route Handlers and Server Actions.
- * Reads/writes the auth session via Next.js cookies. Setting cookies from a
- * plain Server Component throws — that's expected and swallowed; the middleware
- * is responsible for refreshing the session cookie.
+ * Reads/writes the auth session via Next.js cookies.
+ *
+ * Setting a cookie from a plain Server Component throws — that's expected and
+ * swallowed below, and for those the middleware does the refreshing. A Route
+ * Handler CAN write cookies, so there the refresh happens right here. That
+ * distinction is why /api/* is excluded from the middleware matcher: the
+ * handlers don't need it, and running it would just authenticate twice.
  */
 export async function createClient() {
   const cookieStore = await cookies();

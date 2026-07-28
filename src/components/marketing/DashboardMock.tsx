@@ -1,37 +1,39 @@
-import { cn } from "@/lib/utils";
-
 /**
- * Premium faux-analytics dashboard for the hero. Pure SVG/CSS, no real data —
- * an aspirational product glimpse (metrics, area chart, response-time gauge).
+ * The product glimpse in the hero — the shape of a bot dashboard: metric tiles,
+ * a traffic chart, a response-time gauge.
+ *
+ * It shows no numbers, and that is the point. It used to read "523 bots",
+ * "2.4M messages", "12.6K active users", "$145,231 revenue", "99.9% uptime",
+ * under a pulsing green "live" badge. A comment in this file called that
+ * "no real data" — but nobody reads the comment. A visitor reads a screenshot
+ * of a product reporting its own success, and an ad reviewer reads a landing
+ * page making claims the advertiser can't evidence, which is grounds to
+ * restrict the account.
+ *
+ * So the labels stay and the values become small bar glyphs: the layout still
+ * says "this is what you'll be looking at" without asserting anything that
+ * isn't true yet.
  */
 export function DashboardMock() {
   return (
     <div className="forge-glass relative w-full rounded-2xl p-4">
       {/* window chrome */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full bg-accent" />
-          <span className="text-[13px] font-medium text-white/80">Botforge Analytics</span>
-        </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-400">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" /> live
-        </span>
+      <div className="mb-4 flex items-center gap-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-accent" />
+        <span className="text-[13px] font-medium text-white/80">Botforge Analytics</span>
       </div>
 
       {/* top metrics */}
       <div className="grid grid-cols-3 gap-2.5">
-        <Metric label="Total Bots" value="523" delta="+24%" />
-        <Metric label="Messages" value="2.4M" delta="+18%" />
-        <Metric label="Active Users" value="12.6K" delta="+31%" />
+        <Metric label="Total Bots" bars={[0.35, 0.6, 0.85]} />
+        <Metric label="Messages" bars={[0.5, 0.75, 1]} />
+        <Metric label="Active Users" bars={[0.4, 0.55, 0.9]} />
       </div>
 
       {/* chart + gauge */}
       <div className="mt-2.5 grid grid-cols-3 gap-2.5">
         <div className="col-span-2 rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-[11px] text-white/60">Messages Overview</span>
-            <span className="font-mono text-[11px] text-emerald-400">+18%</span>
-          </div>
+          <div className="mb-1 text-[11px] text-white/60">Messages Overview</div>
           <AreaChart />
         </div>
         <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
@@ -42,33 +44,35 @@ export function DashboardMock() {
 
       {/* bottom metrics */}
       <div className="mt-2.5 grid grid-cols-3 gap-2.5">
-        <Metric label="Revenue" value="$145,231" delta="+27%" small />
-        <Metric label="Orders" value="8,543" delta="+19%" small />
-        <Metric label="Uptime" value="99.9%" delta="+0.1%" small />
+        <Metric label="Commands" bars={[0.45, 0.7, 0.6]} small />
+        <Metric label="Errors" bars={[0.3, 0.2, 0.15]} small />
+        <Metric label="Uptime" bars={[0.8, 0.85, 0.95]} small />
       </div>
     </div>
   );
 }
 
-function Metric({
-  label,
-  value,
-  delta,
-  small,
-}: {
-  label: string;
-  value: string;
-  delta: string;
-  small?: boolean;
-}) {
+/**
+ * A tile that names what's measured and shows the shape of it, with no figure
+ * attached. Three bars read as "a trend" to the eye and as nothing at all to a
+ * reader looking for a claim.
+ */
+function Metric({ label, bars, small }: { label: string; bars: number[]; small?: boolean }) {
   return (
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
       <div className="text-[11px] text-white/50">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1.5">
-        <span className={cn("font-mono font-semibold text-white", small ? "text-[15px]" : "text-lg")}>
-          {value}
-        </span>
-        <span className="font-mono text-[11px] text-emerald-400">{delta}</span>
+      <div
+        aria-hidden
+        className="mt-2 flex items-end gap-1"
+        style={{ height: small ? "1.1rem" : "1.5rem" }}
+      >
+        {bars.map((h, i) => (
+          <span
+            key={i}
+            className="flex-1 rounded-[2px] bg-accent/45"
+            style={{ height: `${Math.round(h * 100)}%` }}
+          />
+        ))}
       </div>
     </div>
   );
@@ -122,9 +126,8 @@ function Gauge() {
           strokeDashoffset={c * (1 - pct)}
         />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span className="font-mono text-base font-semibold text-white">0.8s</span>
-      </div>
+      {/* The arc alone. "0.8s" was a promise about latency we have never
+          measured, sitting inside a mock. */}
     </div>
   );
 }

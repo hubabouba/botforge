@@ -2,11 +2,18 @@
 
 /**
  * Thin, typed wrapper over PostHog's `capture`. Analytics must never break the
- * product, so every call is guarded: if PostHog isn't initialised (no key
- * configured, or not yet mounted) it's a silent no-op. The event names are a
- * closed union so the funnel stays consistent and greppable — add here, not ad hoc.
+ * product, so every call is guarded: until PostHog has loaded (no key
+ * configured, or the deferred init hasn't run yet) it's a silent no-op. The
+ * event names are a closed union so the funnel stays consistent and greppable —
+ * add here, not ad hoc.
+ *
+ * The reference is handed in by PostHogProvider rather than imported. A static
+ * `import posthog from "posthog-js"` here would pull the whole library into the
+ * bundle of every page that fires a single event — /login and /signup among
+ * them — which is exactly what the provider's dynamic import exists to avoid.
+ * `import type` is erased at build, so this module costs nothing at runtime.
  */
-import posthog from "posthog-js";
+import type { PostHog } from "posthog-js";
 
 export type AnalyticsEvent =
   | "signup_started" // user began sign-up (email magic link requested, or OAuth redirect)
@@ -18,12 +25,16 @@ export type AnalyticsEvent =
   | "precreate_survey_shown" // free user saw the pre-create survey
   | "precreate_survey_submitted"; // ...and answered it (skipping doesn't fire this)
 
+let client: PostHog | null = null;
+
+/** Called once by PostHogProvider after its deferred init resolves. */
+export function setAnalyticsClient(instance: PostHog | null): void {
+  client = instance;
+}
+
 export function track(event: AnalyticsEvent, props?: Record<string, unknown>): void {
   try {
-    // __loaded is set once posthog.init has run (see PostHogProvider).
-    if (typeof window !== "undefined" && (posthog as unknown as { __loaded?: boolean }).__loaded) {
-      posthog.capture(event, props);
-    }
+    client?.capture(event, props);
   } catch {
     /* analytics is best-effort — never surface a failure to the user */
   }

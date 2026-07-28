@@ -18,7 +18,12 @@ const csp = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline' https://*.posthog.com https://*.i.posthog.com${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
+  // Was `https:`, i.e. an image from any host on the internet. Nothing here
+  // loads one — verified by grep: no <img>, no next/image, no remote src
+  // anywhere in src/. The OG picture comes from our own /opengraph-image route.
+  // `data:` covers the inline SVG textures, `blob:` the ZIP download preview
+  // and Sentry's replay canvas.
+  "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.i.posthog.com https://*.sentry.io https://*.ingest.sentry.io",
   "worker-src 'self' blob:",
@@ -51,6 +56,15 @@ const nextConfig: NextConfig = {
   // block *.posthog.com by DOMAIN, which silently kills analytics for every
   // visitor running one. Routing through our own /ingest sails past them —
   // the exact same reasoning as Sentry's tunnelRoute below.
+  //
+  // The `:path*` wildcard means our domain will proxy any path to posthog.com.
+  // Considered narrowing it to PostHog's own endpoints and deliberately did
+  // not: the destination is a fixed host, so the worst case is using us as an
+  // anonymising relay to PostHog specifically — near-zero value to an attacker.
+  // Against that, this project has already lost time to analytics failing
+  // silently when this path was tightened (remote config blocked while basic
+  // capture still worked), and a wrong guess here breaks the funnel on the day
+  // the ads start. Not a trade worth making now.
   async rewrites() {
     return [
       { source: "/ingest/static/:path*", destination: `${posthogAssets}/static/:path*` },

@@ -559,6 +559,13 @@ export function WorkspaceChat({
                 )}
               >
                 {m.text}
+                {/* A caret on the message still being written. The typing dots
+                    disappear the moment the first token lands, and until now
+                    nothing then said "still going" — text simply stopped for a
+                    few seconds mid-thought and looked finished. */}
+                {busy && m.id === messages[messages.length - 1]?.id && m.text && (
+                  <span className="animate-blink ml-0.5 text-accent">▍</span>
+                )}
               </div>
               {m.edits?.map((edit, i) => (
                 <div key={i} className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900">

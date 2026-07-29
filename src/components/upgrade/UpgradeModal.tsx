@@ -92,10 +92,10 @@ export function UpgradeModal({
   }
 
   const content = (
-    <div className="forge dark fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="forge dark fixed inset-0 z-[60] modal-backdrop grid place-items-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lift"
+        className="modal-panel flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lift"
       >
         <div className="flex items-center gap-3 border-b border-border px-5 py-3.5">
           <span className="grid h-6 w-6 place-items-center rounded-md bg-accent-soft text-accent">

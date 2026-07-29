@@ -163,13 +163,15 @@ export function FirstRunChecklist({
               <div className="flex items-center gap-2">
                 <span
                   className={cn(
-                    "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border",
+                    "grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full border transition-colors",
                     step.done
                       ? "border-emerald-500/50 bg-emerald-500/20 text-emerald-300"
                       : "border-ink-700 text-transparent",
                   )}
                 >
-                  <Check className="h-2.5 w-2.5" />
+                  {/* Completing a step is the only thing that happens here, so
+                      it should be the one thing you can't miss. */}
+                  <Check className={cn("h-2.5 w-2.5", step.done && "animate-tick")} />
                 </span>
                 <button
                   onClick={() => {

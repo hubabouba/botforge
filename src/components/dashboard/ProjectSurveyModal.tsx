@@ -49,12 +49,12 @@ export function ProjectSurveyModal({ onDone }: { onDone: () => void }) {
 
   const content = (
     <div
-      className="forge dark fixed inset-0 z-[60] grid place-items-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
+      className="forge dark fixed inset-0 z-[60] modal-backdrop grid place-items-center overflow-y-auto bg-black/60 p-4 backdrop-blur-sm"
       onClick={onDone}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lift"
+        className="modal-panel flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lift"
       >
         <div className="flex items-start gap-3 border-b border-border px-5 py-3.5">
           <div className="min-w-0">

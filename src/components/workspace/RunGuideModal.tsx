@@ -21,12 +21,12 @@ export function RunGuideModal({ project, onClose }: { project: Project; onClose:
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
+      className="modal-backdrop fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg overflow-hidden rounded-2xl border border-ink-800 bg-ink-950 shadow-lift"
+        className="modal-panel w-full max-w-lg overflow-hidden rounded-2xl border border-ink-800 bg-ink-950 shadow-lift"
       >
         <div className="flex items-center gap-2 border-b border-ink-800 px-5 py-3.5">
           <Terminal className="h-4 w-4 text-emerald-400" />

@@ -502,7 +502,7 @@ export function PlanningPanel({
                                 : "border-ink-700 text-transparent hover:border-neutral-500",
                           )}
                         >
-                          <Check className="h-3 w-3" />
+                          <Check className={cn("h-3 w-3", isDone && "animate-tick")} />
                         </button>
                         <span
                           className={cn(

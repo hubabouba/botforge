@@ -111,10 +111,10 @@ export function CreateProjectModal({ onClose, onLimit }: { onClose: () => void; 
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lift"
+        className="modal-panel flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-lift"
       >
         {/* Header */}
         <div className="flex items-center gap-3 border-b border-border px-5 py-3.5">

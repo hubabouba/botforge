@@ -117,6 +117,65 @@
     transform: none;
   }
 
+  /* ---- Motion that reports something ------------------------------------
+     Every animation below is tied to a state change the user caused: a dialog
+     arriving, a panel being swapped, a step completing. Nothing here idles.
+     The global prefers-reduced-motion rule near the top collapses all of it. */
+
+  /* Dialogs. They used to appear fully formed on the same frame as the click,
+     which reads as a page swap rather than something opening — the cheapest-
+     feeling moment in the whole product, and it happens at checkout. */
+  @keyframes bf-backdrop-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes bf-dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .modal-backdrop {
+    animation: bf-backdrop-in 0.16s ease-out both;
+  }
+  .modal-panel {
+    animation: bf-dialog-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Swapping between Code / Logs / Planning / Metrics. A short rise makes the
+     new panel feel like it replaced the old one rather than teleported. */
+  .panel-swap {
+    animation: bf-dialog-in 0.18s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* A checklist item, or a plan step, going done. The tick is the whole point
+     of the interaction and it used to just be there on the next render. */
+  @keyframes bf-tick {
+    0% {
+      transform: scale(0.4);
+      opacity: 0;
+    }
+    60% {
+      transform: scale(1.15);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+  .animate-tick {
+    animation: bf-tick 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
   @keyframes marquee {
     from {
       transform: translateX(0);
@@ -294,21 +353,23 @@
      that aren't reporting anything, so they're gone — motion is now reserved
      for entrances and for indicators that mean something (loading, saving). */
 
-  /* Staggered rise-in for grouped items — set style={{ '--i': n }} per child. */
+  /* Staggered rise-in for grouped items — set style={{ '--i': n }} per child.
+     Brought in line with `fade-up`: the 0.75s blurred rise this used to be is
+     the signature of every generated landing page, and it survived the earlier
+     cleanup only because it lives exclusively in the hero — which is the first
+     thing traffic from an ad sees, so the wrong place to leave it. */
   @keyframes bf-rise {
     from {
       opacity: 0;
-      transform: translateY(15px);
-      filter: blur(6px);
+      transform: translateY(8px);
     }
     to {
       opacity: 1;
       transform: translateY(0);
-      filter: blur(0);
     }
   }
   .animate-rise {
-    animation: bf-rise 0.75s cubic-bezier(0.16, 1, 0.3, 1) both;
-    animation-delay: calc(var(--i, 0) * 90ms);
+    animation: bf-rise 0.36s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
   }
 }

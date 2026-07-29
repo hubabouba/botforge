@@ -526,7 +526,10 @@ export function Workspace({ projectId }: { projectId: string }) {
           <ViewSwitcher view={view} onSelect={selectView} isLocked={isLocked} />
 
           {view !== "code" ? (
-            <div className="min-h-0 flex-1">
+            // Keyed on the view so React remounts it — without that the class
+            // sits on an element that never re-enters and the animation runs
+            // once, on the first switch only.
+            <div key={view} className="panel-swap min-h-0 flex-1">
               {view === "logs" ? (
                 <LogsPanel project={project} hostingAvailable={hostingAvailable} onRun={() => setRunOpen(true)} />
               ) : view === "planning" ? (

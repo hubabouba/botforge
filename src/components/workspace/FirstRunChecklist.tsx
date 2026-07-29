@@ -18,7 +18,14 @@ import { cn } from "@/lib/utils";
  * Hides itself once every step is done, and stays hidden after that.
  */
 
-const DISMISS_KEY = "bf:firstrun";
+/**
+ * Per project, not global. One key for the whole app meant that dismissing the
+ * checklist in your first bot hid it forever in every bot you ever made after —
+ * including a Discord one, whose token instructions are different and which you
+ * had therefore never read. Whoever dismissed it was saying "I know this one",
+ * not "never explain anything again".
+ */
+const dismissKey = (projectId: string) => `bf:firstrun:${projectId}`;
 
 export function FirstRunChecklist({
   project,
@@ -39,20 +46,23 @@ export function FirstRunChecklist({
   const { t } = useI18n();
   const [dismissed, setDismissed] = useState(true); // hidden until we've read storage
   const [open, setOpen] = useState<number | null>(null);
+  /** Has the user opened or closed a step themselves yet? Until then we choose. */
+  const [touched, setTouched] = useState(false);
   const telegram = project.platform === "telegram";
 
   useEffect(() => {
+    setTouched(false);
     try {
-      setDismissed(localStorage.getItem(DISMISS_KEY) === "1");
+      setDismissed(localStorage.getItem(dismissKey(project.id)) === "1");
     } catch {
       setDismissed(false); // storage blocked — showing it is the safer default
     }
-  }, []);
+  }, [project.id]);
 
   function dismiss() {
     setDismissed(true);
     try {
-      localStorage.setItem(DISMISS_KEY, "1");
+      localStorage.setItem(dismissKey(project.id), "1");
     } catch {
       /* non-fatal */
     }
@@ -118,6 +128,13 @@ export function FirstRunChecklist({
   // Nothing left to guide, or the user said they're fine.
   if (dismissed || doneCount === steps.length) return null;
 
+  // The step that's actually blocking them, open by default. Collapsed-by-
+  // default was self-defeating: the instructions only existed behind a click
+  // that someone who doesn't know a bot needs a token has no reason to make, so
+  // the explanation was reaching precisely the people who no longer needed it.
+  const blocking = steps.findIndex((s) => !s.done && s.body);
+  const openIndex = touched ? open : blocking;
+
   return (
     <div className="shrink-0 border-b border-ink-800 bg-ink-900/40 px-3 py-2">
       <div className="flex items-center gap-2">
@@ -139,7 +156,7 @@ export function FirstRunChecklist({
 
       <ul className="mt-1.5 space-y-0.5">
         {steps.map((step, i) => {
-          const expanded = open === i;
+          const expanded = openIndex === i;
           const expandable = !!step.body && !step.done;
           return (
             <li key={step.key}>
@@ -155,7 +172,11 @@ export function FirstRunChecklist({
                   <Check className="h-2.5 w-2.5" />
                 </span>
                 <button
-                  onClick={() => expandable && setOpen(expanded ? null : i)}
+                  onClick={() => {
+                    if (!expandable) return;
+                    setTouched(true); // from here their choice wins over ours
+                    setOpen(expanded ? null : i);
+                  }}
                   disabled={!expandable}
                   className={cn(
                     "flex min-w-0 flex-1 items-center gap-1 text-left text-xs transition-colors",

@@ -116,6 +116,22 @@ export function typeMeta(type: BotType): BotTypeMeta {
 const slugify = (s: string) =>
   s.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "my-bot";
 
+/**
+ * Make a project name safe to drop inside a double-quoted string literal in the
+ * code we generate. Python and JavaScript agree on `\\` and `\"`, so one helper
+ * covers both.
+ *
+ * Without it a project called `The "best" bot` generates
+ * `reply_text("Hello! I'm The "best" bot.")` — a syntax error, so the bot dies
+ * on its first line with a traceback that says nothing about the real cause.
+ * Not a security hole (the code runs in the owner's own isolated machine, and
+ * they can edit the file anyway), but a silent, self-inflicted "it just doesn't
+ * work" on the exact step where a new user gives up. Apostrophes are common in
+ * names; quotes and newlines are rarer but nothing rejects them.
+ */
+const quoteForSource = (s: string) =>
+  s.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\s*[\r\n]+\s*/g, " ").trim();
+
 // ---- Telegram · Python (python-telegram-bot) ----
 function pyTelegram(type: BotType, name: string): { entry: string; files: ProjectFile[] } {
   const header = `import logging
@@ -271,7 +287,7 @@ async def echo(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     default: // blank
       body = `
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text("Hello! I'm ${name}.")
+    await update.message.reply_text("Hello! I'm ${quoteForSource(name)}.")
 `;
       register = `    app.add_handler(CommandHandler("start", start))`;
   }
@@ -369,7 +385,7 @@ bot.command("warn", (ctx) => {
       break;
     default:
       body = `
-bot.command("start", (ctx) => ctx.reply("Hello! I'm ${name}."));
+bot.command("start", (ctx) => ctx.reply("Hello! I'm ${quoteForSource(name)}."));
 `;
   }
 
@@ -550,6 +566,9 @@ function envExample(a: CreateAnswers): string {
 // Prepend a PERSONA constant to the entry file so the bot's declared character
 // is the single source of truth in code (system-prompt ready).
 function withPersona(files: ProjectFile[], entry: string, language: Language, personality: string): ProjectFile[] {
+  // personaText already strips quotes and backslashes and folds whitespace, so
+  // this is safe to embed as-is. Deliberately not re-escaped here: two
+  // sanitisers for one value is how you end up changing the wrong one later.
   const persona = personaText(personality);
   if (!persona) return files;
   const line =

@@ -7,10 +7,27 @@ import { I18nProvider } from "@/lib/i18n/I18nProvider";
 import { DevBanner } from "@/components/DevBanner";
 import "./globals.css";
 
+/**
+ * `preload: false` on purpose, and it is not the same as "load later".
+ *
+ * next/font preloads every subset listed, so declaring cyrillic meant the
+ * browser fetched 35.8 kB of Cyrillic glyphs on every page load and then found
+ * no Cyrillic character to draw — which is every visitor arriving from an
+ * English-language ad. Without the preload hint the browser reads the
+ * @font-face unicode-range rules and fetches only the subsets the text on the
+ * page actually needs: latin here, latin and cyrillic once the language is
+ * switched to Russian.
+ *
+ * The trade is that the fetch starts after CSS parse rather than from the head,
+ * so the swap to the real font can land a beat later. `display: "swap"` already
+ * means text is readable from the first paint either way, and 35.8 kB on a
+ * phone is worth more than that beat.
+ */
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
   variable: "--font-sans",
   display: "swap",
+  preload: false,
 });
 
 const interTight = Inter_Tight({
@@ -18,8 +35,14 @@ const interTight = Inter_Tight({
   variable: "--font-display",
   display: "swap",
   weight: ["500", "600", "700", "800"],
+  preload: false,
 });
 
+// Latin only, so nothing is wasted here either way. Worth knowing: with the two
+// families above opting out, Next stops emitting font preloads for the route
+// altogether rather than keeping this one — measured on the build output, not
+// assumed. All three now load when the CSS is parsed, which `display: "swap"`
+// makes invisible beyond a possible late swap.
 const mono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",

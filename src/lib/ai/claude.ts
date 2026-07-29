@@ -375,7 +375,12 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   // Hand the same numbers to whoever wants to keep them. The log line above
   // stays — it's still the fastest way to watch a single request live — but it
   // is not retrievable after the fact, which is why this exists.
-  params.onSpend?.({
+  //
+  // Awaited: this runs after the final yield, so it only executes at all
+  // because the consumer pulls the generator one last time — and it must
+  // finish before that pull resolves, or the response closes and the host
+  // kills the invocation mid-write. See the note on `onSpend` in types.ts.
+  await params.onSpend?.({
     model,
     inputTokens: spend.input,
     outputTokens: spend.output,

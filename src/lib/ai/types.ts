@@ -113,11 +113,18 @@ export interface AssistantParams {
    * Called once when the request finishes, with what it actually cost.
    *
    * The provider computes this because only it sees the token counts; the route
-   * decides what to do with it because only it has a database client. Both
-   * sides treat it as fire-and-forget — bookkeeping must never be able to
-   * disturb a reply the user is already reading.
+   * decides what to do with it because only it has a database client.
+   *
+   * Awaited, and it has to be. This used to be fire-and-forget on the theory
+   * that bookkeeping must never disturb a reply the user is reading — true, but
+   * it left the write racing the platform. The call lands after the last event
+   * has been streamed, so on a serverless host the function is torn down the
+   * moment the response closes, and an un-awaited round trip to Postgres loses
+   * that race every time: 29 paid requests, zero rows in `ai_spend`. Awaiting
+   * here holds the invocation open for one insert. The reply is already fully
+   * delivered by then, so nothing the user sees waits on it.
    */
-  onSpend?: (spend: AssistantSpend) => void;
+  onSpend?: (spend: AssistantSpend) => void | Promise<void>;
 }
 
 /** What one assistant request cost, measured rather than estimated. */

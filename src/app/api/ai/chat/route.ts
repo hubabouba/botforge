@@ -92,7 +92,7 @@ export async function POST(req: Request) {
  */
 async function recordSpend(userId: string, s: AssistantSpend): Promise<void> {
   try {
-    await createAdminClient().rpc("record_ai_spend", {
+    const { error } = await createAdminClient().rpc("record_ai_spend", {
       p_user_id: userId,
       p_model: s.model,
       p_input: s.inputTokens,
@@ -101,8 +101,13 @@ async function recordSpend(userId: string, s: AssistantSpend): Promise<void> {
       p_cache_read: s.cacheReadTokens,
       p_usd: s.usd,
     });
-  } catch {
-    /* the [ai/spend] log line still carries it for anyone watching live */
+    // rpc() resolves with an error rather than throwing it, so the catch below
+    // never sees a rejected RPC. Reporting it is the difference between a
+    // pricing table built on measurements and one built on an empty table
+    // nobody noticed was empty.
+    if (error) Sentry.captureMessage(`record_ai_spend failed: ${error.message}`, "warning");
+  } catch (e) {
+    Sentry.captureException(e, { extra: { where: "recordSpend" } });
   }
 }
 
@@ -210,7 +215,7 @@ async function handlePost(req: Request) {
           maxTurns: maxToolTurnsFor(plan),
           clarify: planAllows(plan, "assistant.clarify"),
           budgetMs: LOOP_BUDGET_MS,
-          onSpend: (s) => void recordSpend(user.id, s),
+          onSpend: (s) => recordSpend(user.id, s),
         })
       : assistantChatGeminiStream({ ...parsed.data, runtime });
 

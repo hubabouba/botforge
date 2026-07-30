@@ -214,15 +214,36 @@ export function hostingConcurrentLimit(plan: Plan): number {
 }
 
 /**
- * Monthly bot-runtime budget per plan, in hours (Infinity = unlimited).
- *
- * A month is ~730 hours, so every paid tier must clear that: a bot that stops
- * halfway through the month is a broken promise for a bot-hosting product, and
- * the old 100/400/800 did exactly that (Basic died after 4 days). Cost isn't the
- * constraint — a shared-cpu-1x/256MB machine is ~$2/month flat out, so the real
- * spend ceiling is HOSTING_CONCURRENT_RUNS above (max $2/$6/$10 per account).
+ * Hours of headroom per concurrent bot, per month. A month is 730-744 hours,
+ * so 750 is "all month, plus room for the odd restart".
  */
-export const HOSTING_MONTHLY_RUNTIME_HOURS: Record<Plan, number> = { free: 0, basic: 750, pro: 1000, max: 1500 };
+const HOURS_PER_SLOT = 750;
+
+/**
+ * Monthly bot-runtime budget per plan, in hours — the pool every one of that
+ * plan's bots draws from together.
+ *
+ * Derived from the concurrency above rather than written out, because the two
+ * numbers are one promise and hand-written constants drifted apart: Pro allows
+ * 3 bots at once but budgeted 1000 hours, and three bots running all month need
+ * ~2190. A Pro customer using the concurrency they paid for had all three
+ * killed around day 13 with "this month's hosting hours are used up". Max was
+ * worse — 5 slots against 1500 hours, so day 12.
+ *
+ * The old comment claimed every tier cleared a full month, and it did, for ONE
+ * bot. So did the test guarding it. Both checked the wrong thing.
+ *
+ * Cost isn't the constraint and never was: a shared-cpu-1x/256MB machine is
+ * ~$2/month flat out, so the real spend ceiling is HOSTING_CONCURRENT_RUNS —
+ * at most $2/$6/$10 an account against $9/$19/$49 of revenue. This budget is a
+ * runaway guard, not a meter.
+ */
+export const HOSTING_MONTHLY_RUNTIME_HOURS: Record<Plan, number> = {
+  free: 0,
+  basic: HOSTING_CONCURRENT_RUNS.basic * HOURS_PER_SLOT,
+  pro: HOSTING_CONCURRENT_RUNS.pro * HOURS_PER_SLOT,
+  max: HOSTING_CONCURRENT_RUNS.max * HOURS_PER_SLOT,
+};
 
 /** The monthly runtime budget in seconds for begin_project_run (-1 = unlimited). */
 export function hostingRuntimeBudgetSeconds(plan: Plan): number {

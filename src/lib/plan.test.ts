@@ -53,15 +53,22 @@ describe("per-plan numeric caps", () => {
   it("hosting monthly budget converts hours→seconds, 0 for free", () => {
     expect(hostingRuntimeBudgetSeconds("free")).toBe(0);
     expect(hostingRuntimeBudgetSeconds("basic")).toBe(750 * 3600);
-    expect(hostingRuntimeBudgetSeconds("pro")).toBe(1000 * 3600);
-    expect(hostingRuntimeBudgetSeconds("max")).toBe(1500 * 3600);
+    expect(hostingRuntimeBudgetSeconds("pro")).toBe(2250 * 3600);
+    expect(hostingRuntimeBudgetSeconds("max")).toBe(3750 * 3600);
   });
 
-  it("every paid tier covers a bot running all month (~730h)", () => {
-    // The product sells "your bot is hosted" — a budget under a full month
-    // means it silently stops partway through, which is the bug this guards.
+  /**
+   * The invariant that actually matters, and the one the old version of this
+   * test missed: it checked that each tier covered ONE bot for a month, which
+   * Pro (3 slots, 1000h) passed while being unable to run the three bots it
+   * sells for more than ~13 days. Concurrency and budget are one promise, so
+   * the assertion has to multiply them.
+   */
+  it("every paid tier can run its full concurrency all month", () => {
+    const MONTH_HOURS = 744; // 31 days, the worst case
     for (const plan of ["basic", "pro", "max"] as const) {
-      expect(hostingRuntimeBudgetSeconds(plan)).toBeGreaterThanOrEqual(730 * 3600);
+      const needed = hostingConcurrentLimit(plan) * MONTH_HOURS * 3600;
+      expect(hostingRuntimeBudgetSeconds(plan)).toBeGreaterThanOrEqual(needed);
     }
   });
 });
@@ -201,7 +208,7 @@ describe("hostingLimitsFor (resolved plan → concurrency/budget pair)", () => {
 
   it("basic/pro/max match HOSTING_CONCURRENT_RUNS / HOSTING_MONTHLY_RUNTIME_HOURS", () => {
     expect(hostingLimitsFor("basic")).toEqual({ concurrent: 1, budgetSeconds: 750 * 3600 });
-    expect(hostingLimitsFor("pro")).toEqual({ concurrent: 3, budgetSeconds: 1000 * 3600 });
-    expect(hostingLimitsFor("max")).toEqual({ concurrent: 5, budgetSeconds: 1500 * 3600 });
+    expect(hostingLimitsFor("pro")).toEqual({ concurrent: 3, budgetSeconds: 2250 * 3600 });
+    expect(hostingLimitsFor("max")).toEqual({ concurrent: 5, budgetSeconds: 3750 * 3600 });
   });
 });

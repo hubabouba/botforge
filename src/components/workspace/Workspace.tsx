@@ -633,6 +633,12 @@ export function Workspace({ projectId }: { projectId: string }) {
             project={project}
             files={project.files}
             onApplyEdit={onApplyEdit}
+            // Compact layout: opening a file from an edit card has to switch
+            // the pane back to the editor, or the file opens behind the chat.
+            onOpenFile={(path) => {
+              openFile(path);
+              setMobileTab("code");
+            }}
             compact={compact}
             buildPlan={buildPlan}
             run={planRun}

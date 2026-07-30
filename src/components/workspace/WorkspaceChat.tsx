@@ -52,6 +52,7 @@ export function WorkspaceChat({
   project,
   files,
   onApplyEdit,
+  onOpenFile,
   onCollapse,
   compact = false,
   buildPlan = "",
@@ -64,6 +65,8 @@ export function WorkspaceChat({
   project: Project;
   files: ProjectFile[];
   onApplyEdit: (path: string, content: string) => void;
+  /** Open a file in the editor — the edit cards link to what they changed. */
+  onOpenFile?: (path: string) => void;
   onCollapse: () => void;
   /** Phone/tablet layout — the assistant says so up front before anything else. */
   compact?: boolean;
@@ -479,20 +482,10 @@ export function WorkspaceChat({
             </>
           )}
         </div>
-        <button
-          onClick={toggleAutoApply}
-          aria-pressed={autoApply}
-          title={t("chat.autoApplyHint")}
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11px] font-medium transition-colors",
-            autoApply
-              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-              : "border-ink-700 bg-ink-900/60 text-neutral-400 hover:text-neutral-200",
-          )}
-        >
-          <span className={cn("h-1.5 w-1.5 rounded-full", autoApply ? "bg-emerald-400" : "bg-neutral-600")} />
-          {t("chat.autoApply")}
-        </button>
+        {/* Auto-apply used to sit here. Six controls in a ~360px header left it
+            no room and the label wrapped mid-word, at the hyphen: "Auto-" over
+            "apply". It now lives above the composer with the other toggles that
+            decide what happens to the next reply, which is what it is. */}
         {/* Two-step, like every other destroy in this app: the conversation is
             now saved, so one stray click would wipe real history. */}
         {messages.length > 0 && (
@@ -571,9 +564,17 @@ export function WorkspaceChat({
                 <div key={i} className="overflow-hidden rounded-xl border border-ink-800 bg-ink-900">
                   <div className="flex items-center gap-2 px-3 py-2">
                     <FileIcon className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
-                    <span title={edit.path} className="min-w-0 flex-1 truncate font-mono text-xs text-neutral-300">
+                    {/* The card said a file changed and then made you go find it
+                        in the tree yourself. Clicking the name opens it — the
+                        question anyone has on reading "Applied" is "applied to
+                        what, exactly", and this is the shortest path to it. */}
+                    <button
+                      onClick={() => onOpenFile?.(edit.path)}
+                      title={t("chat.openFile").replace("{path}", edit.path)}
+                      className="min-w-0 flex-1 truncate text-left font-mono text-xs text-neutral-300 transition-colors hover:text-accent hover:underline"
+                    >
                       {edit.path}
-                    </span>
+                    </button>
                     {edit.applied ? (
                       <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-emerald-400">
                         <Check className="h-3.5 w-3.5" /> {t("chat.applied")}
@@ -648,25 +649,38 @@ export function WorkspaceChat({
             </button>
           </div>
         )}
-        {/* Attach controls — only for accounts that can actually host a bot;
-            without hosting there's no runtime state to attach. */}
-        {hostingAvailable && (
-          <div className="mb-2 flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-neutral-600">{t("chat.attach")}</span>
-            <AttachChip
-              label={t("chat.attachLogs")}
-              title={t("chat.attachLogsHint")}
-              on={attachLogs}
-              onToggle={() => setAttachLogs((v) => !v)}
-            />
-            <AttachChip
-              label={t("chat.attachMetrics")}
-              title={t("chat.attachMetricsHint")}
-              on={attachMetrics}
-              onToggle={() => setAttachMetrics((v) => !v)}
-            />
-          </div>
-        )}
+        {/* One row of "what happens to the next reply": whether its edits land
+            on their own, and what runtime state rides along with the question.
+            Attach chips need a bot that can actually run — without hosting
+            there's no runtime state to send — but auto-apply always applies,
+            so the row itself is unconditional now. */}
+        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          <AttachChip
+            label={t("chat.autoApply")}
+            title={t("chat.autoApplyHint")}
+            on={autoApply}
+            onToggle={toggleAutoApply}
+            tone="emerald"
+          />
+          {hostingAvailable && (
+            <>
+              <span aria-hidden className="mx-0.5 h-3 w-px bg-ink-700" />
+              <span className="text-[11px] text-neutral-600">{t("chat.attach")}</span>
+              <AttachChip
+                label={t("chat.attachLogs")}
+                title={t("chat.attachLogsHint")}
+                on={attachLogs}
+                onToggle={() => setAttachLogs((v) => !v)}
+              />
+              <AttachChip
+                label={t("chat.attachMetrics")}
+                title={t("chat.attachMetricsHint")}
+                on={attachMetrics}
+                onToggle={() => setAttachMetrics((v) => !v)}
+              />
+            </>
+          )}
+        </div>
         <div className="rounded-xl border border-ink-700 bg-ink-900 p-2 focus-within:border-accent/50">
           <textarea
             value={input}
@@ -752,17 +766,30 @@ function ThinkingBlock({ text, live }: { text: string; live: boolean }) {
   );
 }
 
-/** Small on/off pill for the composer's attach row. */
+/**
+ * Small on/off pill for the composer's toggle row.
+ *
+ * `tone` separates the two kinds of switch sharing the row: accent for "send
+ * this along with my question", emerald for "let the reply change my files".
+ * The second is the one with consequences, and it borrows the green the rest
+ * of the app already uses for a change that has landed.
+ *
+ * `whitespace-nowrap` because the label that lives here is "Auto-apply", and a
+ * hyphen is a line-break opportunity — which is exactly how it broke in the
+ * header it came from.
+ */
 function AttachChip({
   label,
   title,
   on,
   onToggle,
+  tone = "accent",
 }: {
   label: string;
   title: string;
   on: boolean;
   onToggle: () => void;
+  tone?: "accent" | "emerald";
 }) {
   return (
     <button
@@ -770,12 +797,19 @@ function AttachChip({
       aria-pressed={on}
       title={title}
       className={cn(
-        "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] transition-colors",
         on
-          ? "border-accent/40 bg-accent/15 text-[#a5b4fc]"
+          ? tone === "emerald"
+            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+            : "border-accent/40 bg-accent/15 text-[#a5b4fc]"
           : "border-ink-700 text-neutral-500 hover:text-neutral-300",
       )}
     >
+      {/* A dot only where the state has consequences — a row of identical dots
+          would just be noise on the two "attach this" chips. */}
+      {tone === "emerald" && (
+        <span className={cn("h-1.5 w-1.5 rounded-full", on ? "bg-emerald-400" : "bg-neutral-600")} />
+      )}
       {label}
     </button>
   );

@@ -31,6 +31,22 @@ const LANG_LABEL: Record<Lang, string> = {
 };
 
 /**
+ * What the editor can do, in the order someone is likely to want it. The key
+ * combos aren't translated — they're what's printed on the keyboard — but each
+ * label is, and `Ctrl` is swapped for `⌘` on a Mac (the handlers already accept
+ * either, so showing "Ctrl" there was simply telling Mac users the wrong key).
+ */
+const SHORTCUTS: { keys: string; labelKey: string }[] = [
+  { keys: "Ctrl+F", labelKey: "editor.scFind" },
+  { keys: "Ctrl+H", labelKey: "editor.scReplace" },
+  { keys: "Ctrl+S", labelKey: "editor.scSave" },
+  { keys: "Ctrl+Z", labelKey: "editor.scUndo" },
+  { keys: "Ctrl+/", labelKey: "editor.scComment" },
+  { keys: "Alt+↑/↓", labelKey: "editor.scMoveLine" },
+  { keys: "Shift+Alt+↑/↓", labelKey: "editor.scDuplicate" },
+];
+
+/**
  * Editable, syntax-highlighted editor (transparent textarea over highlighted
  * <pre>) with editor comforts: auto-indent, auto-closing pairs, tab/untab,
  * Cmd/Ctrl+S, an active-line marker in the gutter and a status bar.
@@ -61,6 +77,7 @@ export function CodeEditor({
   const [caret, setCaret] = useState({ line: 1, col: 1 });
   const [selLen, setSelLen] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [shortcuts, setShortcuts] = useState(false);
   // ---- Find / replace ----
   const findRef = useRef<HTMLInputElement>(null);
   const activeMatchRef = useRef<HTMLSpanElement>(null);
@@ -71,6 +88,12 @@ export function CodeEditor({
   const [activeMatch, setActiveMatch] = useState(-1);
   const lang = langOf(file.path);
   const lines = useMemo(() => highlightToLines(value, lang), [value, lang]);
+  // Resolved after mount: navigator doesn't exist while rendering on the server,
+  // and a hydration mismatch over one glyph isn't worth it.
+  const [modKey, setModKey] = useState("Ctrl");
+  useEffect(() => {
+    if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) setModKey("⌘");
+  }, []);
 
   function commit(next: string, selStart: number, selEnd = selStart) {
     record(next, selStart, selEnd, "struct");
@@ -563,11 +586,19 @@ export function CodeEditor({
         </div>
       )}
       <div className="relative min-h-0 flex-1 overflow-auto">
-        <div className="flex min-h-full min-w-max">
+        {/* `w-max min-w-full` = max(longest line, the visible pane).
+            It was `min-w-max`, i.e. exactly the longest line — which made the
+            active-line highlight below stop wherever the longest line in the
+            file happened to end, painting a rectangle that stopped in the
+            middle of empty space for no reason a reader could see. */}
+        <div className="flex min-h-full w-max min-w-full">
           {/* Gutter */}
           <div
             aria-hidden
-            className={cn("sticky left-0 z-10 select-none border-r border-ink-800 bg-ink-950 px-3 py-3 text-right", shared)}
+            className={cn(
+              "sticky left-0 z-10 shrink-0 select-none border-r border-ink-800 bg-ink-950 px-3 py-3 text-right",
+              shared,
+            )}
           >
             {lines.map((_, i) => (
               <div key={i} className={cn("tabular-nums", i === activeLine ? "text-accent" : "text-neutral-600")}>
@@ -576,8 +607,9 @@ export function CodeEditor({
             ))}
           </div>
 
-          {/* Code area */}
-          <div className="relative">
+          {/* Code area — `flex-1` so it absorbs whatever the gutter leaves,
+              which is what lets a line's highlight reach the right edge. */}
+          <div className="relative flex-1">
             <pre className={cn("m-0 whitespace-pre px-4 py-3", shared)} aria-hidden>
               {lines.map((tokens, i) => (
                 <div key={i} className={cn(i === activeLine && "bg-white/[0.03]")}>
@@ -639,12 +671,49 @@ export function CodeEditor({
         <span>{t("editor.spaces")}</span>
         {selLen > 0 && <span className="text-neutral-400">{selLen} {t("editor.selected")}</span>}
 
-        <span
-          title={t("editor.shortcutsHint")}
-          className="ml-auto cursor-help select-none rounded border border-ink-700 px-1 text-[11px] text-neutral-500 hover:text-neutral-300"
-        >
-          ?
-        </span>
+        <div className="relative ml-auto">
+          {/* Was a bare "?" whose only content was a `title` — six genuinely
+              useful shortcuts (find, replace, move line, duplicate, comment)
+              reachable solely by resting the pointer on a question mark for a
+              second, and not at all on a touch screen. Nobody discovers an
+              editor's features that way. */}
+          <button
+            onClick={() => setShortcuts((v) => !v)}
+            aria-expanded={shortcuts}
+            aria-label={t("editor.shortcuts")}
+            title={t("editor.shortcuts")}
+            className={cn(
+              "select-none rounded border px-1 text-[11px] transition-colors",
+              shortcuts
+                ? "border-accent/50 bg-accent/10 text-accent"
+                : "border-ink-700 text-neutral-500 hover:text-neutral-300",
+            )}
+          >
+            ?
+          </button>
+          {shortcuts && (
+            <>
+              <button
+                className="fixed inset-0 z-20 cursor-default"
+                aria-hidden
+                onClick={() => setShortcuts(false)}
+              />
+              <div className="absolute bottom-7 right-0 z-30 w-64 rounded-xl border border-ink-700 bg-ink-950 p-1.5 shadow-lift">
+                <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wider text-neutral-500">
+                  {t("editor.shortcuts")}
+                </div>
+                {SHORTCUTS.map((s) => (
+                  <div key={s.labelKey} className="flex items-center gap-2 px-2 py-1">
+                    <span className="min-w-0 flex-1 truncate text-[12px] text-neutral-300">{t(s.labelKey)}</span>
+                    <kbd className="shrink-0 rounded border border-ink-700 bg-ink-900 px-1.5 py-0.5 font-mono text-[10px] text-neutral-400">
+                      {s.keys.replace("Ctrl", modKey)}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <button
           onClick={copyFile}
           title={t("editor.copyFile")}

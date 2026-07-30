@@ -47,6 +47,31 @@ export async function GET() {
     .select("project_id, status, region, restart_count, last_started_at, last_stopped_at, last_crash_at, updated_at")
     .eq("user_id", user.id);
 
+  // Assistant conversations and bot console output. Both were missing, and both
+  // are named to the user in the privacy policy as things we keep — an export
+  // that omits what the policy promises isn't portability (GDPR Art. 20), it's
+  // a partial copy. RLS scopes each to the caller's own projects, same as above.
+  //
+  // Capped, because neither table has a ceiling per project: a chatty account
+  // could otherwise ask for a response big enough to time the function out and
+  // get no export at all. Newest first so the cap drops the oldest, and the
+  // counts below say plainly when a cap was hit rather than letting the file
+  // look complete.
+  const MESSAGE_CAP = 5000;
+  const LOG_CAP = 20000;
+
+  const { data: messages } = await supabase
+    .from("project_messages")
+    .select("project_id, role, content, edits, created_at")
+    .order("created_at", { ascending: false })
+    .limit(MESSAGE_CAP);
+
+  const { data: logs } = await supabase
+    .from("project_logs")
+    .select("project_id, stream, line, created_at")
+    .order("id", { ascending: false })
+    .limit(LOG_CAP);
+
   // Secret NAMES only — never the encrypted values. list_project_secret_names is
   // self-scoped by auth.uid(), so this stays the caller's own data.
   const secretNames: Record<string, string[]> = {};
@@ -64,6 +89,16 @@ export async function GET() {
     // Secret values are intentionally excluded — we store only ciphertext and
     // never expose it; these are the key names your bots use.
     projectSecretNames: secretNames,
+    // Oldest-first in the file (the query fetched newest-first to make the cap
+    // drop the oldest); `truncated` is true when there was more than the cap.
+    conversations: {
+      messages: [...((messages as unknown[] | null) ?? [])].reverse(),
+      truncated: (messages?.length ?? 0) >= MESSAGE_CAP,
+    },
+    botLogs: {
+      lines: [...((logs as unknown[] | null) ?? [])].reverse(),
+      truncated: (logs?.length ?? 0) >= LOG_CAP,
+    },
     hosting: { usage: hostingUsage ?? [], deployments: deployments ?? [] },
   };
 

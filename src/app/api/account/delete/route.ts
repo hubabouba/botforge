@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { stripe } from "@/lib/stripe";
 import { flyConfig, destroyMachine } from "@/lib/hosting/fly";
+import { serverError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -63,7 +64,11 @@ export async function POST() {
   // 3. Delete the auth user — cascades all of their Postgres rows.
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) {
-    return NextResponse.json({ error: "Couldn't delete the account. Please try again." }, { status: 500 });
+    // Reported, unlike the best-effort steps above: this is the one that
+    // legally has to happen (GDPR Art. 17), and a person who asked to be erased
+    // and quietly wasn't is the kind of failure we must not learn about from
+    // them. The message stays generic; the reason goes to Sentry.
+    return serverError(error, "Couldn't delete the account. Please try again.", "account.delete");
   }
 
   // Invalidate the now-orphaned session cookie on this device.

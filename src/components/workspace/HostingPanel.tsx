@@ -9,7 +9,7 @@ import { track } from "@/lib/analytics";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { plural } from "@/lib/i18n/plural";
 import { Play, Check, Trash, Lock, Bell, BellOff } from "@/components/icons";
-import { setSoundMuted, soundMuted, unlockAudio } from "@/lib/sound";
+import { playFailure, playSuccess, setSoundMuted, soundMuted, unlockAudio } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 export const STATUS_META: Record<DeploymentStatus, { labelKey: string; dot: string; pulse?: boolean }> = {
@@ -98,13 +98,23 @@ export function HostingPanel({ project }: { project: Project }) {
   async function doStart() {
     setErr("");
     setBusy(true);
-    // Must happen inside the click. The chime plays up to a minute from now,
-    // by which time there is no user gesture to authorise it — but a context
-    // resumed once stays resumed. See unlockAudio.
+    // Inside the click, before the await: an AudioContext may only be resumed
+    // from a user gesture, and by the time this request answers — up to a
+    // minute later — there is no gesture left. Resumed once, it stays resumed.
     unlockAudio();
     const r = await startBot(project.id);
-    if (r.ok) track("hosting_started");
-    else setErr(r.error || t("hosting.couldntStart"));
+    // The route waits for the machine and answers with the verdict, so this is
+    // where the outcome is actually known. An earlier version listened for a
+    // `starting → running` transition in the status poll instead, and never
+    // made a sound at all: the request only returns once the bot is already
+    // running, so the browser never sees `starting`.
+    if (r.ok) {
+      track("hosting_started");
+      playSuccess();
+    } else {
+      setErr(r.error || t("hosting.couldntStart"));
+      playFailure();
+    }
     await refresh();
     setBusy(false);
   }
@@ -159,8 +169,15 @@ export function HostingPanel({ project }: { project: Project }) {
               const next = !muted;
               setMuted(next);
               setSoundMuted(next);
-              // Unmuting is a gesture — take it as permission to play later.
-              if (!next) unlockAudio();
+              // Unmuting is a gesture — take it as permission to play later,
+              // and play the chime right now. Without this the only way to
+              // find out whether sound works at all is to start a bot and
+              // wait a minute for silence, which tells you nothing about
+              // why: muted, blocked by the browser, or volume down.
+              if (!next) {
+                unlockAudio();
+                playSuccess();
+              }
             }}
             aria-pressed={!muted}
             aria-label={t(muted ? "hosting.soundOff" : "hosting.soundOn")}

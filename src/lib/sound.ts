@@ -4,9 +4,10 @@
  * Two short notification tones, synthesized rather than loaded.
  *
  * Starting a bot takes tens of seconds — pull the image, install dependencies,
- * connect to Telegram — which is long enough that people switch tabs. The
- * outcome then lands on a screen nobody is looking at. These are the two
- * sounds that say how it went.
+ * connect to Telegram — long enough to look away. These are the two sounds
+ * that say how it went, and they play every time, watching or not: a rule
+ * about where your attention is, is a rule that fails silently when it guesses
+ * wrong, and silence is indistinguishable from a broken feature.
  *
  * Synthesized with the Web Audio API instead of shipping .mp3 files, for three
  * reasons that all pull the same way: two audio files are ~20-40 kB against
@@ -111,7 +112,7 @@ export function playSuccess(): void {
       [523.25, 0, 0.14],
       [783.99, 0.11, 0.34],
     ],
-    0.16,
+    0.3,
   );
 }
 
@@ -127,16 +128,6 @@ export function playFailure(): void {
       [329.63, 0.14, 0.16],
       [233.08, 0.28, 0.42],
     ],
-    0.14,
+    0.26,
   );
-}
-
-/**
- * True when the person is not looking at this tab — hidden, or visible but
- * behind another window. Both count: the point is whether they'd have seen the
- * status change on screen.
- */
-export function tabUnattended(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.visibilityState !== "visible" || !document.hasFocus();
 }

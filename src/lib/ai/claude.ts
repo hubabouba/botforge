@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { buildSystemPrompt, type AssistantParams, type AssistantStreamEvent } from "./types";
+import { applyStringEdit, editFailureMessage } from "./editFile";
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -28,10 +29,36 @@ const MAX_TOOL_TURNS = 4;
 const DEFAULT_BUDGET_MS = 50_000;
 const WRAP_UP_MS = 10_000;
 
+/**
+ * Change part of a file instead of rewriting it.
+ *
+ * This exists for one reason and it's money. write_file bills the entire file
+ * as output tokens, at 5x the input rate — measured on real traffic, output is
+ * 49% of what a message costs. Fixing one line in a 150-line file used to emit
+ * all 150. Now it emits the line.
+ */
+const EDIT_FILE_TOOL = {
+  name: "edit_file",
+  description:
+    "Change part of an existing file. Prefer this over write_file for any change to a file that already exists — fixing a bug, adding a handler, renaming something — because it is far cheaper and safer than re-emitting the whole file. old_string must match the file EXACTLY, byte for byte, including indentation, and must appear exactly once: include a line or two of surrounding context to make it unique. Set new_string to \"\" to delete the matched text. Call it once per distinct change; several calls on the same file in one turn are applied in order.",
+  input_schema: {
+    type: "object" as const,
+    properties: {
+      path: { type: "string", description: "POSIX path of the file to change, e.g. bot/handlers.py" },
+      old_string: {
+        type: "string",
+        description: "The exact text to replace, copied verbatim from the file, unique within it.",
+      },
+      new_string: { type: "string", description: 'What to put in its place. Empty string deletes the text.' },
+    },
+    required: ["path", "old_string", "new_string"],
+  },
+};
+
 const WRITE_FILE_TOOL = {
   name: "write_file",
   description:
-    "Create a new file or overwrite an existing one with its full new content. Always provide the complete file, never a diff. The write is saved immediately; you can read it back and keep improving it.",
+    "Create a NEW file, or replace an existing one wholesale when the change is so extensive that a targeted edit makes no sense. Provide the complete file content, never a diff. For changing part of a file that already exists, use edit_file instead — it costs a fraction of this. The write is saved immediately; you can read it back and keep improving it.",
   input_schema: {
     type: "object" as const,
     properties: {
@@ -97,7 +124,8 @@ const READ_FILE_TOOL = {
 const AGENT_NOTE = `
 
 You are running as a coding agent with tools, in a loop — not a single reply:
-- Plan the change, then use write_file with the COMPLETE new content of each file you create or change.
+- Plan the change, then make it. Use edit_file to change a file that already exists — one call per distinct change, with enough surrounding context that old_string is unique. Use write_file only for a NEW file, or when you are genuinely rewriting almost all of an existing one.
+- Fixing a reported bug is nearly always one or two small edit_file calls. Re-emitting a whole file to change a few lines wastes the user's quota and risks dropping code you didn't mean to touch.
 - Don't stop at a first draft. After writing, read your own files back with read_file, check them against the request (correctness, missing edge cases, wrong types, a forgotten await, secrets left in code), and rewrite anything weak. Prefer one more review pass over shipping something rough.
 - Split non-trivial work into focused, well-named files like a senior engineer, but never fragment a small change into needless files.
 - When the work is genuinely done and reviewed, stop calling tools and end with a short plain-language summary of what you changed and why.`;
@@ -177,8 +205,8 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   const tools = planning
     ? undefined
     : stepMode
-      ? [WRITE_FILE_TOOL, READ_FILE_TOOL, FINISH_STEP_TOOL]
-      : [WRITE_FILE_TOOL, READ_FILE_TOOL, OPEN_PLAN_TOOL];
+      ? [EDIT_FILE_TOOL, WRITE_FILE_TOOL, READ_FILE_TOOL, FINISH_STEP_TOOL]
+      : [EDIT_FILE_TOOL, WRITE_FILE_TOOL, READ_FILE_TOOL, OPEN_PLAN_TOOL];
   const deadline = Date.now() + (params.budgetMs ?? DEFAULT_BUDGET_MS);
   let outOfTime = false;
   let truncated = false;
@@ -277,6 +305,42 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
             content: "write_file needs both a path and full content.",
             is_error: true,
           });
+        }
+      } else if (block.name === "edit_file") {
+        const input = block.input as { path?: string; old_string?: string; new_string?: string };
+        const path = input.path ?? "";
+        const current = working.get(path);
+        if (current === undefined) {
+          results.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: `No file at "${path}". Use write_file to create it. Files in this project: ${[...working.keys()].join(", ")}`,
+            is_error: true,
+          });
+        } else {
+          // Against the WORKING copy, so several edits to one file in a turn
+          // compose — the second sees the result of the first, not the original.
+          const result = applyStringEdit(current, input.old_string ?? "", input.new_string ?? "");
+          if (result.ok) {
+            working.set(path, result.content);
+            // The edit set still carries whole files: the stream protocol, the
+            // Apply button and the save path all speak full content, and none
+            // of them needed to change for this. Only the model's side got
+            // cheaper.
+            edits.set(path, result.content);
+            results.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: `Edited ${path}. Read it back if you want to check the result, or keep going.`,
+            });
+          } else {
+            results.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: editFailureMessage(path, result),
+              is_error: true,
+            });
+          }
         }
       } else if (block.name === "open_plan") {
         const input = block.input as { goal?: string };

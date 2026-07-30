@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { stripe, stripeEnabled, priceIdForPlan, publicOrigin } from "@/lib/stripe";
 import { allowAction, rateLimitMessage } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
@@ -89,6 +90,12 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ url: session.url });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message || "Checkout failed." }, { status: 500 });
+    // Stripe's own message named the price id and what was wrong with it. Useful
+    // to us, reconnaissance to anyone else — and it reached the person who
+    // clicked Upgrade, who can do nothing with it either way.
+    return serverError(e, "Couldn't start checkout. Try again in a moment.", "checkout", {
+      plan: parsed.data.plan,
+      interval,
+    });
   }
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProject } from "@/lib/workspace/serverStore";
 import { isSafeProjectPath } from "@/lib/workspace/paths";
+import { serverError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
@@ -95,6 +96,6 @@ export async function POST(req: Request, { params }: Ctx) {
     if (message.includes("project_file_limit")) {
       return NextResponse.json({ error: "This project has reached its 200-file limit." }, { status: 400 });
     }
-    return NextResponse.json({ error: message }, { status: 500 });
+    return serverError(e, "Couldn't save that change. Try again.", "files", { action: op.action });
   }
 }

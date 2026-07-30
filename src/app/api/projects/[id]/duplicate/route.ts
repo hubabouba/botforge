@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserPlan } from "@/lib/subscription";
 import { projectLimit } from "@/lib/plan";
+import { dbError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,7 @@ export async function POST(_req: Request, { params }: Ctx) {
     p_new_name: null,
   });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, "Couldn't duplicate the project. Try again.", "duplicate_project");
   if (!data) return NextResponse.json({ error: "Not found." }, { status: 404 });
   if ((data as { error?: string }).error === "limit") {
     return NextResponse.json({ error: "limit", plan }, { status: 403 });

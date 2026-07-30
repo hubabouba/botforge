@@ -2,8 +2,12 @@ node_modules
 .next
 out
 build
+# Every .env variant except the committed placeholder file. `.env` and
+# `.env*.local` alone left `.env.production` and `.env.development` tracked —
+# exactly the two names you reach for when copying real values out of Vercel.
 .env
-.env*.local
+.env.*
+!.env.example
 dev.db
 dev.db-journal
 prisma/dev.db

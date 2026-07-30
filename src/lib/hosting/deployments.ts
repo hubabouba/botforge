@@ -202,8 +202,21 @@ export function redactSecrets(line: string): string {
     .replace(/\d{6,12}:[A-Za-z0-9_-]{30,}/g, "[REDACTED]")
     // Discord bot token: base64.base64.base64-ish, dot-separated
     .replace(/[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,}/g, "[REDACTED]")
-    // OpenAI-style keys (sk-…, sk-proj-…) — bots calling third-party APIs log these too
+    // OpenAI-style keys (sk-…, sk-proj-…, sk-ant-…) — bots calling third-party
+    // APIs log these too
     .replace(/\bsk-[A-Za-z0-9_-]{20,}\b/g, "[REDACTED]")
+    // Underscore-separated key families the hyphen rule above misses entirely:
+    // Stripe (sk_live_/rk_live_/whsec_), GitHub (ghp_/gho_/ghs_/github_pat_).
+    // An AI-written bot that takes payments or opens issues holds one of these.
+    .replace(/\b(?:sk|rk|pk)_(?:live|test)_[A-Za-z0-9]{16,}\b/g, "[REDACTED]")
+    .replace(/\bwhsec_[A-Za-z0-9]{16,}\b/g, "[REDACTED]")
+    .replace(/\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g, "[REDACTED]")
+    // Google API keys — the shape is fixed and unmistakable (AIza + 35 chars).
+    .replace(/\bAIza[A-Za-z0-9_-]{35}\b/g, "[REDACTED]")
+    // A JWT: three base64url segments starting with the standard `{"alg"` header.
+    // This is what a leaked Supabase service-role key looks like in a log, and
+    // it is the single most damaging string a bot could print.
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "[REDACTED]")
     // Any long bearer credential in a dumped request header
     .replace(/\b(Bearer\s+)[A-Za-z0-9._~+/-]{20,}={0,2}/gi, "$1[REDACTED]");
 }

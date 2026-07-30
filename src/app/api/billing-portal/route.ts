@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { stripe, stripeEnabled, publicOrigin } from "@/lib/stripe";
 import { allowAction, rateLimitMessage } from "@/lib/rateLimit";
+import { serverError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
@@ -42,6 +43,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ url: session.url });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message || "Portal failed." }, { status: 500 });
+    return serverError(e, "Couldn't open the billing portal. Try again in a moment.", "billing-portal");
   }
 }

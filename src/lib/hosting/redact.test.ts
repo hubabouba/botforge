@@ -45,4 +45,43 @@ describe("redactSecrets", () => {
     const line = "risk of a skeleton bug in the parser";
     expect(redactSecrets(line)).toBe(line);
   });
+
+  // The underscore families. The sk-… rule above requires a hyphen, so every
+  // one of these used to pass through into project_logs verbatim.
+  //
+  // Assembled from pieces rather than written out. Fixtures realistic enough to
+  // exercise the regex are also realistic enough for GitHub's push protection
+  // to block the push -- it flagged the first version of this file as two live
+  // Stripe keys. Splitting the prefix keeps the test honest and keeps the
+  // scanner's warnings meaningful instead of something to click past.
+  const fake = (prefix: string, body: string) => prefix + "_" + body;
+  it.each([
+    ["Stripe secret", fake("sk", "live_51Redacted000000000000000000")],
+    ["Stripe restricted", fake("rk", "live_51Redacted000000000000000000")],
+    ["Stripe webhook", fake("whsec", "Redacted00000000000000000000000")],
+    ["GitHub classic", fake("ghp", "Redacted0000000000000000000000000")],
+    ["GitHub fine-grained", fake("github", "pat_Redacted00000000000000000")],
+    // Google's format is AIza + exactly 35 chars, so the tail is computed
+    // rather than typed -- counting zeros by eye got it wrong by one.
+    ["Google API", "AIza" + "Sy" + "Redacted" + "0".repeat(25)],
+  ])("redacts a %s key", (_label, key) => {
+    const out = redactSecrets(`charge failed for ${key} at 12:00`);
+    expect(out).not.toContain(key);
+    expect(out).toContain("[REDACTED]");
+  });
+
+  it("redacts a JWT — the shape a leaked service-role key takes in a log", () => {
+    // Header/payload are real base64url so the shape is exact; the signature is
+    // nonsense. Same assembly reasoning as above.
+    const jwt = ["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", "eyJyb2xlIjoiZXhhbXBsZSJ9", "Redacted000signature000here"].join(".");
+    const out = redactSecrets(`supabase client init ${jwt}`);
+    expect(out).not.toContain(jwt);
+    expect(out).toContain("[REDACTED]");
+  });
+
+  it("leaves prose that merely resembles a key alone", () => {
+    // No underscore-digit shape, no AIza prefix, no three dotted segments.
+    const line = "the sk_live environment is separate from test, see AIza docs";
+    expect(redactSecrets(line)).toBe(line);
+  });
 });

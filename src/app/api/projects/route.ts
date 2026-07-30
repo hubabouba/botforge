@@ -6,6 +6,7 @@ import { getUserPlan } from "@/lib/subscription";
 import { projectLimit } from "@/lib/plan";
 import { fetchProjectSummaries } from "@/lib/workspace/serverStore";
 import { isSafeProjectPath } from "@/lib/workspace/paths";
+import { dbError, serverError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
@@ -41,7 +42,7 @@ export async function GET() {
   try {
     return NextResponse.json({ projects: await fetchProjectSummaries(supabase) });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message || "Failed to load projects." }, { status: 500 });
+    return serverError(e, "Couldn't load your projects. Try again.", "projects.GET");
   }
 }
 
@@ -77,7 +78,7 @@ export async function POST(req: Request) {
     p_folders: spec.folders ?? [],
   });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, "Couldn't create the project. Try again.", "create_project");
   if (data && (data as { error?: string }).error === "limit") {
     return NextResponse.json({ error: "limit", plan }, { status: 403 });
   }

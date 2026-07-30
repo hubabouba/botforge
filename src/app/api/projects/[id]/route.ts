@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProject } from "@/lib/workspace/serverStore";
+import { dbError, serverError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
@@ -27,7 +28,7 @@ export async function GET(_req: Request, { params }: Ctx) {
     if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
     return NextResponse.json({ project });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message || "Failed to load project." }, { status: 500 });
+    return serverError(e, "Couldn't load that project. Try again.", "project.GET");
   }
 }
 
@@ -53,7 +54,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (Object.keys(patch).length) {
     patch.updated_at = new Date().toISOString();
     const { error } = await supabase.from("projects").update(patch).eq("id", id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return dbError(error, "Couldn't save that change. Try again.", "project.PATCH");
   }
   const project = await fetchProject(supabase, id);
   if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -74,7 +75,7 @@ export async function DELETE(_req: Request, { params }: Ctx) {
   // `{ ok: true }` and the UI happily drops a card that still exists. Ask for
   // the deleted rows and report a miss as a 404.
   const { data, error } = await supabase.from("projects").delete().eq("id", id).select("id");
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbError(error, "Couldn't delete that project. Try again.", "project.DELETE");
   if (!data?.length) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json({ ok: true });
 }

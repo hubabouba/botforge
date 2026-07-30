@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { fetchProject } from "@/lib/workspace/serverStore";
 import { isSafeProjectPath } from "@/lib/workspace/paths";
+import { serverError } from "@/lib/apiError";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,6 @@ export async function POST(req: Request, { params }: Ctx) {
 
     return NextResponse.json({ project: await fetchProject(supabase, id) });
   } catch (e) {
-    return NextResponse.json({ error: (e as Error).message || "Folder operation failed." }, { status: 500 });
+    return serverError(e, "Couldn't save that change. Try again.", "folders");
   }
 }

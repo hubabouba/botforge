@@ -242,11 +242,12 @@ async function handlePost(req: Request) {
         for await (const event of gen) write(event);
       } catch (e) {
         // This is the ONLY place a failed model call ends up — capture it with
-        // enough context to tell a genuine API error apart from the function
-        // simply running out of time (Vercel's hard 60s maxDuration kills the
-        // whole invocation before this catch would even run, so a long elapsed
-        // value alongside a completed catch here still points at the model call
-        // itself, not the platform timeout).
+        // enough context to tell a genuine API error apart from the loop simply
+        // running out of time. `elapsedMs` is what separates them: the platform
+        // cutoff (maxDuration, 300s) kills the invocation outright and this
+        // catch never runs, so anything that lands here at all is the call
+        // itself failing — and one near LOOP_BUDGET_MS (280s) is the loop's own
+        // abort, which is orderly and already explained to the user in-stream.
         Sentry.captureException(e, { extra: { provider, plan, elapsedMs: Date.now() - startedAt } });
         write({ type: "error", message: (e as Error).message || "The assistant failed." });
       } finally {

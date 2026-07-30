@@ -8,7 +8,8 @@ import { getLogs, startBot, stopBot, setSecret, deleteSecret } from "@/lib/hosti
 import { track } from "@/lib/analytics";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { plural } from "@/lib/i18n/plural";
-import { Play, Check, Trash, Lock } from "@/components/icons";
+import { Play, Check, Trash, Lock, Bell, BellOff } from "@/components/icons";
+import { setSoundMuted, soundMuted, unlockAudio } from "@/lib/sound";
 import { cn } from "@/lib/utils";
 
 export const STATUS_META: Record<DeploymentStatus, { labelKey: string; dot: string; pulse?: boolean }> = {
@@ -45,6 +46,10 @@ export function HostingPanel({ project }: { project: Project }) {
   const [secretDraft, setSecretDraft] = useState("");
   const [savingSecret, setSavingSecret] = useState(false);
   const logBox = useRef<HTMLDivElement>(null);
+  // Starts muted-looking until we've read storage, so the icon can't flash the
+  // wrong state on hydration (localStorage isn't available on the server).
+  const [muted, setMuted] = useState(false);
+  useEffect(() => setMuted(soundMuted()), []);
 
   const st: DeploymentStatus = status?.status ?? "stopped";
   const meta = STATUS_META[st];
@@ -93,6 +98,10 @@ export function HostingPanel({ project }: { project: Project }) {
   async function doStart() {
     setErr("");
     setBusy(true);
+    // Must happen inside the click. The chime plays up to a minute from now,
+    // by which time there is no user gesture to authorise it — but a context
+    // resumed once stays resumed. See unlockAudio.
+    unlockAudio();
     const r = await startBot(project.id);
     if (r.ok) track("hosting_started");
     else setErr(r.error || t("hosting.couldntStart"));
@@ -142,6 +151,24 @@ export function HostingPanel({ project }: { project: Project }) {
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {/* Next to Start on purpose: the moment you learn a sound exists is
+              the moment you might want it off, and a setting two menus away
+              gets found only after it has already annoyed someone. */}
+          <button
+            onClick={() => {
+              const next = !muted;
+              setMuted(next);
+              setSoundMuted(next);
+              // Unmuting is a gesture — take it as permission to play later.
+              if (!next) unlockAudio();
+            }}
+            aria-pressed={!muted}
+            aria-label={t(muted ? "hosting.soundOff" : "hosting.soundOn")}
+            title={t(muted ? "hosting.soundOff" : "hosting.soundOn")}
+            className="grid h-7 w-7 place-items-center rounded-lg text-neutral-600 transition-colors hover:bg-white/[0.06] hover:text-neutral-300"
+          >
+            {muted ? <BellOff className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
+          </button>
           {active ? (
             <button
               onClick={doStop}

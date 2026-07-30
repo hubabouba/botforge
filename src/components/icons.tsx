@@ -274,6 +274,15 @@ export const Bell = (p: IconProps) => (
   </Base>
 );
 
+export const BellOff = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M18 8a6 6 0 0 0-9.3-5" />
+    <path d="M6 8c0 7-3 9-3 9h13" />
+    <path d="M13.7 21a2 2 0 0 1-3.4 0" />
+    <path d="M3 3l18 18" />
+  </Base>
+);
+
 export const Shield = (p: IconProps) => (
   <Base {...p}>
     <path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z" />

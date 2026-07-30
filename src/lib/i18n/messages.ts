@@ -393,6 +393,10 @@ const en: Dict = {
   "hosting.crashedHint": "The bot crashed — restarting it automatically…",
   "hosting.crashLoopingHint": "Auto-restart gave up after repeated crashes. Fix the error in the logs, then press Start.",
   "hosting.thisMonth": "this month",
+  // Describes what a click does, not what the state is — the icon already shows
+  // the state, and a tooltip that repeats it tells you nothing.
+  "hosting.soundOn": "Chime when the bot finishes starting (mute)",
+  "hosting.soundOff": "Chime is muted (turn on)",
   "hosting.stop": "Stop",
   "hosting.setTokenFirst": "Set a {required} first",
   "hosting.startBot": "Start bot",
@@ -1049,6 +1053,8 @@ const ru: Dict = {
   "hosting.crashedHint": "Бот упал — перезапускаем автоматически…",
   "hosting.crashLoopingHint": "Авто-перезапуск сдался после повторных сбоев. Исправь ошибку в логах и нажми Start.",
   "hosting.thisMonth": "в этом месяце",
+  "hosting.soundOn": "Звук, когда бот закончит запускаться (выключить)",
+  "hosting.soundOff": "Звук выключен (включить)",
   "hosting.stop": "Стоп",
   "hosting.setTokenFirst": "Сначала задай {required}",
   "hosting.startBot": "Запустить бота",

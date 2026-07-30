@@ -22,7 +22,17 @@ interface Stats {
   };
   hosting: { runningNow: number; minutesThisMonth: number };
   projects: { total: number; newToday: number };
+  priceCheck: { enabled: boolean; rows: PriceCheckRow[] };
   generatedAt: string;
+}
+
+interface PriceCheckRow {
+  plan: "basic" | "pro" | "max";
+  interval: "month" | "year";
+  expectedUsd: number;
+  actualUsd: number | null;
+  ok: boolean;
+  problem: string | null;
 }
 
 interface Signup {
@@ -190,6 +200,44 @@ export function AdminDashboard() {
                 sub="never converted (yet)"
               />
             </div>
+
+            {/* Does Stripe charge what the site advertises? The two numbers live
+                in different systems and nothing compared them until now: the
+                pricing page reads plan.ts, the card is charged whatever was
+                typed into the Stripe Dashboard. Silent when they agree — this
+                block should be invisible on a normal day. */}
+            {stats.priceCheck.enabled && stats.priceCheck.rows.some((r) => !r.ok) && (
+              <div className="mt-6 rounded-xl border border-rose-500/40 bg-rose-500/[0.06] p-4">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-rose-300">
+                  Stripe prices don&apos;t match the site
+                </h2>
+                <p className="mt-1 text-xs text-neutral-400">
+                  Customers are shown the first number and charged the second. Fix in the Stripe Dashboard, or
+                  correct the price id in the Vercel environment.
+                </p>
+                <div className="mt-3 divide-y divide-rose-500/20">
+                  {stats.priceCheck.rows
+                    .filter((r) => !r.ok)
+                    .map((r) => (
+                      <div key={`${r.plan}-${r.interval}`} className="py-2 text-sm">
+                        <span className="font-medium capitalize text-neutral-200">
+                          {r.plan} · {r.interval === "year" ? "annual" : "monthly"}
+                        </span>
+                        <span className="ml-2 text-xs text-rose-300">{r.problem}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* And a line when they agree — "no alarm" and "no check ran" must
+                not look the same. */}
+            {stats.priceCheck.enabled && stats.priceCheck.rows.length > 0 &&
+              stats.priceCheck.rows.every((r) => r.ok) && (
+                <p className="mt-6 text-xs text-neutral-600">
+                  Stripe charges what the site advertises — {stats.priceCheck.rows.length} prices checked.
+                </p>
+              )}
 
             {/* Cost per message per model — the figure every message cap and
                 model choice in plan.ts was guessed at. Plus the single most

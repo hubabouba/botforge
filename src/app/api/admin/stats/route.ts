@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminEmail } from "@/lib/admin";
-import { monthlyRevenue, type Plan } from "@/lib/plan";
+import { annualPrice, monthlyRevenue, planMeta, type BillingInterval, type Plan } from "@/lib/plan";
+import { priceIdForPlan, stripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
 
@@ -152,8 +153,11 @@ export async function GET() {
       plan: planByUser.get(u.id) ?? "free",
     }));
 
+  const priceCheck = await checkStripePrices();
+
   return NextResponse.json({
     users: { total: totalUsers, newToday, new7d, truncated: totalUsers >= 1000, recent: recentSignups },
+    priceCheck,
     plans: planCounts,
     // Monthly-equivalent, so annual and monthly subscribers are comparable.
     mrr: Math.round(mrr * 100) / 100,
@@ -174,4 +178,84 @@ export async function GET() {
     projects: { total: totalProjects, newToday: projectsToday },
     generatedAt: now.toISOString(),
   });
+}
+
+export interface PriceCheckRow {
+  plan: Plan;
+  interval: BillingInterval;
+  /** What the site tells visitors this costs, in USD. */
+  expectedUsd: number;
+  /** What Stripe will actually charge, in USD — null if it couldn't be read. */
+  actualUsd: number | null;
+  currency: string | null;
+  /** Stripe's own billing interval, which must match the column it's listed in. */
+  actualInterval: string | null;
+  ok: boolean;
+  problem: string | null;
+}
+
+/**
+ * Compare every configured Stripe Price against the price the site advertises.
+ *
+ * These two numbers live in different systems and nothing has ever compared
+ * them. `plan.ts` decides what the pricing page says; a human typing into the
+ * Stripe Dashboard decides what the card is charged. A typo there — an annual
+ * price entered as $99 where the page promises $90, or an annual id pasted into
+ * the monthly variable — bills a customer an amount they never agreed to. That
+ * is not a bug you find in a log; you find it in a chargeback.
+ *
+ * Six reads on an owner-only page, and it turns "I hope I typed it right" into
+ * a row that says so. Never throws: a Stripe outage must not take the whole
+ * dashboard down over a consistency check.
+ */
+async function checkStripePrices(): Promise<{ enabled: boolean; rows: PriceCheckRow[] }> {
+  if (!stripe) return { enabled: false, rows: [] };
+
+  const rows: PriceCheckRow[] = [];
+  for (const plan of ["basic", "pro", "max"] as const) {
+    for (const interval of ["month", "year"] as const) {
+      const priceId = priceIdForPlan(plan, interval);
+      if (!priceId) continue; // not offered — annual is allowed to be absent
+      const expectedUsd = interval === "year" ? annualPrice(plan) : planMeta(plan).price;
+      try {
+        const price = await stripe.prices.retrieve(priceId);
+        const actualUsd = price.unit_amount === null ? null : price.unit_amount / 100;
+        const actualInterval = price.recurring?.interval ?? null;
+        const problems: string[] = [];
+        if (actualUsd === null) problems.push("no fixed amount on this price");
+        else if (Math.abs(actualUsd - expectedUsd) > 0.005) {
+          problems.push(`site says $${expectedUsd}, Stripe charges $${actualUsd}`);
+        }
+        if (price.currency !== "usd") problems.push(`currency is ${price.currency}, not usd`);
+        if (actualInterval !== interval) {
+          problems.push(`Stripe bills this ${actualInterval ?? "once"}, not per ${interval}`);
+        }
+        if (!price.active) problems.push("price is archived in Stripe");
+        rows.push({
+          plan,
+          interval,
+          expectedUsd,
+          actualUsd,
+          currency: price.currency,
+          actualInterval,
+          ok: problems.length === 0,
+          problem: problems.join("; ") || null,
+        });
+      } catch (e) {
+        // An id that doesn't resolve is itself the finding — most likely a
+        // price from the other mode (test id in live, or the reverse).
+        rows.push({
+          plan,
+          interval,
+          expectedUsd,
+          actualUsd: null,
+          currency: null,
+          actualInterval: null,
+          ok: false,
+          problem: `couldn't read this price from Stripe: ${(e as Error).message}`,
+        });
+      }
+    }
+  }
+  return { enabled: true, rows };
 }

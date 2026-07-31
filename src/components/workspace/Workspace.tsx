@@ -405,7 +405,22 @@ export function Workspace({ projectId }: { projectId: string }) {
           // to see the file this step just created — waiting on the server
           // would hand the model a project that's one step out of date.
           setProject((prev) => (prev ? { ...prev, files: [...prev.files, { path, content }] } : prev));
-          refresh(await addFile(project.id, path, content));
+          const created = await addFile(project.id, path, content);
+          // addFile answers null on a rejected write rather than throwing, so
+          // this branch used to fall straight through to setStatus("saved").
+          // The optimistic file stayed in the tree, the status bar said the
+          // work was safe, and the file was gone at the next reload — with the
+          // user having built on top of it in between. A project at the 200-file
+          // limit is enough to trigger it.
+          if (!created) {
+            setProject((prev) =>
+              prev ? { ...prev, files: prev.files.filter((f) => f.path !== path) } : prev,
+            );
+            setStatus("error");
+            setTreeError(t("tree.fileOpFailed"));
+            return; // don't open a tab for a file that doesn't exist
+          }
+          refresh(created);
         }
         setStatus("saved");
       } catch {
@@ -414,7 +429,7 @@ export function Workspace({ projectId }: { projectId: string }) {
       openFile(path);
       setEditorNonce((n) => n + 1);
     },
-    [project, refresh, openFile, flushSave],
+    [project, refresh, openFile, flushSave, t],
   );
 
   const isLocked = (v: WorkView) => v !== "code" && !allows(CAP_FOR_VIEW[v as Exclude<WorkView, "code">]);

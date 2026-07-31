@@ -28,6 +28,17 @@ const STREAM_COLOR: Record<LogLine["stream"], string> = {
   system: "text-accent",
 };
 
+/**
+ * How long a freshly-started bot has to stay up before we call it started.
+ *
+ * The runner installs dependencies and then connects, and the two failures that
+ * actually happen — a bad token and a syntax error — both surface on the far
+ * side of that. 45s clears a typical `pip install` for python-telegram-bot with
+ * room to spare. It only delays the *success* chime; a crash cancels the wait
+ * and speaks immediately.
+ */
+const START_SETTLE_MS = 45_000;
+
 /** "42m" under an hour, "3.4h" under ten, "127h" beyond — for the monthly meter. */
 export function formatRuntime(seconds: number): string {
   if (seconds < 3600) return `${Math.max(0, Math.round(seconds / 60))}m`;
@@ -50,6 +61,22 @@ export function HostingPanel({ project }: { project: Project }) {
   // wrong state on hydration (localStorage isn't available on the server).
   const [muted, setMuted] = useState(false);
   useEffect(() => setMuted(soundMuted()), []);
+  /**
+   * Pending "did the start actually take?" chime.
+   *
+   * The start request answers `ok` as soon as the Fly machine exists, which is
+   * NOT the bot working: inside that machine the runner still has to install
+   * dependencies and connect to Telegram, another half-minute or so. Chiming on
+   * the response meant success played while the bot was still installing — and
+   * if it then died on a bad token or a syntax error, the failure chime never
+   * came, because success had already claimed the turn.
+   *
+   * So success waits out a settling window, and a crash seen inside that window
+   * cancels it and plays the failure instead. The asymmetry is deliberate:
+   * a failure is news and fires the moment it's visible, a success is
+   * confirmation and can afford to be sure.
+   */
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const st: DeploymentStatus = status?.status ?? "stopped";
   const meta = STATUS_META[st];
@@ -95,6 +122,30 @@ export function HostingPanel({ project }: { project: Project }) {
     logBox.current?.scrollTo({ top: logBox.current.scrollHeight });
   }, [logs]);
 
+  /**
+   * A start that died inside the settling window. The status loop is already
+   * polling every 2.5s while a run is active, so this usually fires long before
+   * the window would have ended.
+   */
+  useEffect(() => {
+    if (!settleTimer.current) return;
+    if (st === "crashed" || st === "crash_looping" || st === "killed" || st === "stopped") {
+      cancelSettle();
+      playFailure();
+    }
+  }, [st]);
+
+  // Leaving the panel takes the question with it — no chime for a start whose
+  // outcome nobody is waiting on any more.
+  useEffect(() => () => cancelSettle(), []);
+
+  function cancelSettle() {
+    if (settleTimer.current) {
+      clearTimeout(settleTimer.current);
+      settleTimer.current = null;
+    }
+  }
+
   async function doStart() {
     setErr("");
     setBusy(true);
@@ -103,15 +154,19 @@ export function HostingPanel({ project }: { project: Project }) {
     // minute later — there is no gesture left. Resumed once, it stays resumed.
     unlockAudio();
     const r = await startBot(project.id);
-    // The route waits for the machine and answers with the verdict, so this is
-    // where the outcome is actually known. An earlier version listened for a
-    // `starting → running` transition in the status poll instead, and never
-    // made a sound at all: the request only returns once the bot is already
-    // running, so the browser never sees `starting`.
     if (r.ok) {
       track("hosting_started");
-      playSuccess();
+      // `ok` means the machine exists, not that the bot works — see settleTimer.
+      // Give it time to install and connect; a crash in the meantime cancels
+      // this and speaks up instead.
+      cancelSettle();
+      settleTimer.current = setTimeout(() => {
+        settleTimer.current = null;
+        playSuccess();
+      }, START_SETTLE_MS);
     } else {
+      // The request itself failed, so the verdict IS known now — nothing to
+      // wait for.
       setErr(r.error || t("hosting.couldntStart"));
       playFailure();
     }
@@ -122,6 +177,10 @@ export function HostingPanel({ project }: { project: Project }) {
   async function doStop() {
     setErr("");
     setBusy(true);
+    // Stopping during the settling window answers the question yourself. Neither
+    // chime belongs here: you already know, and a "success" landing a moment
+    // after you pressed Stop would just be wrong.
+    cancelSettle();
     const r = await stopBot(project.id);
     if (!r.ok) setErr(r.error || t("hosting.couldntStop"));
     await refresh();

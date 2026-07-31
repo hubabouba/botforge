@@ -129,9 +129,19 @@ export async function saveProjectPlan(id: string, plan: string): Promise<void> {
   });
 }
 
-export async function loadChat(id: string): Promise<StoredMessage[]> {
+/**
+ * The saved conversation, or null if it couldn't be loaded.
+ *
+ * Null and [] are different answers and used to be the same one. A failed load
+ * returned an empty array, which the panel renders identically to "this project
+ * has no conversation yet" — so a network blip looked exactly like the history
+ * having been deleted. It is still in the database; the user has no way to know
+ * that, and "where did my whole conversation go" is not a question anyone
+ * should have to ask about their own data.
+ */
+export async function loadChat(id: string): Promise<StoredMessage[] | null> {
   const { res, data } = await req(`/api/projects/${id}/chat`);
-  return res.ok ? (data.messages ?? []) : [];
+  return res.ok ? (data.messages ?? []) : null;
 }
 
 /** Fire-and-forget: a failed save must never block the reply the user is reading. */

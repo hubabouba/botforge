@@ -106,6 +106,8 @@ export function WorkspaceChat({
   const [attachLogs, setAttachLogs] = useState(false);
   const [attachMetrics, setAttachMetrics] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+  /** The saved conversation couldn't be fetched — distinct from having none. */
+  const [historyFailed, setHistoryFailed] = useState(false);
   const { plan, hostingAvailable } = usePlan();
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -188,8 +190,17 @@ export function WorkspaceChat({
   // opened on another device — or after a plain reload — picks up where it was.
   useEffect(() => {
     let cancelled = false;
+    setHistoryFailed(false);
     void loadChat(project.id).then((saved) => {
-      if (cancelled || !saved.length) return;
+      if (cancelled) return;
+      // null means the request failed, not that there is nothing to show. Say
+      // so, rather than rendering the same blank panel as a brand-new project
+      // and letting someone conclude their history was wiped.
+      if (saved === null) {
+        setHistoryFailed(true);
+        return;
+      }
+      if (!saved.length) return;
       onActivity?.();
       setMessages(
         saved.map((m) => ({
@@ -531,9 +542,17 @@ export function WorkspaceChat({
           </div>
         )}
 
-        {messages.length === 0 && (
+        {/* Only when there is genuinely nothing — a failed load says so below
+            instead, so an empty panel never has to stand for two things. */}
+        {messages.length === 0 && !historyFailed && (
           <div className="rounded-xl border border-ink-800 bg-ink-900/60 p-3.5 text-[13px] text-neutral-400">
             {t("chat.introHint")}
+          </div>
+        )}
+
+        {historyFailed && messages.length === 0 && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-3.5 text-[13px] text-amber-200/90">
+            {t("chat.historyFailed")}
           </div>
         )}
 

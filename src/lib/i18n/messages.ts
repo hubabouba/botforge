@@ -371,6 +371,9 @@ const en: Dict = {
   "chat.applied": "Applied",
   "chat.apply": "Apply",
   "chat.openFile": "Open {path} in the editor",
+  // Says the history is safe, because the blank panel it replaces suggested
+  // the opposite. Reload is the whole fix, so it's the whole instruction.
+  "chat.historyFailed": "Couldn't load this conversation just now — it's still saved. Reload the page to try again.",
   "chat.try": "Try",
   "chat.suggestion1": "Add a /help command",
   "chat.suggestion2": "Explain what this bot does",
@@ -1040,6 +1043,7 @@ const ru: Dict = {
   "chat.applied": "Применено",
   "chat.apply": "Применить",
   "chat.openFile": "Открыть {path} в редакторе",
+  "chat.historyFailed": "Не удалось загрузить переписку — она сохранена и никуда не делась. Перезагрузи страницу.",
   "chat.try": "Попробуй",
   "chat.suggestion1": "Добавь команду /help",
   "chat.suggestion2": "Объясни, что делает этот бот",

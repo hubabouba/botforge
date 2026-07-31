@@ -33,6 +33,8 @@ const BASE = (process.env.BOTFORGE_PUBLIC_URL || "").replace(/\/$/, "");
 const TOKEN = process.env.BOTFORGE_RUN_TOKEN || "";
 const ENTRY = process.env.BOTFORGE_ENTRY || "index.js";
 const APP_DIR = "/app";
+/** Dependency install must finish or fail, never hang. Matches the Python runner. */
+const INSTALL_TIMEOUT_MS = 300_000;
 
 const FLUSH_INTERVAL_MS = 1000; // pace between log flushes
 const FLUSH_MAX_BATCH = 40; // cap lines per flush
@@ -166,6 +168,19 @@ async function writeFiles() {
   system(`Fetched ${written} file(s).`);
 }
 
+/**
+ * The entry file, if it stays inside APP_DIR — otherwise null.
+ *
+ * writeFiles() already refuses to write outside APP_DIR; this is the same check
+ * for the one path that gets EXECUTED rather than written, which is the more
+ * consequential of the two and was the only one missing it. path.join is the
+ * reason it matters: join("/app", "../supervisor.js") is "/supervisor.js".
+ */
+function containedEntry() {
+  const norm = path.normalize(path.join(APP_DIR, ENTRY));
+  return norm.startsWith(APP_DIR + path.sep) ? norm : null;
+}
+
 function installDependencies() {
   const pkgPath = path.join(APP_DIR, "package.json");
   if (!fs.existsSync(pkgPath)) return;
@@ -176,8 +191,17 @@ function installDependencies() {
     // Default maxBuffer is 1MB; a real dependency tree's npm output can exceed
     // it, which kills the child mid-install with status null — a false failure.
     maxBuffer: 16 * 1024 * 1024,
+    // And bounded in time as well as size: an install that stalls on the
+    // network left the machine alive and billing with the bot never starting,
+    // until the monthly runtime budget noticed hours later.
+    timeout: INSTALL_TIMEOUT_MS,
   });
   for (const line of (result.stdout || "").split("\n").slice(-40)) if (line) enqueue("system", line);
+  // A timeout kills the child, which surfaces as a signal rather than an exit
+  // code — say so plainly instead of reporting "exit null".
+  if (result.error && result.error.code === "ETIMEDOUT") {
+    throw new Error(`npm install timed out after ${INSTALL_TIMEOUT_MS / 1000}s`);
+  }
   if (result.status !== 0) {
     for (const line of (result.stderr || "").split("\n").slice(-40)) if (line) enqueue("stderr", line);
     throw new Error(`npm install failed (exit ${result.status})`);
@@ -203,8 +227,8 @@ async function main() {
     process.exit(1);
   }
 
-  const entryPath = path.join(APP_DIR, ENTRY);
-  if (!fs.existsSync(entryPath)) {
+  const entryPath = containedEntry();
+  if (!entryPath || !fs.existsSync(entryPath)) {
     await system(`Entry file '${ENTRY}' not found.`);
     stopping = true;
     await flushDone;

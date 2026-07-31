@@ -38,6 +38,7 @@ APP_DIR = "/app"
 FLUSH_INTERVAL = 1.0      # seconds between log flushes
 FLUSH_MAX_BATCH = 40      # or flush early once this many lines are queued
 LINE_MAX = 2000           # truncate absurdly long lines
+INSTALL_TIMEOUT_S = 300   # dependency install must finish or fail, never hang
 
 
 def _post(path: str, payload: dict, timeout: float = 15.0) -> bytes:
@@ -152,15 +153,38 @@ def write_files() -> None:
     system(f"Fetched {written} file(s).")
 
 
+def contained_entry() -> str | None:
+    """
+    The entry file, if it stays inside APP_DIR — otherwise None.
+
+    write_files() already refuses to write outside APP_DIR, and the entry path
+    is validated server-side before it ever reaches this machine. This is the
+    same check applied to the one path that gets EXECUTED rather than written,
+    which is the more consequential of the two and was the only one missing it.
+    os.path.join is the reason it matters: join("/app", "/etc/x") is "/etc/x",
+    so an absolute entry would silently escape.
+    """
+    norm = os.path.normpath(os.path.join(APP_DIR, ENTRY))
+    return norm if norm.startswith(APP_DIR + os.sep) else None
+
+
 def install_requirements() -> None:
     req = os.path.join(APP_DIR, "requirements.txt")
     if not os.path.exists(req):
         return
     system("Installing requirements…")
-    proc = subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--no-cache-dir", "--disable-pip-version-check", "-r", req],
-        cwd=APP_DIR, capture_output=True, text=True,
-    )
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "--no-cache-dir", "--disable-pip-version-check", "-r", req],
+            cwd=APP_DIR, capture_output=True, text=True,
+            # Bounded, because neither end of this was: a package whose install
+            # stalls on the network left the machine alive and billing with the
+            # bot never starting, until the monthly runtime budget noticed hours
+            # later. Five minutes is generous for a bot's dependency tree.
+            timeout=INSTALL_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"pip install timed out after {INSTALL_TIMEOUT_S}s")
     for line in (proc.stdout or "").splitlines()[-40:]:
         enqueue("system", line)
     if proc.returncode != 0:
@@ -187,8 +211,8 @@ def main() -> int:
         report_exit(1)
         return 1
 
-    entry_path = os.path.join(APP_DIR, ENTRY)
-    if not os.path.exists(entry_path):
+    entry_path = contained_entry()
+    if entry_path is None or not os.path.exists(entry_path):
         system(f"Entry file '{ENTRY}' not found.")
         _stop.set()
         flush_thread.join(timeout=10)

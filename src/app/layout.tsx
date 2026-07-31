@@ -52,7 +52,13 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   // Absolute base for OG/twitter image URLs — Facebook et al. require absolute
   // URLs, and without this Next emits relative ones (and warns at build).
-  metadataBase: new URL(process.env.BOTFORGE_PUBLIC_URL ?? "https://botforge-snowy.vercel.app"),
+  //
+  // The fallback is the real domain, not the raw Vercel one it used to be:
+  // BOTFORGE_PUBLIC_URL is set in production today, but if it ever weren't,
+  // every shared link's preview image would be fetched from a *.vercel.app
+  // host — on the day the ads start, that is the wrong thing to be one
+  // missing env var away from.
+  metadataBase: new URL(process.env.BOTFORGE_PUBLIC_URL ?? `https://${brand.domain}`),
   title: {
     default: `${brand.name} — the AI lab for building bots`,
     template: `%s · ${brand.name}`,

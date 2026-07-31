@@ -9,7 +9,20 @@ import { PLANS } from "./plan";
 
 export const brand = {
   name: "Botforge",
-  domain: "botforge.dev",
+  /**
+   * The domain we actually serve from, and the one sitemap.xml declares
+   * canonical. It was `botforge.dev` — a domain that is not ours; it resolves
+   * to an empty page belonging to someone else. It was printed in the footer
+   * of every marketing page, on the signup screen, and in the footer of every
+   * transactional email, where it was also the link target whenever
+   * BOTFORGE_PUBLIC_URL was unset.
+   *
+   * A visitor arriving from an ad reads usebotforge.com in the address bar and
+   * a different domain at the bottom of the page. That reads as a template
+   * nobody finished, or as a phishing page — either way it costs trust at the
+   * exact moment we are asking a stranger for it.
+   */
+  domain: "usebotforge.com",
   /** Public contact for support, billing, and legal questions. */
   email: "maskazajca.yt@gmail.com",
   /** Operator + governing law shown in the legal pages. */

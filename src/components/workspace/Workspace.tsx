@@ -35,6 +35,13 @@ import { useI18n } from "@/lib/i18n/I18nProvider";
 import { cn } from "@/lib/utils";
 
 // Which capability each non-code view requires.
+/**
+ * How many times a failed autosave retries itself before giving up and simply
+ * staying pending. Bounded so a server that refuses every write (a 400 on a
+ * file that outgrew a limit, say) doesn't retry forever at the user's expense.
+ */
+const SAVE_RETRIES = 3;
+
 const CAP_FOR_VIEW: Record<Exclude<WorkView, "code">, Capability> = {
   logs: "panel.logs",
   planning: "panel.planning",
@@ -104,6 +111,8 @@ export function Workspace({ projectId }: { projectId: string }) {
   // (or immediately on Ctrl+S, file switch or unmount) so we don't POST per keystroke.
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pending = useRef<{ id: string; path: string; content: string } | null>(null);
+  /** Consecutive failed saves, so a server that keeps refusing isn't retried forever. */
+  const saveRetries = useRef(0);
 
   // Load the project from Supabase on mount.
   useEffect(() => {
@@ -202,17 +211,38 @@ export function Workspace({ projectId }: { projectId: string }) {
   );
 
   // Persist whatever edit is pending right now (if any). Fire-and-forget.
-  const flushSave = useCallback(() => {
+  const flushSave = useCallback(function flush() {
     clearTimeout(saveTimer.current);
     const p = pending.current;
     if (!p) return;
     pending.current = null;
     writeFile(p.id, p.path, p.content)
       .then(() => {
+        saveRetries.current = 0;
         // A newer edit may already be pending — don't claim "saved" over it.
         if (!pending.current) setStatus("saved");
       })
-      .catch(() => setStatus("error"));
+      .catch(() => {
+        setStatus("error");
+        // Put the edit back, and try again.
+        //
+        // It used to be dropped here: cleared before the write, never restored,
+        // so a single failed request lost that text permanently. The pagehide
+        // handler below could not rescue it either — it reads pending.current,
+        // which was already null. All the user got was a rose dot reading
+        // "save failed", in 11px, and `hidden sm:flex` means on a phone not
+        // even that. Then they close the tab and the work is gone.
+        //
+        // Only restore if nothing newer arrived while we were away; a fresher
+        // edit for the same file supersedes this one and must not be rolled
+        // back over.
+        if (pending.current) return;
+        pending.current = p;
+        if (saveRetries.current >= SAVE_RETRIES) return; // stop; the edit stays pending for pagehide
+        saveRetries.current += 1;
+        clearTimeout(saveTimer.current);
+        saveTimer.current = setTimeout(flush, 1500 * saveRetries.current);
+      });
   }, []);
 
   // Last-resort flush when the tab/window closes before the debounce fires —

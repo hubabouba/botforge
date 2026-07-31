@@ -149,6 +149,17 @@ export async function clearChat(id: string): Promise<void> {
 
 // ---- File operations ----
 
+/**
+ * The fetch spec caps a keepalive request body at 64 KB, and a body over it is
+ * rejected outright rather than truncated. The last-resort save on page close
+ * used keepalive unconditionally, so for a file past roughly 1600 lines that
+ * final flush could not succeed — it threw instantly into a silent catch, and
+ * the closing tab took the edit with it. Below the cap keepalive is still the
+ * right tool; above it an ordinary request at least has a chance to land
+ * before the page goes away, which beats a guaranteed failure.
+ */
+const KEEPALIVE_BODY_LIMIT = 60_000;
+
 /** Overwrite an existing file's content (the autosave hot path — returns nothing). */
 export async function writeFile(
   id: string,
@@ -156,11 +167,11 @@ export async function writeFile(
   content: string,
   opts?: { keepalive?: boolean },
 ): Promise<void> {
-  // keepalive lets the final flush survive the page being closed (≤64 KB body).
+  const body = JSON.stringify({ action: "write", path, content });
   const { res } = await req(`/api/projects/${id}/files`, {
     method: "POST",
-    body: JSON.stringify({ action: "write", path, content }),
-    keepalive: opts?.keepalive,
+    body,
+    keepalive: opts?.keepalive && body.length <= KEEPALIVE_BODY_LIMIT,
   });
   if (!res.ok) throw new Error(`Save failed (HTTP ${res.status}).`);
 }

@@ -105,7 +105,16 @@ export function TopBar({
         </div>
       </div>
 
-      <span className="ml-auto hidden items-center gap-1.5 text-[11px] text-white/50 sm:flex">
+      {/* "Saved" is reassurance and can hide on a narrow screen; "save failed"
+          is the one state a person must not miss, and `hidden sm:flex` hid it
+          from exactly the phone visitors this product now advertises to. It
+          shows at every width, and it stops being 50%-opacity grey. */}
+      <span
+        className={cn(
+          "ml-auto items-center gap-1.5 text-[11px]",
+          status === "error" ? "flex font-medium text-rose-300" : "hidden text-white/50 sm:flex",
+        )}
+      >
         <span
           className={cn(
             "h-1.5 w-1.5 rounded-full",

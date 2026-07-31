@@ -36,9 +36,31 @@ const bodySchema = z.object({
     language: z.string().max(20),
     entry: z.string().max(200).optional(),
   }),
+  /**
+   * The project's files, sent from the client rather than read here, because
+   * the client's copy includes edits autosave hasn't flushed yet — asking the
+   * assistant about code you just typed has to work.
+   *
+   * The old caps were 40 files of 20k chars, and they were not chosen against
+   * anything real: a project may hold 200 files (the DB trigger's limit) of
+   * 500k chars (the file route's limit). A project that outgrew 40 files got
+   * a bare "Invalid request." from the assistant on every message, forever,
+   * with nothing saying why — found live, on a real 56-file project.
+   *
+   * So the count now matches the DB's actual ceiling, per-file content is
+   * generous (100k ≈ 2500 lines), and the binding constraint is the one that
+   * genuinely matters: total bytes, kept clear of the platform's request-body
+   * limit. Only ~6k tokens of this ever reaches the prompt (buildFileContext
+   * truncates); the rest exists so read_file and edit_file can work on whole,
+   * current files.
+   */
   files: z
-    .array(z.object({ path: z.string().max(200), content: z.string().max(20000) }))
-    .max(40),
+    .array(z.object({ path: z.string().max(200), content: z.string().max(100_000) }))
+    .max(200)
+    .refine(
+      (fs) => fs.reduce((n, f) => n + f.content.length, 0) <= 2_000_000,
+      "project too large to send",
+    ),
   messages: z
     .array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().min(1).max(8000) }))
     .min(1)
@@ -121,6 +143,25 @@ async function handlePost(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
+    // "Invalid request." told the user nothing, and the one way this actually
+    // trips in practice is a project that outgrew a limit — at which point the
+    // assistant appears simply broken, with no hint that the size is the
+    // problem or that deleting a file would fix it. Name the cause; report the
+    // rest, because anything else reaching here is a bug on our side.
+    const onFiles = parsed.error.issues.some((i) => i.path[0] === "files");
+    if (onFiles) {
+      return NextResponse.json(
+        {
+          error:
+            "This project is too large for the assistant — it can work with up to 200 files. Delete what you don't need, or split the bot into a second project.",
+        },
+        { status: 400 },
+      );
+    }
+    Sentry.captureMessage("ai/chat rejected a request body", {
+      level: "warning",
+      extra: { issues: parsed.error.issues.slice(0, 5).map((i) => `${i.path.join(".")}: ${i.code}`) },
+    });
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 

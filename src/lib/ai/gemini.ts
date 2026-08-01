@@ -73,7 +73,33 @@ You are the free-tier assistant. Constraints for this tier:
     system_instruction: {
       parts: [{ text: `${buildSystemPrompt(params)}\n\n${buildContextBlock(params)}${freeTierNote}` }],
     },
-    generationConfig: { maxOutputTokens: 1200, temperature: 0.7 },
+    /**
+     * `thinkingBudget: 0` is not an optimisation — it is the difference between
+     * the free tier working and not working.
+     *
+     * gemini-2.5-flash has thinking ON by default, thinking tokens are billed
+     * and counted as output, and they come out of `maxOutputTokens` — so the
+     * reasoning was eating the entire allowance before the answer started.
+     * Measured against the live streaming endpoint with a real request ("write
+     * a Python telegram /help handler"):
+     *
+     *   default:            1148 thinking + 48 answer  → 223 chars, MAX_TOKENS
+     *   thinkingBudget: 0:     0 thinking + 1861 answer → 7305 chars, STOP
+     *
+     * Every free user — which is every visitor arriving from an ad — was
+     * getting a truncated stub, and finishing at MAX_TOKENS also means a
+     * write_file call could be cut off before it was ever emitted.
+     *
+     * `thinkingLevel` is NOT the field: it 400s on this API version. Verified,
+     * not assumed. The budget goes up to match, since it now buys answer rather
+     * than invisible reasoning; the free tier stays capped by the one-file rule
+     * below, not by cutting sentences in half.
+     */
+    generationConfig: {
+      maxOutputTokens: 2400,
+      temperature: 0.7,
+      thinkingConfig: { thinkingBudget: 0 },
+    },
     contents,
     tools: [
       {

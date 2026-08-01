@@ -312,6 +312,14 @@ const en: Dict = {
   "tree.clickAgainToDelete": "Click again to delete",
   "tree.fileOpFailed": "That change didn't save — check your connection and try again.",
 
+  // ---- PROGRESS.md, the "where you left off" journal ----
+  "progress.title": "Where you left off",
+  "progress.intro":
+    "Botforge updates this file after every message to the assistant, newest first, so you can always see where you stopped. Delete it any time — it comes back with your next message.",
+  "progress.asked": "Asked",
+  "progress.changed": "Files changed",
+  "progress.reply": "Assistant",
+
   // ---- Shared / misc (debug-sweep additions) ----
   "common.close": "Close",
   "dev.earlyPreview": "Early preview",
@@ -983,6 +991,14 @@ const ru: Dict = {
   "tree.folderNameInFolderPlaceholder": "подпапка",
   "tree.clickAgainToDelete": "Нажми ещё раз, чтобы удалить",
   "tree.fileOpFailed": "Изменение не сохранилось — проверь соединение и попробуй ещё раз.",
+
+  // ---- PROGRESS.md, журнал «на чём остановился» ----
+  "progress.title": "На чём остановились",
+  "progress.intro":
+    "Botforge обновляет этот файл после каждого сообщения ассистенту, новое сверху, чтобы всегда было видно, на чём вы остановились. Можно удалить — он вернётся со следующим сообщением.",
+  "progress.asked": "Запрос",
+  "progress.changed": "Изменённые файлы",
+  "progress.reply": "Ассистент",
 
   // ---- Общее / разное (добавки дебаг-прохода) ----
   "common.close": "Закрыть",

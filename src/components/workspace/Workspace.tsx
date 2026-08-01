@@ -17,6 +17,7 @@ import {
   writeFile,
   type StoredProject,
 } from "@/lib/workspace/store";
+import { nextProgress, PROGRESS_PATH, type ProgressEntry } from "@/lib/workspace/progress";
 import { parsePlan, withDone } from "@/lib/workspace/plan";
 import { downloadZip } from "@/lib/workspace/zip";
 import { TopBar, type SaveStatus } from "./TopBar";
@@ -58,7 +59,7 @@ const VIEW_LABEL_KEY: Record<WorkView, string> = {
 type LoadState = "loading" | "ready" | "missing";
 
 export function Workspace({ projectId }: { projectId: string }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [project, setProject] = useState<StoredProject | null>(null);
   const [load, setLoad] = useState<LoadState>("loading");
   const [openPaths, setOpenPaths] = useState<string[]>([]);
@@ -432,6 +433,56 @@ export function Workspace({ projectId }: { projectId: string }) {
     [project, refresh, openFile, flushSave, t],
   );
 
+  /**
+   * Record one finished exchange in the project's journal (see progress.ts).
+   *
+   * Deliberately quiet: no open tab, no editor remount, no save-status flicker.
+   * It runs after the reply is already on screen, and if it fails the user has
+   * lost a line in a log, not any work — so it must not interrupt anything.
+   */
+  const onProgressNote = useCallback(
+    async (entry: ProgressEntry) => {
+      if (!project) return;
+      const existing = project.files.find((f) => f.path === PROGRESS_PATH);
+      // A pending keystroke in this very file would be flushed on top of what we
+      // write, undoing it. Rare — nobody edits the journal mid-conversation —
+      // but the loser is the entry, so skip this one rather than fight over it.
+      if (pending.current?.path === PROGRESS_PATH) return;
+
+      const content = nextProgress(
+        existing?.content ?? null,
+        entry,
+        {
+          title: t("progress.title"),
+          intro: t("progress.intro"),
+          asked: t("progress.asked"),
+          changed: t("progress.changed"),
+          reply: t("progress.reply"),
+        },
+        lang,
+      );
+      // null = a PROGRESS.md the user wrote themselves. Leave it alone.
+      if (content === null) return;
+
+      try {
+        if (existing) {
+          setProject((prev) =>
+            prev
+              ? { ...prev, files: prev.files.map((f) => (f.path === PROGRESS_PATH ? { ...f, content } : f)) }
+              : prev,
+          );
+          await writeFile(project.id, PROGRESS_PATH, content);
+        } else {
+          const created = await addFile(project.id, PROGRESS_PATH, content);
+          if (created) refresh(created);
+        }
+      } catch {
+        /* the journal is a convenience — never let it disturb the session */
+      }
+    },
+    [project, refresh, t, lang],
+  );
+
   const isLocked = (v: WorkView) => v !== "code" && !allows(CAP_FOR_VIEW[v as Exclude<WorkView, "code">]);
 
   const selectView = (v: WorkView) => {
@@ -678,6 +729,7 @@ export function Workspace({ projectId }: { projectId: string }) {
             project={project}
             files={project.files}
             onApplyEdit={onApplyEdit}
+            onProgressNote={onProgressNote}
             // Compact layout: opening a file from an edit card has to switch
             // the pane back to the editor, or the file opens behind the chat.
             onOpenFile={(path) => {

@@ -6,6 +6,7 @@ import { Bot, Check, FileIcon, Close, Lock, ChevronRight } from "@/components/ic
 import { loadPrefs, DEFAULT_PREFERENCES, type AssistantPreferences } from "@/lib/workspace/assistantPrefs";
 import { readAssistantStream } from "@/lib/ai/streamClient";
 import { appendChat, clearChat, loadChat } from "@/lib/workspace/store";
+import type { ProgressEntry } from "@/lib/workspace/progress";
 import { planForModel } from "@/lib/workspace/plan";
 import { track } from "@/lib/analytics";
 import { usePlan } from "@/hooks/usePlan";
@@ -52,6 +53,7 @@ export function WorkspaceChat({
   project,
   files,
   onApplyEdit,
+  onProgressNote,
   onOpenFile,
   onCollapse,
   compact = false,
@@ -65,6 +67,8 @@ export function WorkspaceChat({
   project: Project;
   files: ProjectFile[];
   onApplyEdit: (path: string, content: string) => void;
+  /** Record the finished exchange in PROGRESS.md — "where you left off". */
+  onProgressNote?: (entry: ProgressEntry) => void;
   /** Open a file in the editor — the edit cards link to what they changed. */
   onOpenFile?: (path: string) => void;
   onCollapse: () => void;
@@ -405,6 +409,10 @@ export function WorkspaceChat({
           { role: "user", content: trimmed },
           { role: "assistant", content: accText, edits: accEdits.map((e) => ({ path: e.path, content: e.content })) },
         ]);
+        // Same moment, same condition: the journal records what the saved
+        // conversation now contains, so the two can never disagree about
+        // whether an exchange happened.
+        onProgressNote?.({ request: trimmed, reply: accText, files: accEdits.map((e) => e.path) });
       }
     }
   }

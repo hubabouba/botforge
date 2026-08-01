@@ -322,8 +322,12 @@ export function WorkspaceChat({
         signal: controller.signal,
       });
 
-      const usedH = res.headers.get("X-Assistant-Usage-Used");
-      const limitH = res.headers.get("X-Assistant-Usage-Limit");
+      // The monthly allowance is what the plan advertises, so it's what the
+      // counter shows. The daily cap is a burst limiter and explains itself in
+      // its own message when it trips; showing "3/12 today" while the customer
+      // is trying to work out how much of their 150 is left helped nobody.
+      const usedH = res.headers.get("X-Assistant-Usage-Month-Used");
+      const limitH = res.headers.get("X-Assistant-Usage-Month-Limit");
       if (usedH && limitH) setQuota({ used: Number(usedH), limit: Number(limitH) });
 
       // Non-OK responses (401/503/400/429) are plain JSON, not a stream.
@@ -727,7 +731,7 @@ export function WorkspaceChat({
               {t("chat.sendHint")}
               {quota && (
                 <span className={cn("ml-1.5", quota.used >= quota.limit && "text-rose-400")}>
-                  · {quota.used}/{quota.limit} {t("chat.today")}
+                  · {quota.used}/{quota.limit} {t("chat.thisMonth")}
                 </span>
               )}
             </span>

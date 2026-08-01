@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import * as Sentry from "@sentry/nextjs";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { assistantChatStream } from "@/lib/ai/claude";
 import { assistantChatGeminiStream } from "@/lib/ai/gemini";
@@ -172,6 +173,21 @@ async function overMonthlyUsdCap(userId: string, cap: number): Promise<{ over: b
   }
 }
 
+/**
+ * Messages this account has sent so far this calendar month.
+ *
+ * The monthly allowance is the number the plan advertises, so it is the number
+ * the app has to be able to show — a customer who bought "150 messages a month"
+ * and can only see a daily counter has no way to know where they stand. One
+ * small indexed read on their own rows, next to a model call that costs orders
+ * of magnitude more. RLS scopes it to the caller.
+ */
+async function monthlyMessagesUsed(supabase: SupabaseClient): Promise<number> {
+  const monthStart = new Date().toISOString().slice(0, 8) + "01";
+  const { data } = await supabase.from("ai_usage").select("count").gte("day", monthStart);
+  return (data ?? []).reduce((sum, r) => sum + Number((r as { count: number }).count ?? 0), 0);
+}
+
 async function handlePost(req: Request) {
   const supabase = await createClient();
   const {
@@ -228,6 +244,7 @@ async function handlePost(req: Request) {
   const limit = aiDailyLimit(plan);
   const monthlyLimit = aiMonthlyLimit(plan);
   let used: number | null = null;
+  let monthUsed: number | null = null;
   if (!isAiLimitExempt(user.email)) {
     const { data: count, error: usageError } = await supabase.rpc("increment_ai_usage", {
       p_limit: limit,
@@ -245,11 +262,7 @@ async function handlePost(req: Request) {
     } else if (count === -1) {
       // -1 covers both caps. Which one it was matters to the person reading it:
       // "come back tomorrow" is useless advice if the month is what ran out.
-      const { data: monthUsed } = await supabase
-        .from("ai_usage")
-        .select("count")
-        .gte("day", new Date(new Date().toISOString().slice(0, 8) + "01").toISOString().slice(0, 10));
-      const monthTotal = (monthUsed ?? []).reduce((sum, r) => sum + Number(r.count ?? 0), 0);
+      const monthTotal = await monthlyMessagesUsed(supabase);
       const monthlyHit = monthlyLimit >= 0 && monthTotal >= monthlyLimit;
 
       const upgradeHint = plan === "max" ? "" : " Upgrading raises it.";
@@ -257,12 +270,18 @@ async function handlePost(req: Request) {
         ? `Monthly assistant limit reached (${monthlyLimit} messages/month on the ${plan} plan). It resets on the 1st.${upgradeHint}`
         : `Daily assistant limit reached (${limit} messages/day on the ${plan} plan). It resets at midnight UTC.${upgradeHint}`;
 
+      // Monthly figures either way: the counter in the chat is the monthly one,
+      // and "you have used 40 of 150 this month" stays true and useful even
+      // when it was today's burst limit that stopped this particular message.
       return NextResponse.json(
-        { error, usage: { used: limit, limit } },
+        { error, usage: { used: monthTotal, limit: monthlyLimit } },
         { status: 429 },
       );
     } else if (typeof count === "number") {
       used = count;
+      // Read after the increment, so it includes this message — same basis as
+      // the daily figure beside it.
+      monthUsed = await monthlyMessagesUsed(supabase);
     }
 
     // The other ceiling: not how many messages, but what they cost. A count
@@ -386,6 +405,13 @@ async function handlePost(req: Request) {
   if (used !== null) {
     headers["X-Assistant-Usage-Used"] = String(used);
     headers["X-Assistant-Usage-Limit"] = String(limit);
+  }
+  // The month is what the plan sells, so it's what the counter in the chat
+  // shows. The daily cap still applies and still explains itself in its own
+  // 429 — it's a burst limiter, not the thing anyone bought.
+  if (monthUsed !== null) {
+    headers["X-Assistant-Usage-Month-Used"] = String(monthUsed);
+    headers["X-Assistant-Usage-Month-Limit"] = String(monthlyLimit);
   }
   return new Response(stream, { headers });
 }

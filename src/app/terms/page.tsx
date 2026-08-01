@@ -1,15 +1,25 @@
 import type { Metadata } from "next";
 import { brand, pricingTiers } from "@/lib/brand";
+import { AI_MONTHLY_MESSAGES } from "@/lib/plan";
 import { LegalShell } from "@/components/marketing/LegalShell";
 
 export const metadata: Metadata = { title: "Terms of Service" };
 
+/** "a, b, c and d" — for lists a person reads rather than scans. */
+function sentenceList(parts: string[]): string {
+  if (parts.length < 2) return parts[0] ?? "";
+  return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
 export default function TermsPage() {
   const paid = pricingTiers.filter((t) => t.price > 0);
   const priceList = paid.map((t) => `${t.name} ($${t.price}/month)`).join(" and ");
+  // Read from the same table the product enforces, so the terms cannot quietly
+  // drift out of date the next time a number changes.
+  const allowanceList = sentenceList(pricingTiers.map((t) => `${t.name} ${AI_MONTHLY_MESSAGES[t.id]}`));
 
   return (
-    <LegalShell title="Terms of Service" updated="July 26, 2026">
+    <LegalShell title="Terms of Service" updated="August 1, 2026">
       <p>
         {brand.name} (“{brand.operator}”, “we”) provides an AI service for building bots. By using
         it, you agree to these terms. This document is a plain-language draft and should be reviewed
@@ -48,6 +58,40 @@ export default function TermsPage() {
         before you pay, and any tax will be shown as part of the total on the payment page. Prices
         may change with prior notice; changes never affect a period you have already paid for. The
         features of each plan are described on our pricing page and may evolve over time.
+      </p>
+
+      <h2>Usage limits</h2>
+      <p>
+        Every plan includes a monthly allowance of assistant messages, plus a smaller daily one so
+        that a single day cannot consume the whole month at once. The current monthly allowances are{" "}
+        {allowanceList}. They are shown on the pricing page, counted in the app as you use them,
+        reset at the start of each calendar month, and do not carry over.
+      </p>
+      <p>
+        A “message” is one request you send to the assistant. Some requests do far more work than
+        others, and a few actions you start with a single click — running a build plan, for example —
+        send several messages in sequence; the app shows what it is doing and you can stop it at any
+        point.
+      </p>
+      <p>
+        <strong>Fair use.</strong> Answering a message costs us real money, and how much varies
+        enormously with the size of your project and what you ask for — a one-line fix and a review
+        of a large codebase are not the same request. So alongside the message allowance, each
+        account has a monthly ceiling on the total amount of AI processing it may consume. It is set
+        well above what the message allowance uses in ordinary work, and you are unlikely to meet it
+        while building a bot. It exists so that a single exceptionally heavy account cannot come at
+        the expense of everyone else. If you do reach it, the assistant pauses until the next month;
+        your projects, your code and your running bots are unaffected.
+      </p>
+      <p>
+        Bot hosting has its own monthly runtime allowance for each plan. When it is used up, running
+        bots are stopped, and can be started again in the next month or on a higher plan.
+      </p>
+      <p>
+        Reaching a limit is the plan working as described and is not by itself grounds for a refund.
+        But if one stops you unexpectedly early in a period, write to us — we would rather sort that
+        out than have you stuck. We may change allowances with prior notice, and a change never
+        reduces an allowance for a period you have already paid for.
       </p>
 
       <h2>Subscriptions and payment</h2>

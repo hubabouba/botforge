@@ -43,6 +43,17 @@ import { cn } from "@/lib/utils";
  */
 const SAVE_RETRIES = 3;
 
+/**
+ * How many plan steps one click on Run may work through.
+ *
+ * Each step is a full assistant message — same cost, same quota. A twelve-step
+ * plan run in one go is twelve messages before the user has seen whether the
+ * first one was any good, and on Basic that is more than half a day's
+ * allowance. Five is enough to feel like real progress and small enough that a
+ * wrong plan costs little to discover.
+ */
+const RUN_BATCH_STEPS = 5;
+
 const CAP_FOR_VIEW: Record<Exclude<WorkView, "code">, Capability> = {
   logs: "panel.logs",
   planning: "panel.planning",
@@ -171,10 +182,21 @@ export function Workspace({ projectId }: { projectId: string }) {
     planRef.current = buildPlan;
   }, [buildPlan]);
 
+  /** Set when a run was cut to a batch, so the closing note says so. */
+  const batchedRef = useRef(false);
+
   const startRun = useCallback((steps: string[]) => {
     if (!steps.length) return;
     setRunNote("");
-    setPlanRun({ steps, index: 0 });
+    // One click here sends one full assistant message per step, and a generated
+    // plan routinely has a dozen. Unbatched, a single click could spend a Basic
+    // account's whole day of messages before the user saw a single result they
+    // might not even want. Run a batch, then let them look at it and decide —
+    // the remaining steps stay unticked, so Run picks up exactly where this
+    // left off.
+    const batch = steps.slice(0, RUN_BATCH_STEPS);
+    batchedRef.current = batch.length < steps.length;
+    setPlanRun({ steps: batch, index: 0 });
   }, []);
 
   const stopRun = useCallback(() => setPlanRun(null), []);
@@ -205,7 +227,8 @@ export function Workspace({ projectId }: { projectId: string }) {
         setPlanRun({ ...current, index: next });
       } else {
         setPlanRun(null);
-        setRunNote(t("panel.runFinished"));
+        // "Finished" would be a lie when the batch was only part of the plan.
+        setRunNote(batchedRef.current ? t("panel.runBatchDone") : t("panel.runFinished"));
       }
     },
     [onPlanChange, t],

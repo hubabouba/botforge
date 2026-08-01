@@ -5,6 +5,7 @@
  * `AssistantParams -> AssistantResult`, so the API route can swap between them
  * based on the user's plan without the client knowing which one ran.
  */
+import type { ReasoningConfig } from "@/lib/plan";
 import { PROGRESS_PATH } from "@/lib/workspace/progress";
 
 export interface AssistantEdit {
@@ -90,7 +91,7 @@ export interface AssistantParams {
    * Whether extended thinking runs, and how deep. Resolved from plan + tier by
    * `reasoningFor` — never from the client. Ignored by Gemini.
    */
-  reasoning?: { thinking: boolean; effort: "low" | "medium" | "high" | "xhigh" };
+  reasoning?: ReasoningConfig;
   /** Cap on agentic loop turns (plan-derived). Ignored by Gemini. */
   maxTurns?: number;
   /**

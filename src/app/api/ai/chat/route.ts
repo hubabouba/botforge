@@ -303,7 +303,13 @@ async function handlePost(req: Request) {
     cancel() {
       // Client disconnected (navigated away / aborted) — stop the generator,
       // which aborts the upstream model request in its own cleanup.
-      void gen.return(undefined);
+      //
+      // Returned, not fire-and-forget. The generator's cleanup is where the
+      // request's cost gets written down, and those tokens were generated and
+      // billed whether or not anyone stayed to read the answer. Handing the
+      // promise back keeps the invocation alive for that one insert; dropping
+      // it means the spend table quietly under-reports every abandoned reply.
+      return gen.return(undefined).then(() => undefined);
     },
   });
 

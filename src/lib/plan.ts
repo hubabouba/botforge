@@ -82,6 +82,17 @@ export interface ReasoningConfig {
   /** Extended thinking on. When false the model answers without a reasoning pass. */
   thinking: boolean;
   effort: "low" | "medium" | "high" | "xhigh";
+  /**
+   * Hard ceiling on thinking + reply for ONE turn of the loop.
+   *
+   * Not a spend target — `effort` decides actual usage — but the only thing
+   * standing between us and a runaway. It was a flat 64000 on every tier, and
+   * 64000 output tokens is $0.96 on the standard paid model, for a single
+   * message that comes back truncated and useless. Measured output is
+   * 1,885–5,861 tokens for a whole message across all its turns, so these
+   * ceilings sit far above anything real and catch only the pathological case.
+   */
+  maxOutputTokens: number;
 }
 
 export function reasoningFor(plan: Plan, tier: AssistantTier): ReasoningConfig {
@@ -89,10 +100,13 @@ export function reasoningFor(plan: Plan, tier: AssistantTier): ReasoningConfig {
   // "high" was most of it — the model reasons for thousands of tokens on every
   // turn of the loop, and thinking bills as output. Each tier is one notch
   // lower than the setting that produced that bill.
-  if (tier === "max") return { thinking: true, effort: "high" };
+  if (tier === "max") return { thinking: true, effort: "high", maxOutputTokens: 64_000 };
   return plan === "basic"
-    ? { thinking: false, effort: "low" }
-    : { thinking: true, effort: "medium" };
+    ? // Thinking is off here, so the whole allowance goes to the reply and the
+      // files. 24000 tokens is roughly 96k characters in one turn — more than
+      // any single bot file we've seen.
+      { thinking: false, effort: "low", maxOutputTokens: 24_000 }
+    : { thinking: true, effort: "medium", maxOutputTokens: 32_000 };
 }
 
 /**

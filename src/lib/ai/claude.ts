@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { ReasoningConfig } from "@/lib/plan";
 import { buildContextBlock, buildSystemPrompt, type AssistantParams, type AssistantStreamEvent } from "./types";
 import { applyStringEdit, editFailureMessage } from "./editFile";
 
@@ -175,7 +176,11 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   const planning = params.intent === "plan" || params.intent === "review";
   const model = params.model || ASSISTANT_MODEL;
   // Default matches the paid tiers; the route always passes an explicit config.
-  const reasoning = params.reasoning ?? { thinking: true, effort: "high" as const };
+  const reasoning: ReasoningConfig = params.reasoning ?? {
+    thinking: true,
+    effort: "high",
+    maxOutputTokens: 32_000,
+  };
   const stepMode = !planning && !!params.stepMode;
   const system =
     buildSystemPrompt(params) +
@@ -256,253 +261,301 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   // Real token spend, summed across the loop's turns. Logged at the end so the
   // per-message cost is a measured number in the runtime logs rather than an
   // estimate — plan limits should be set from this, not from arithmetic.
-  const spend = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0, turns: 0 };
+  const spend = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0, thinking: 0, turns: 0 };
 
-  const maxTurns = Math.min(params.maxTurns ?? MAX_TOOL_TURNS, MAX_TOOL_TURNS);
-  for (let turn = 0; turn < maxTurns; turn++) {
-    const stream = anthropic.messages.stream({
+  /**
+   * Write down what this request cost. Called exactly once, from the `finally`
+   * below, so it happens on every exit path — including the abrupt one.
+   *
+   * That path is the reason this moved: closing the tab or navigating away
+   * mid-reply makes the route cancel the stream, which returns this generator
+   * early. The code after the last `yield` then never ran, so the spend was
+   * never recorded — while Anthropic billed every token generated up to that
+   * moment. Invisible spend is the worst kind: the dashboard says one number
+   * and the invoice says another, and nothing points at the difference.
+   */
+  let reported = false;
+  const report = async () => {
+    if (reported) return;
+    reported = true;
+    logSpend(model, reasoning, spend, edits.size);
+    // Awaited, and it has to be — see the note on `onSpend` in types.ts.
+    await params.onSpend?.({
       model,
-      // Reasoning is set EXPLICITLY on every request. Two defaults would bite us
-      // otherwise: omitting `thinking` runs adaptive (it is not off), and
-      // omitting `effort` runs "high" — so an unset pair silently opts every
-      // tier into the expensive end. `budget_tokens` is gone: it's a 400 on
-      // Sonnet 5 / Opus 5, and `effort` replaces it.
-      //
-      // `display: "summarized"` is what makes reasoning visible to the user —
-      // the default is "omitted", which streams thinking blocks with empty text.
-      // Thinking tokens bill as output, which is exactly why Basic runs without
-      // them (see reasoningFor in plan.ts).
-      thinking: reasoning.thinking ? { type: "adaptive", display: "summarized" } : { type: "disabled" },
-      output_config: { effort: reasoning.effort },
-      // max_tokens caps thinking AND output together — it is a ceiling, not a
-      // spend target (effort controls actual usage). 16000 was too tight the
-      // moment effort went to xhigh: the model spent the whole allowance
-      // reasoning and got truncated before writing a word, which reached users
-      // as "the assistant returned an empty reply". 64K is the documented
-      // starting point for high/xhigh, and leaves room for a full file write
-      // after a long think.
-      max_tokens: 64000,
-      system: [{ type: "text", text: system, cache_control: { type: "ephemeral", ttl: "1h" } }],
-      ...(tools ? { tools } : {}),
-      messages,
+      inputTokens: spend.input,
+      outputTokens: spend.output,
+      cacheWriteTokens: spend.cacheWrite,
+      cacheReadTokens: spend.cacheRead,
+      usd: usdFor(model, spend),
     });
+  };
 
-    // Abort the in-flight call shortly before the budget ends — a long single
-    // turn is the one thing the between-turns check below cannot bound.
-    const killer = setTimeout(() => stream.abort(), Math.max(deadline - WRAP_UP_MS - Date.now(), 1_000));
-    try {
-      for await (const event of stream) {
-        if (event.type === "content_block_delta") {
-          if (event.delta.type === "text_delta") {
-            saidSomething = true;
-            yield { type: "text", delta: event.delta.text };
-          } else if (event.delta.type === "thinking_delta") {
-            yield { type: "thinking", delta: event.delta.thinking };
+  try {
+
+    const maxTurns = Math.min(params.maxTurns ?? MAX_TOOL_TURNS, MAX_TOOL_TURNS);
+    for (let turn = 0; turn < maxTurns; turn++) {
+      const stream = anthropic.messages.stream({
+        model,
+        // Reasoning is set EXPLICITLY on every request. Two defaults would bite us
+        // otherwise: omitting `thinking` runs adaptive (it is not off), and
+        // omitting `effort` runs "high" — so an unset pair silently opts every
+        // tier into the expensive end. `budget_tokens` is gone: it's a 400 on
+        // Sonnet 5 / Opus 5, and `effort` replaces it.
+        //
+        // `display: "summarized"` is what makes reasoning visible to the user —
+        // the default is "omitted", which streams thinking blocks with empty text.
+        // Thinking tokens bill as output, which is exactly why Basic runs without
+        // them (see reasoningFor in plan.ts).
+        thinking: reasoning.thinking ? { type: "adaptive", display: "summarized" } : { type: "disabled" },
+        output_config: { effort: reasoning.effort },
+        // max_tokens caps thinking AND output together — a ceiling, not a spend
+        // target (effort controls actual usage). It scales with the tier now
+        // rather than sitting at a flat 64000 for everyone: see the note on
+        // maxOutputTokens in plan.ts for why a flat ceiling was a $0.96 message
+        // waiting to happen on a $9 plan.
+        max_tokens: reasoning.maxOutputTokens,
+        system: [{ type: "text", text: system, cache_control: { type: "ephemeral", ttl: "1h" } }],
+        ...(tools ? { tools } : {}),
+        messages,
+      });
+
+      /**
+       * What this turn used, read from the stream as it arrives rather than from
+       * finalMessage() afterwards. Two reasons, both about not losing money we
+       * actually spent: finalMessage() rejects after an abort, and an abort is a
+       * normal event here (the wall-clock killer below, or the user closing the
+       * tab) — yet the tokens generated before it are billed all the same.
+       *
+       * Every field on a message_delta's usage is CUMULATIVE for the message, so
+       * these are assignments, not additions.
+       */
+      const live = { input: 0, output: 0, cacheWrite: 0, cacheRead: 0, thinking: 0 };
+
+      // Abort the in-flight call shortly before the budget ends — a long single
+      // turn is the one thing the between-turns check below cannot bound.
+      const killer = setTimeout(() => stream.abort(), Math.max(deadline - WRAP_UP_MS - Date.now(), 1_000));
+      try {
+        for await (const event of stream) {
+          if (event.type === "message_start") {
+            // Input and cache totals are known before a single token comes back.
+            const u = event.message.usage;
+            live.input = u.input_tokens ?? 0;
+            live.cacheWrite = u.cache_creation_input_tokens ?? 0;
+            live.cacheRead = u.cache_read_input_tokens ?? 0;
+          } else if (event.type === "message_delta") {
+            const u = event.usage;
+            live.input = u.input_tokens ?? live.input;
+            live.output = u.output_tokens ?? live.output;
+            live.cacheWrite = u.cache_creation_input_tokens ?? live.cacheWrite;
+            live.cacheRead = u.cache_read_input_tokens ?? live.cacheRead;
+            // How much of the output was reasoning rather than reply. The single
+            // most useful number for deciding whether `effort` is priced right —
+            // it separates "the model wrote a lot of code" from "the model
+            // thought for a long time and said little".
+            live.thinking = u.output_tokens_details?.thinking_tokens ?? live.thinking;
+          } else if (event.type === "content_block_delta") {
+            if (event.delta.type === "text_delta") {
+              saidSomething = true;
+              yield { type: "text", delta: event.delta.text };
+            } else if (event.delta.type === "thinking_delta") {
+              yield { type: "thinking", delta: event.delta.thinking };
+            }
           }
         }
+      } catch (e) {
+        const aborted = e instanceof Anthropic.APIUserAbortError || (e as Error)?.name === "APIUserAbortError";
+        if (!aborted) throw e; // real API errors still surface to the route's catch
+        outOfTime = true;
+      } finally {
+        clearTimeout(killer);
+        // Fold in what this turn used, whether it finished or was cut short. In
+        // the `finally` on purpose: an abort throws past everything below.
+        spend.input += live.input;
+        spend.output += live.output;
+        spend.cacheWrite += live.cacheWrite;
+        spend.cacheRead += live.cacheRead;
+        spend.thinking += live.thinking;
+        spend.turns += 1;
       }
-    } catch (e) {
-      const aborted = e instanceof Anthropic.APIUserAbortError || (e as Error)?.name === "APIUserAbortError";
-      if (!aborted) throw e; // real API errors still surface to the route's catch
-      outOfTime = true;
-    } finally {
-      clearTimeout(killer);
-    }
-    if (outOfTime) break; // finalMessage() would reject after an abort
+      if (outOfTime) break; // finalMessage() would reject after an abort
 
-    // The SDK assembles partial tool-argument JSON for us — read the final
-    // message to get complete tool calls (and the thinking blocks, which must be
-    // sent back verbatim when continuing an extended-thinking + tool-use turn).
-    const final = await stream.finalMessage();
-    spend.input += final.usage.input_tokens ?? 0;
-    spend.output += final.usage.output_tokens ?? 0;
-    spend.cacheWrite += final.usage.cache_creation_input_tokens ?? 0;
-    spend.cacheRead += final.usage.cache_read_input_tokens ?? 0;
-    spend.turns += 1;
-    // Hit the output ceiling. Worth saying out loud: the turn is cut off, so
-    // anything the model was midway through writing is simply gone.
-    if (final.stop_reason === "max_tokens") truncated = true;
-    const toolUses = final.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
-    if (toolUses.length === 0) break; // model is done — no more tool calls
+      // The SDK assembles partial tool-argument JSON for us — read the final
+      // message to get complete tool calls (and the thinking blocks, which must be
+      // sent back verbatim when continuing an extended-thinking + tool-use turn).
+      const final = await stream.finalMessage();
+      // Hit the output ceiling. Worth saying out loud: the turn is cut off, so
+      // anything the model was midway through writing is simply gone.
+      if (final.stop_reason === "max_tokens") truncated = true;
+      const toolUses = final.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+      if (toolUses.length === 0) break; // model is done — no more tool calls
 
-    // Answer each tool call, updating the working copy + the final edit set.
-    const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const block of toolUses) {
-      if (block.name === "write_file") {
-        const input = block.input as { path?: string; content?: string };
-        if (input.path && typeof input.content === "string") {
-          working.set(input.path, input.content);
-          edits.set(input.path, input.content);
-          results.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: `Saved ${input.path} (${input.content.length} chars). Read it back to review, or keep going.`,
-          });
-        } else {
-          results.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: "write_file needs both a path and full content.",
-            is_error: true,
-          });
-        }
-      } else if (block.name === "edit_file") {
-        const input = block.input as { path?: string; old_string?: string; new_string?: string };
-        const path = input.path ?? "";
-        const current = working.get(path);
-        if (current === undefined) {
-          results.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: `No file at "${path}". Use write_file to create it. Files in this project: ${[...working.keys()].join(", ")}`,
-            is_error: true,
-          });
-        } else {
-          // Against the WORKING copy, so several edits to one file in a turn
-          // compose — the second sees the result of the first, not the original.
-          const result = applyStringEdit(current, input.old_string ?? "", input.new_string ?? "");
-          if (result.ok) {
-            working.set(path, result.content);
-            // The edit set still carries whole files: the stream protocol, the
-            // Apply button and the save path all speak full content, and none
-            // of them needed to change for this. Only the model's side got
-            // cheaper.
-            edits.set(path, result.content);
+      // Answer each tool call, updating the working copy + the final edit set.
+      const results: Anthropic.ToolResultBlockParam[] = [];
+      for (const block of toolUses) {
+        if (block.name === "write_file") {
+          const input = block.input as { path?: string; content?: string };
+          if (input.path && typeof input.content === "string") {
+            working.set(input.path, input.content);
+            edits.set(input.path, input.content);
             results.push({
               type: "tool_result",
               tool_use_id: block.id,
-              content: `Edited ${path}. Read it back if you want to check the result, or keep going.`,
+              content: `Saved ${input.path} (${input.content.length} chars). Read it back to review, or keep going.`,
             });
           } else {
             results.push({
               type: "tool_result",
               tool_use_id: block.id,
-              content: editFailureMessage(path, result),
+              content: "write_file needs both a path and full content.",
+              is_error: true,
+            });
+          }
+        } else if (block.name === "edit_file") {
+          const input = block.input as { path?: string; old_string?: string; new_string?: string };
+          const path = input.path ?? "";
+          const current = working.get(path);
+          if (current === undefined) {
+            results.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: `No file at "${path}". Use write_file to create it. Files in this project: ${[...working.keys()].join(", ")}`,
+              is_error: true,
+            });
+          } else {
+            // Against the WORKING copy, so several edits to one file in a turn
+            // compose — the second sees the result of the first, not the original.
+            const result = applyStringEdit(current, input.old_string ?? "", input.new_string ?? "");
+            if (result.ok) {
+              working.set(path, result.content);
+              // The edit set still carries whole files: the stream protocol, the
+              // Apply button and the save path all speak full content, and none
+              // of them needed to change for this. Only the model's side got
+              // cheaper.
+              edits.set(path, result.content);
+              results.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: `Edited ${path}. Read it back if you want to check the result, or keep going.`,
+              });
+            } else {
+              results.push({
+                type: "tool_result",
+                tool_use_id: block.id,
+                content: editFailureMessage(path, result),
+                is_error: true,
+              });
+            }
+          }
+        } else if (block.name === "open_plan") {
+          const input = block.input as { goal?: string };
+          const goal = (input.goal ?? "").trim();
+          if (goal) {
+            // Surfaced immediately (not held back like edits): the client switches
+            // tabs and starts building the plan while this turn is still finishing.
+            yield { type: "plan", goal };
+            results.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content:
+                "Opened the Planning tab and started building the plan there. Tell the user in one sentence that the plan is being built in the Planning tab — do not write the plan out yourself.",
+            });
+          } else {
+            results.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: "open_plan needs a one-sentence goal.",
+              is_error: true,
+            });
+          }
+        } else if (block.name === "finish_step") {
+          const input = block.input as { status?: string; note?: string };
+          const status = input.status === "blocked" ? "blocked" : "done";
+          stepVerdict = { status, note: (input.note ?? "").trim() };
+          // Surfaced immediately, like open_plan: the checklist ticks over while
+          // this turn is still wrapping up.
+          yield { type: "step", status, note: stepVerdict.note || undefined };
+          results.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: "Recorded. Nothing else to do on this step.",
+          });
+        } else if (block.name === "read_file") {
+          const input = block.input as { path?: string };
+          const content = input.path ? working.get(input.path) : undefined;
+          if (content !== undefined) {
+            results.push({ type: "tool_result", tool_use_id: block.id, content: content || "(this file is empty)" });
+          } else {
+            results.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: `No file at "${input.path ?? ""}". Files in this project: ${[...working.keys()].join(", ")}`,
               is_error: true,
             });
           }
         }
-      } else if (block.name === "open_plan") {
-        const input = block.input as { goal?: string };
-        const goal = (input.goal ?? "").trim();
-        if (goal) {
-          // Surfaced immediately (not held back like edits): the client switches
-          // tabs and starts building the plan while this turn is still finishing.
-          yield { type: "plan", goal };
-          results.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content:
-              "Opened the Planning tab and started building the plan there. Tell the user in one sentence that the plan is being built in the Planning tab — do not write the plan out yourself.",
-          });
-        } else {
-          results.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: "open_plan needs a one-sentence goal.",
-            is_error: true,
-          });
-        }
-      } else if (block.name === "finish_step") {
-        const input = block.input as { status?: string; note?: string };
-        const status = input.status === "blocked" ? "blocked" : "done";
-        stepVerdict = { status, note: (input.note ?? "").trim() };
-        // Surfaced immediately, like open_plan: the checklist ticks over while
-        // this turn is still wrapping up.
-        yield { type: "step", status, note: stepVerdict.note || undefined };
-        results.push({
-          type: "tool_result",
-          tool_use_id: block.id,
-          content: "Recorded. Nothing else to do on this step.",
-        });
-      } else if (block.name === "read_file") {
-        const input = block.input as { path?: string };
-        const content = input.path ? working.get(input.path) : undefined;
-        if (content !== undefined) {
-          results.push({ type: "tool_result", tool_use_id: block.id, content: content || "(this file is empty)" });
-        } else {
-          results.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: `No file at "${input.path ?? ""}". Files in this project: ${[...working.keys()].join(", ")}`,
-            is_error: true,
-          });
-        }
       }
+
+      // The fourth and last breakpoint, rolled forward onto this turn's results so
+      // the next turn reads the whole exchange back at 0.1x instead of re-sending
+      // it at full price. read_file answers with an entire file, so on a review
+      // pass this is the largest thing in the request. The previous turn's marker
+      // is cleared first: four is a hard limit and a fifth is a 400 for the whole
+      // request — the older prefix is still found, because a breakpoint looks back
+      // up to 20 blocks for an existing entry.
+      if (rolling) delete rolling.cache_control;
+      rolling = results[results.length - 1] ?? null;
+      if (rolling) rolling.cache_control = { type: "ephemeral" };
+
+      // Extend the transcript with this turn and its tool results, then loop so the
+      // model sees the outcome and can review/improve or finish.
+      messages.push({ role: "assistant", content: final.content as Anthropic.ContentBlockParam[] });
+      messages.push({ role: "user", content: results });
+
+      // The model has declared the step finished — another turn would only buy a
+      // restatement of what it just said, at full price, for every step of a run.
+      if (stepVerdict) break;
+
+      // Don't open another turn without enough time left to do anything with it.
+      if (Date.now() > deadline - WRAP_UP_MS) break;
     }
 
-    // The fourth and last breakpoint, rolled forward onto this turn's results so
-    // the next turn reads the whole exchange back at 0.1x instead of re-sending
-    // it at full price. read_file answers with an entire file, so on a review
-    // pass this is the largest thing in the request. The previous turn's marker
-    // is cleared first: four is a hard limit and a fifth is a 400 for the whole
-    // request — the older prefix is still found, because a breakpoint looks back
-    // up to 20 blocks for an existing entry.
-    if (rolling) delete rolling.cache_control;
-    rolling = results[results.length - 1] ?? null;
-    if (rolling) rolling.cache_control = { type: "ephemeral" };
+    // Say what happened instead of going quiet. Every one of these used to reach
+    // the user as a bare "the assistant returned an empty reply".
+    if (outOfTime) {
+      yield {
+        type: "text",
+        delta:
+          edits.size > 0
+            ? "\n\n⏱ I ran out of time mid-build, so I stopped here — every file below is complete and applied. Send a follow-up message and I'll continue where I left off."
+            : "\n\n⏱ This request was too big to finish in one pass and I ran out of time. Try splitting it up — start with the core bot in one message, then add features one at a time.",
+      };
+    } else if (truncated && !saidSomething) {
+      yield {
+        type: "text",
+        delta:
+          "This one hit my output limit while I was still working it out, so nothing came back. Ask for it in smaller pieces — one feature at a time — and it'll go through.",
+      };
+    } else if (!saidSomething && stepVerdict?.note) {
+      // Ending the loop on finish_step can leave the turn with no prose at all —
+      // the note the model attached is exactly the sentence that belongs here.
+      yield { type: "text", delta: stepVerdict.note };
+    } else if (!saidSomething && edits.size === 0) {
+      yield {
+        type: "text",
+        delta: "I didn't produce anything for that one. Try rephrasing it, or say specifically which file you want changed.",
+      };
+    }
 
-    // Extend the transcript with this turn and its tool results, then loop so the
-    // model sees the outcome and can review/improve or finish.
-    messages.push({ role: "assistant", content: final.content as Anthropic.ContentBlockParam[] });
-    messages.push({ role: "user", content: results });
+    for (const [path, content] of edits) {
+      yield { type: "edit", path, content };
+    }
 
-    // The model has declared the step finished — another turn would only buy a
-    // restatement of what it just said, at full price, for every step of a run.
-    if (stepVerdict) break;
-
-    // Don't open another turn without enough time left to do anything with it.
-    if (Date.now() > deadline - WRAP_UP_MS) break;
+  } finally {
+    // The only place spend is recorded, so that the abrupt exits count too:
+    // a closed tab, a cancelled stream, a thrown API error. Every one of them
+    // has already burned tokens Anthropic will bill for.
+    await report();
   }
-
-  // Say what happened instead of going quiet. Every one of these used to reach
-  // the user as a bare "the assistant returned an empty reply".
-  if (outOfTime) {
-    yield {
-      type: "text",
-      delta:
-        edits.size > 0
-          ? "\n\n⏱ I ran out of time mid-build, so I stopped here — every file below is complete and applied. Send a follow-up message and I'll continue where I left off."
-          : "\n\n⏱ This request was too big to finish in one pass and I ran out of time. Try splitting it up — start with the core bot in one message, then add features one at a time.",
-    };
-  } else if (truncated && !saidSomething) {
-    yield {
-      type: "text",
-      delta:
-        "This one hit my output limit while I was still working it out, so nothing came back. Ask for it in smaller pieces — one feature at a time — and it'll go through.",
-    };
-  } else if (!saidSomething && stepVerdict?.note) {
-    // Ending the loop on finish_step can leave the turn with no prose at all —
-    // the note the model attached is exactly the sentence that belongs here.
-    yield { type: "text", delta: stepVerdict.note };
-  } else if (!saidSomething && edits.size === 0) {
-    yield {
-      type: "text",
-      delta: "I didn't produce anything for that one. Try rephrasing it, or say specifically which file you want changed.",
-    };
-  }
-
-  for (const [path, content] of edits) {
-    yield { type: "edit", path, content };
-  }
-
-  logSpend(model, reasoning, spend, edits.size);
-  // Hand the same numbers to whoever wants to keep them. The log line above
-  // stays — it's still the fastest way to watch a single request live — but it
-  // is not retrievable after the fact, which is why this exists.
-  //
-  // Awaited: this runs after the final yield, so it only executes at all
-  // because the consumer pulls the generator one last time — and it must
-  // finish before that pull resolves, or the response closes and the host
-  // kills the invocation mid-write. See the note on `onSpend` in types.ts.
-  await params.onSpend?.({
-    model,
-    inputTokens: spend.input,
-    outputTokens: spend.output,
-    cacheWriteTokens: spend.cacheWrite,
-    cacheReadTokens: spend.cacheRead,
-    usd: usdFor(model, spend),
-  });
 }
 
 /** Cost of a finished request in USD, at the rates below. */
@@ -530,7 +583,7 @@ const RATES: Record<string, { in: number; out: number }> = {
 function logSpend(
   model: string,
   reasoning: { thinking: boolean; effort: string },
-  s: { input: number; output: number; cacheWrite: number; cacheRead: number; turns: number },
+  s: { input: number; output: number; cacheWrite: number; cacheRead: number; thinking: number; turns: number },
   edits: number,
 ): void {
   const usd = usdFor(model, s);
@@ -545,6 +598,10 @@ function logSpend(
       cacheWrite: s.cacheWrite,
       cacheRead: s.cacheRead,
       out: s.output,
+      // How much of `out` was reasoning rather than reply. Output is the
+      // dominant cost of a message, so this is the number that says whether
+      // `effort` is set right for the tier.
+      thinkingOut: s.thinking,
       usd: Number(usd.toFixed(4)),
     })}`,
   );

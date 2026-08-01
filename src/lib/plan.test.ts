@@ -119,16 +119,27 @@ describe("assistant tiers", () => {
 
 describe("reasoningFor (cost/quality per tier)", () => {
   it("basic runs without thinking — that's the tier's whole cost model", () => {
-    expect(reasoningFor("basic", "advanced")).toEqual({ thinking: false, effort: "low" });
+    expect(reasoningFor("basic", "advanced")).toMatchObject({ thinking: false, effort: "low" });
   });
 
   it("pro buys real deliberation, max buys the deepest", () => {
-    expect(reasoningFor("pro", "advanced")).toEqual({ thinking: true, effort: "medium" });
-    expect(reasoningFor("max", "max")).toEqual({ thinking: true, effort: "high" });
+    expect(reasoningFor("pro", "advanced")).toMatchObject({ thinking: true, effort: "medium" });
+    expect(reasoningFor("max", "max")).toMatchObject({ thinking: true, effort: "high" });
   });
 
   it("a max user who picks the cheaper tier gets that tier's reasoning", () => {
-    expect(reasoningFor("max", "advanced")).toEqual({ thinking: true, effort: "medium" });
+    expect(reasoningFor("max", "advanced")).toMatchObject({ thinking: true, effort: "medium" });
+  });
+
+  it("caps one turn's output, and the cap rises with what the tier is priced for", () => {
+    const basic = reasoningFor("basic", "advanced").maxOutputTokens;
+    const pro = reasoningFor("pro", "advanced").maxOutputTokens;
+    const max = reasoningFor("max", "max").maxOutputTokens;
+    expect(basic).toBeLessThan(pro);
+    expect(pro).toBeLessThan(max);
+    // The ceiling that matters: at $15/M output, an uncapped turn on the paid
+    // model is a ~$1 message. Nothing here may exceed what a plan can absorb.
+    expect(basic).toBeLessThanOrEqual(24_000);
   });
 
   it("effort rises with the tier and never exceeds what the tier is priced for", () => {

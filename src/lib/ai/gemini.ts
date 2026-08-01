@@ -6,7 +6,7 @@
  * the API route can swap between them by plan. Streams the same
  * `AssistantStreamEvent`s (text deltas + completed file edits).
  */
-import { buildSystemPrompt, type AssistantParams, type AssistantStreamEvent } from "./types";
+import { buildContextBlock, buildSystemPrompt, type AssistantParams, type AssistantStreamEvent } from "./types";
 
 // gemini-2.5-flash has a real free-tier quota; gemini-2.0-flash is capped at 0
 // free requests for many accounts/regions (returns 429 immediately).
@@ -64,8 +64,15 @@ You are the free-tier assistant. Constraints for this tier:
 - Keep explanations to 1-2 short sentences.
 - For advanced multi-file features, refactors, or debugging from logs, briefly note these work best on Basic/Pro.`;
 
+  // The project state moved out of buildSystemPrompt so Claude can cache the
+  // stable half of its prompt separately (see the breakpoint layout in
+  // claude.ts). Gemini has no breakpoints to place and this tier is not where
+  // the money goes, so the two halves are simply rejoined here — same content,
+  // same position, nothing about the free tier changes.
   const body = {
-    system_instruction: { parts: [{ text: buildSystemPrompt(params) + freeTierNote }] },
+    system_instruction: {
+      parts: [{ text: `${buildSystemPrompt(params)}\n\n${buildContextBlock(params)}${freeTierNote}` }],
+    },
     generationConfig: { maxOutputTokens: 1200, temperature: 0.7 },
     contents,
     tools: [

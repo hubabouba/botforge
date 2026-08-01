@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { buildSystemPrompt, type AssistantParams, type AssistantStreamEvent } from "./types";
+import { buildContextBlock, buildSystemPrompt, type AssistantParams, type AssistantStreamEvent } from "./types";
 import { applyStringEdit, editFailureMessage } from "./editFile";
 
 let client: Anthropic | null = null;
@@ -119,6 +119,17 @@ const READ_FILE_TOOL = {
   },
 };
 
+/**
+ * Says where the project actually is. Claude alone puts the files and the bot's
+ * runtime state at the END of the conversation rather than in the system prompt
+ * — that's what makes the rest of the prompt cacheable — so it alone needs to
+ * be told to read them as current. Gemini still receives them inline and would
+ * be misdirected by this.
+ */
+const CONTEXT_POINTER = `
+
+The project's files — and the state of its hosted bot, when it has one — are in the final block of this conversation, after the user's latest message. That block is always the current state of the project: read it as though it came first.`;
+
 // Claude-only agent guidance, appended after the shared prompt (like gemini.ts
 // appends its free-tier note) so the free provider's prompt stays untouched.
 const AGENT_NOTE = `
@@ -168,6 +179,7 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   const stepMode = !planning && !!params.stepMode;
   const system =
     buildSystemPrompt(params) +
+    CONTEXT_POINTER +
     (planning ? "" : AGENT_NOTE) +
     (!planning && !reasoning.thinking ? NO_THINKING_NOTE : "") +
     (stepMode ? STEP_NOTE : "");
@@ -183,19 +195,45 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   // an intermediate draft from a mid-loop write).
   const edits = new Map<string, string>();
 
-  // Prompt caching (~0.1x input on cache hits). Two breakpoints, both on the
-  // initial request: the system prompt (holds the whole file dump; tools render
-  // before it too) and the last user message. As the transcript grows with tool
-  // turns, everything up to that breakpoint stays a cache read each turn.
-  const last = params.messages.length - 1;
-  const messages: Anthropic.MessageParam[] = params.messages.map((m, i) =>
-    i === last
-      ? {
-          role: m.role,
-          content: [{ type: "text" as const, text: m.content, cache_control: { type: "ephemeral" as const } }],
-        }
-      : { role: m.role, content: m.content },
-  );
+  /**
+   * Prompt caching, laid out by how volatile each part is.
+   *
+   * The cache is a prefix match: a single changed byte at position N throws
+   * away every cached breakpoint at or after N. The prompt is therefore
+   * ordered stable-first, with one breakpoint at each stability boundary:
+   *
+   *  1. tools + system — the rules. Identical for every message in a project,
+   *     so it survives across conversations. 1-hour TTL.
+   *  2. the conversation — append-only, so each request extends the prefix the
+   *     last one cached instead of rewriting it. 1-hour TTL, because the
+   *     measured gap between two messages is well over five minutes.
+   *  3. the context block (current files + live bot state) — different on
+   *     almost every request. Last, so it invalidates nothing above it, and on
+   *     the 5-minute TTL because its only reader is this same request's own
+   *     tool turns, seconds apart. Paying 2x to keep it an hour would be
+   *     paying to preserve something the next message replaces anyway.
+   *
+   * The context used to live in the system prompt — position zero, ahead of
+   * everything. One file edit rewrote the entire prompt at 1.25x, every time.
+   */
+  const messages: Anthropic.MessageParam[] = params.messages.map((m) => ({ role: m.role, content: m.content }));
+  const conversationBlock: Anthropic.TextBlockParam = {
+    type: "text",
+    text: params.messages[params.messages.length - 1].content,
+    cache_control: { type: "ephemeral", ttl: "1h" },
+  };
+  const contextBlock: Anthropic.TextBlockParam = {
+    type: "text",
+    text: buildContextBlock(params),
+    cache_control: { type: "ephemeral" },
+  };
+  const tail = messages[messages.length - 1];
+  tail.content = [conversationBlock];
+  // Normally the conversation ends with the user's new message and the context
+  // rides along with it. A trailing assistant turn (a prefill) can't carry it,
+  // so it goes in a turn of its own rather than being dropped.
+  if (tail.role === "user") tail.content.push(contextBlock);
+  else messages.push({ role: "user", content: [contextBlock] });
 
   // Planning mode returns a diagram + plan and must never touch files, so it
   // runs tool-less (which also makes the loop naturally end after one turn).
@@ -213,6 +251,8 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
   let saidSomething = false;
   // The model's verdict on this plan step, once it gives one (step mode only).
   let stepVerdict: { status: "done" | "blocked"; note: string } | null = null;
+  // Where the rolling cache breakpoint currently sits (see below).
+  let rolling: Anthropic.ToolResultBlockParam | null = null;
   // Real token spend, summed across the loop's turns. Logged at the end so the
   // per-message cost is a measured number in the runtime logs rather than an
   // estimate — plan limits should be set from this, not from arithmetic.
@@ -242,7 +282,7 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
       // starting point for high/xhigh, and leaves room for a full file write
       // after a long think.
       max_tokens: 64000,
-      system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+      system: [{ type: "text", text: system, cache_control: { type: "ephemeral", ttl: "1h" } }],
       ...(tools ? { tools } : {}),
       messages,
     });
@@ -390,6 +430,17 @@ export async function* assistantChatStream(params: AssistantParams): AsyncGenera
         }
       }
     }
+
+    // The fourth and last breakpoint, rolled forward onto this turn's results so
+    // the next turn reads the whole exchange back at 0.1x instead of re-sending
+    // it at full price. read_file answers with an entire file, so on a review
+    // pass this is the largest thing in the request. The previous turn's marker
+    // is cleared first: four is a hard limit and a fifth is a 400 for the whole
+    // request — the older prefix is still found, because a breakpoint looks back
+    // up to 20 blocks for an existing entry.
+    if (rolling) delete rolling.cache_control;
+    rolling = results[results.length - 1] ?? null;
+    if (rolling) rolling.cache_control = { type: "ephemeral" };
 
     // Extend the transcript with this turn and its tool results, then loop so the
     // model sees the outcome and can review/improve or finish.

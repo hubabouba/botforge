@@ -5,6 +5,7 @@
  * `AssistantParams -> AssistantResult`, so the API route can swap between them
  * based on the user's plan without the client knowing which one ran.
  */
+import { PROGRESS_PATH } from "@/lib/workspace/progress";
 
 export interface AssistantEdit {
   /** POSIX path relative to the project root. */
@@ -171,7 +172,11 @@ const FILE_CONTEXT_BUDGET = 24_000;
 const PER_FILE_CAP = 6_000;
 
 function buildFileContext(params: AssistantParams): string {
-  const { files } = params;
+  // The progress journal is written FOR the user, not for the model: it is a
+  // log of what already happened, it grows with every message, and everything
+  // in it is already in the conversation the model is reading. Re-sending it
+  // every request would be paying to tell the model what it just did.
+  const files = params.files.filter((f) => f.path !== PROGRESS_PATH);
   if (!files.length) return "(no files yet)";
 
   // The entry file first — it's the one a question is most often about — then
@@ -201,10 +206,34 @@ function buildFileContext(params: AssistantParams): string {
   return `${listing}\n\n${included.join("\n\n")}${note}`;
 }
 
-/** System prompt shared by every provider so behavior is consistent. */
-export function buildSystemPrompt(params: AssistantParams): string {
-  const fileDump = buildFileContext(params);
+/**
+ * The volatile half of the prompt: the project's files as they are right now,
+ * and the live state of its hosted bot.
+ *
+ * Split out of the system prompt deliberately. Prompt caching is a prefix
+ * match, so whatever changes between requests has to sit AFTER everything that
+ * doesn't — and these two are the only parts that change on almost every
+ * message, because editing files is the entire point of the product. Keeping
+ * them at position zero meant one edit rewrote the whole prompt at the 1.25x
+ * cache-write rate: measured on real traffic, 12,381 cache-write tokens and
+ * zero cache reads on the second message of a conversation. See the breakpoint
+ * layout in claude.ts for where this ends up.
+ */
+export function buildContextBlock(params: AssistantParams): string {
+  return `--- CURRENT PROJECT STATE (as of this message) ---${params.runtime ?? ""}
 
+Current project files:
+${buildFileContext(params)}`;
+}
+
+/**
+ * System prompt shared by every provider so behavior is consistent.
+ *
+ * Everything here is stable for the life of a project: rules, mode, the user's
+ * preferences, their build plan. Nothing that changes per message belongs in
+ * it — that goes in buildContextBlock above.
+ */
+export function buildSystemPrompt(params: AssistantParams): string {
   const reviewing =
     params.intent === "review"
       ? `
@@ -268,8 +297,5 @@ Rules:
 - Make focused, minimal changes and briefly explain what you did in plain language.
 - Before finishing, quickly re-check your own changes for common bugs: unhandled errors, wrong types, a missing await, off-by-one mistakes, or secrets left in code.
 - Never hardcode secrets or tokens — read them from environment variables.
-- If the request is just a question, answer it without editing files.${planning}${clarifying}${preferenceLines(params.preferences)}${planContext}${reviewing}${params.runtime ?? ""}
-
-Current project files:
-${fileDump}`;
+- If the request is just a question, answer it without editing files.${planning}${clarifying}${preferenceLines(params.preferences)}${planContext}${reviewing}`;
 }

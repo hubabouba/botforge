@@ -45,16 +45,18 @@ export interface PricingTier {
 /** Landing-page copy for each tier. Price/name come from `plan.ts`'s `PLANS`. */
 const PRICING_COPY: Record<PricingTier["id"], Omit<PricingTier, "id" | "name">> = {
   free: {
-    tagline: "Try it and build your first bots.",
-    features: ["2 projects", "Basic AI model", "3 AI messages/day", "Run in sandbox", "Download code (ZIP)"],
+    tagline: "See how it works and build a first simple bot.",
+    features: ["2 projects", "Basic AI model", "30 AI messages/month", "Run in sandbox", "Download code (ZIP)"],
     cta: "Start free",
   },
   basic: {
-    tagline: "For personal bots and small projects.",
+    // Size of project, not vague seriousness: the point of these three lines is
+    // that someone lands on the page and knows which one is theirs.
+    tagline: "One straightforward bot — a few commands, one job.",
     features: [
       "Up to 15 projects",
       "Standard AI model",
-      "20 AI messages/day",
+      "100 AI messages/month",
       "Automatic error fixing",
       "Chat & version history",
       "Email support",
@@ -62,12 +64,12 @@ const PRICING_COPY: Record<PricingTier["id"], Omit<PricingTier, "id" | "name">> 
     cta: "Get Basic",
   },
   pro: {
-    tagline: "For people who build bots seriously.",
+    tagline: "The right choice for a real, mid-sized bot.",
     features: [
       "Unlimited projects",
       "Advanced AI model",
-      "40 AI messages/day",
-      "Priority generation",
+      "150 AI messages/month",
+      "Deeper reasoning on every message",
       "Analytics & logs",
       "Priority support",
     ],
@@ -75,12 +77,12 @@ const PRICING_COPY: Record<PricingTier["id"], Omit<PricingTier, "id" | "name">> 
     highlighted: true,
   },
   max: {
-    tagline: "For demanding builds and pro developers.",
+    tagline: "For large projects — many files, complex logic.",
     features: [
       "Everything in Pro",
       "Most advanced AI model",
-      "80 AI messages/day",
-      "Priority generation",
+      "200 AI messages/month",
+      "Handles big codebases in one pass",
       "Unlimited projects",
       "Priority support",
     ],

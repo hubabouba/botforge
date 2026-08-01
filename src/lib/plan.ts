@@ -23,28 +23,63 @@ export function projectLimit(plan: Plan): number {
 }
 
 /** Daily AI-assistant message cap per plan (enforced in /api/ai/chat). */
-export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 3, basic: 20, pro: 40, max: 80 };
+export const AI_DAILY_MESSAGES: Record<Plan, number> = { free: 3, basic: 12, pro: 25, max: 40 };
 
 /**
- * Monthly cap, on top of the daily one. A circuit-breaker, not a quota.
+ * Monthly message cap — the number we advertise, so it has to be a number a
+ * customer can actually reach without putting the plan under water.
  *
- * The daily cap alone permits 30x its number every month — 600 messages on
- * Basic, 2400 on Max. Model calls are the dominant cost in this product, and at
- * any plausible per-message price those ceilings run every tier at a loss if a
- * single user actually reaches them. The business works because average use is
- * a fraction of the cap; this exists so one outlier can't eat the margin of
- * everyone else.
+ * It was 250/500/1000, set before there was any measurement. There is now:
+ * a message costs $0.04–$0.14 depending on tier and size of the work. At
+ * those prices 250 messages on Basic is $10–20 of model spend against $9 of
+ * revenue, and 500 on Pro is worse. The old numbers were affordable only
+ * because nobody had reached them yet.
  *
- * Set around 40% of daily x 30 — roughly twelve days of flat-out use in a
- * month, which no ordinary user approaches and a runaway script passes quickly.
+ * Set so that a customer using every message they paid for still leaves the
+ * plan profitable — roughly 40% of the subscription going to model spend:
+ *
+ *   Basic  100 x ~$0.035  = $3.50 of $9    (no extended thinking on this tier)
+ *   Pro    150 x ~$0.07   = $10.50 of $19
+ *   Max    200 x ~$0.14   = $28 of $49     (Opus, deepest reasoning)
+ *
+ * The counts sit closer together than the prices do, and that is the honest
+ * shape of the product: a Max message is worth several Basic ones because it
+ * runs a better model, reasons harder and works through more of the project in
+ * one go. You are buying what a message can do, not how many you get.
  *
  * It matters most on annual plans: a monthly subscriber who turns unprofitable
  * can be re-priced next month, an annual one is locked in for twelve.
  */
-export const AI_MONTHLY_MESSAGES: Record<Plan, number> = { free: 30, basic: 250, pro: 500, max: 1000 };
+export const AI_MONTHLY_MESSAGES: Record<Plan, number> = { free: 30, basic: 100, pro: 150, max: 200 };
 
 export function aiMonthlyLimit(plan: Plan): number {
   return AI_MONTHLY_MESSAGES[plan];
+}
+
+/**
+ * Monthly ceiling on what one account's model calls may cost us, in USD.
+ *
+ * The message cap bounds how MANY messages; this bounds how much they cost,
+ * and the two are not the same bound. A message can cost half a cent or fifteen
+ * — a one-line fix in a small bot versus a review pass over a large project —
+ * so a count alone leaves the actual exposure to the size of one customer's
+ * codebase and their appetite for big requests.
+ *
+ * Deliberately set ABOVE what the message cap costs at typical prices (see the
+ * arithmetic above), so it never binds for someone using the plan normally.
+ * It exists for the outlier whose every message costs several times the norm.
+ * Whichever runs out first stops the account; for almost everyone that will be
+ * the message count, and this will never be heard from.
+ *
+ * Sized against the one case that has to survive: a customer who exhausts this
+ * AND their whole hosting allowance in the same month, on top of card fees.
+ * plan.test.ts asserts that case still ends in profit for every paid tier —
+ * which is what stops a number here from being raised on optimism later.
+ */
+export const AI_MONTHLY_USD: Record<Plan, number> = { free: 0.5, basic: 5, pro: 11, max: 30 };
+
+export function aiMonthlyUsdCap(plan: Plan): number {
+  return AI_MONTHLY_USD[plan];
 }
 
 /**
@@ -346,29 +381,46 @@ export const PLANS: PlanMeta[] = [
     id: "free",
     name: "Free",
     price: 0,
-    tagline: "Try it out and ship a simple bot.",
-    highlights: ["Standard AI assistant", "3 assistant messages/day", "2 projects", "Download & run locally"],
+    tagline: "See how it works and ship a first simple bot.",
+    highlights: ["Standard AI assistant", "30 assistant messages/month", "2 projects", "Download & run locally"],
   },
   {
     id: "basic",
     name: "Basic",
     price: 9,
-    tagline: "A serious assistant for real bots.",
-    highlights: ["Advanced AI assistant", "20 assistant messages/day", "Logs & AI planning panels", "15 projects"],
+    tagline: "One straightforward bot — a few commands, one job.",
+    highlights: [
+      "Advanced AI assistant",
+      "100 assistant messages/month",
+      "Logs & AI planning panels",
+      "15 projects",
+    ],
   },
   {
     id: "pro",
     name: "Pro",
     price: 19,
-    tagline: "Everything, including insight into your bot.",
-    highlights: ["Everything in Basic", "40 assistant messages/day", "Metrics panel", "Assistant inspects your logs"],
+    // What the copy has to convey, since the message counts sit close together:
+    // the tiers differ in what one message can do, not how many you get.
+    tagline: "The right choice for a real, mid-sized bot.",
+    highlights: [
+      "Everything in Basic",
+      "150 assistant messages/month",
+      "Deeper reasoning on every message",
+      "Assistant reads your bot's logs",
+    ],
   },
   {
     id: "max",
     name: "Max",
     price: 49,
-    tagline: "The most capable AI, for demanding builds.",
-    highlights: ["Everything in Pro", "Our most advanced AI model", "80 assistant messages/day", "Priority generation"],
+    tagline: "For large projects — many files, complex logic.",
+    highlights: [
+      "Everything in Pro",
+      "Our most advanced AI model",
+      "200 assistant messages/month",
+      "Handles big codebases in one pass",
+    ],
   },
 ];
 

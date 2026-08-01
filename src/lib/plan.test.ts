@@ -15,7 +15,14 @@ import {
   modelForTier,
   reasoningFor,
   maxToolTurnsFor,
+  aiMonthlyLimit,
+  aiMonthlyUsdCap,
+  planMeta,
+  type Plan,
 } from "@/lib/plan";
+
+/** Cheapest to dearest — the order every per-plan number has to respect. */
+const PLAN_IDS: Plan[] = ["free", "basic", "pro", "max"];
 
 describe("planAllows", () => {
   it("gates capabilities by plan rank", () => {
@@ -36,11 +43,57 @@ describe("per-plan numeric caps", () => {
     expect(projectLimit("max")).toBe(Infinity);
   });
 
-  it("daily AI message caps", () => {
-    expect(aiDailyLimit("free")).toBe(3);
-    expect(aiDailyLimit("basic")).toBe(20);
-    expect(aiDailyLimit("pro")).toBe(40);
-    expect(aiDailyLimit("max")).toBe(80);
+  // Restating the numbers from plan.ts here only proved they'd been copied
+  // correctly. These assert the properties that actually have to hold — the
+  // ones a future change to the table could quietly break.
+  it("the daily cap limits bursts; the monthly cap is the real budget", () => {
+    for (const p of PLAN_IDS) {
+      expect(aiDailyLimit(p)).toBeLessThan(aiMonthlyLimit(p));
+      // ...but not so low that the month is unreachable, which would make the
+      // advertised monthly number a lie.
+      expect(aiDailyLimit(p) * 30).toBeGreaterThan(aiMonthlyLimit(p));
+    }
+  });
+
+  it("both caps rise with the plan", () => {
+    for (let i = 1; i < PLAN_IDS.length; i++) {
+      expect(aiDailyLimit(PLAN_IDS[i])).toBeGreaterThan(aiDailyLimit(PLAN_IDS[i - 1]));
+      expect(aiMonthlyLimit(PLAN_IDS[i])).toBeGreaterThan(aiMonthlyLimit(PLAN_IDS[i - 1]));
+    }
+  });
+
+  /**
+   * What a plan's hosting allowance costs us, at Fly's rate when this was
+   * written: one always-on shared-cpu-1x machine is about $2/month, so about
+   * $2 per 750 runtime hours. Test-local on purpose — it's an assumption about
+   * a supplier's price, not something the product should carry as fact.
+   */
+  const USD_PER_RUNTIME_HOUR = 2 / 750;
+  const cardFee = (price: number) => price * 0.029 + 0.3;
+
+  it("a customer who exhausts every allowance still leaves the plan in profit", () => {
+    for (const p of ["basic", "pro", "max"] as const) {
+      const price = planMeta(p).price;
+      const worstCase =
+        aiMonthlyUsdCap(p) +
+        (hostingRuntimeBudgetSeconds(p) / 3600) * USD_PER_RUNTIME_HOUR +
+        cardFee(price);
+      // The single assertion that keeps the business solvent: the ceilings are
+      // what a customer is entitled to use, so all of them at once has to be
+      // survivable. If raising a cap breaks this, the cap was raised on hope.
+      expect(worstCase).toBeLessThan(price);
+    }
+  });
+
+  it("the dollar ceiling sits above what the message cap normally costs", () => {
+    // Typical measured cost per message, by tier — Basic runs without extended
+    // thinking, Max runs the dearest model at the deepest setting.
+    const typicalUsd: Record<string, number> = { basic: 0.035, pro: 0.07, max: 0.14 };
+    for (const p of ["basic", "pro", "max"] as const) {
+      // Otherwise the advertised message count is unreachable and the number on
+      // the pricing page is a lie: people would be cut off long before it.
+      expect(aiMonthlyLimit(p) * typicalUsd[p]).toBeLessThanOrEqual(aiMonthlyUsdCap(p));
+    }
   });
 
   it("hosting concurrency per plan", () => {

@@ -10,6 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   aiDailyLimit,
   aiMonthlyLimit,
+  aiMonthlyUsdCap,
   isAiLimitExempt,
   maxToolTurnsFor,
   modelForTier,
@@ -133,6 +134,44 @@ async function recordSpend(userId: string, s: AssistantSpend): Promise<void> {
   }
 }
 
+/**
+ * Has this account already cost us more this month than its plan allows?
+ *
+ * Reads the spend we recorded ourselves (ai_spend, one row per user per day)
+ * with the admin client, because that table is service-role only — a browser
+ * must never be able to read, let alone forge, our costs.
+ *
+ * Two honest imprecisions, both deliberate. It's a plain read, not an atomic
+ * claim, so two requests sent at the same instant can both pass; and spend is
+ * recorded after a request finishes, so the last message may push the total
+ * past the ceiling. Overshooting by one message is the correct trade for a
+ * circuit-breaker — the alternative is a lock on the hot path of every message
+ * to protect against a case that costs pennies.
+ *
+ * Fails OPEN, like every other counter here: a query that can't run must not
+ * take the assistant down. But an unenforced spend ceiling is exactly the state
+ * this exists to prevent, so ops hears about every occurrence.
+ */
+async function overMonthlyUsdCap(userId: string, cap: number): Promise<{ over: boolean; spent: number }> {
+  const monthStart = new Date().toISOString().slice(0, 8) + "01";
+  try {
+    const { data, error } = await createAdminClient()
+      .from("ai_spend")
+      .select("usd")
+      .eq("user_id", userId)
+      .gte("day", monthStart);
+    if (error) throw error;
+    const spent = (data ?? []).reduce((sum, r) => sum + Number((r as { usd: number }).usd ?? 0), 0);
+    return { over: spent >= cap, spent };
+  } catch (e) {
+    Sentry.captureMessage("Monthly AI spend ceiling unchecked — request allowed", {
+      level: "error",
+      extra: { message: (e as Error).message },
+    });
+    return { over: false, spent: 0 };
+  }
+}
+
 async function handlePost(req: Request) {
   const supabase = await createClient();
   const {
@@ -224,6 +263,32 @@ async function handlePost(req: Request) {
       );
     } else if (typeof count === "number") {
       used = count;
+    }
+
+    // The other ceiling: not how many messages, but what they cost. A count
+    // can't bound spend on its own — one person's message is a one-line fix and
+    // another's is a review pass over a large project, and those differ by more
+    // than an order of magnitude. Checked after the count so the common refusal
+    // ("you've used today's messages") still comes first and costs no query.
+    const usdCap = aiMonthlyUsdCap(plan);
+    const { over, spent } = await overMonthlyUsdCap(user.id, usdCap);
+    if (over) {
+      // Say what it is without saying what it cost us. "You've used this
+      // month's assistant budget" is true and actionable; our margin is not
+      // the customer's business.
+      Sentry.captureMessage("Account reached its monthly AI spend ceiling", {
+        level: "warning",
+        extra: { plan, spent: Number(spent.toFixed(4)), cap: usdCap },
+      });
+      const upgradeHint = plan === "max" ? "" : " Upgrading raises it.";
+      return NextResponse.json(
+        {
+          error:
+            `You've used this month's assistant budget on the ${plan} plan. It resets on the 1st.` +
+            `${upgradeHint} Larger projects and longer requests use it up faster than short ones.`,
+        },
+        { status: 429 },
+      );
     }
   }
 

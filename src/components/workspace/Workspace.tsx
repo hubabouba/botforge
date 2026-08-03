@@ -123,6 +123,21 @@ export function Workspace({ projectId }: { projectId: string }) {
   // (or immediately on Ctrl+S, file switch or unmount) so we don't POST per keystroke.
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pending = useRef<{ id: string; path: string; content: string } | null>(null);
+  /**
+   * The edit `flushSave` most recently sent, kept around only until that
+   * request settles — separate from `pending`, which means "not sent yet" to
+   * every other call site and must keep meaning exactly that.
+   *
+   * Exists for one gap: a non-keepalive request can be killed outright by the
+   * browser on navigation, before its `.then`/`.catch` ever runs — so closing
+   * the tab in the moment between the debounce firing and the response
+   * landing left nothing for `pagehide` to resend, because `pending` had
+   * already been cleared the instant the request started. `pagehide` below
+   * now falls back to this ref when `pending` is empty. Resending an edit
+   * whose original request actually succeeded just repeats the same full
+   * content — harmless, since a file write is an overwrite, not an append.
+   */
+  const inFlight = useRef<{ id: string; path: string; content: string } | null>(null);
   /** Consecutive failed saves, so a server that keeps refusing isn't retried forever. */
   const saveRetries = useRef(0);
 
@@ -240,14 +255,17 @@ export function Workspace({ projectId }: { projectId: string }) {
     const p = pending.current;
     if (!p) return;
     pending.current = null;
+    inFlight.current = p;
     writeFile(p.id, p.path, p.content)
       .then(() => {
         saveRetries.current = 0;
+        if (inFlight.current === p) inFlight.current = null;
         // A newer edit may already be pending — don't claim "saved" over it.
         if (!pending.current) setStatus("saved");
       })
       .catch(() => {
         setStatus("error");
+        if (inFlight.current === p) inFlight.current = null;
         // Put the edit back, and try again.
         //
         // It used to be dropped here: cleared before the write, never restored,
@@ -274,11 +292,20 @@ export function Workspace({ projectId }: { projectId: string }) {
   // request outlive the page.
   useEffect(() => {
     const onPageHide = () => {
-      const p = pending.current;
-      if (!p) return;
-      pending.current = null;
       clearTimeout(saveTimer.current);
-      void writeFile(p.id, p.path, p.content, { keepalive: true }).catch(() => {});
+      const p = pending.current;
+      if (p) {
+        pending.current = null;
+        void writeFile(p.id, p.path, p.content, { keepalive: true }).catch(() => {});
+        return;
+      }
+      // Nothing waiting to be sent — but a request the debounce already fired
+      // may still be in flight, and a plain (non-keepalive) fetch is exactly
+      // what the browser is about to kill mid-navigation. Resend it the same
+      // way: worst case the original also lands and both write the same
+      // content.
+      const f = inFlight.current;
+      if (f) void writeFile(f.id, f.path, f.content, { keepalive: true }).catch(() => {});
     };
     window.addEventListener("pagehide", onPageHide);
     return () => window.removeEventListener("pagehide", onPageHide);

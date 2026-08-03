@@ -322,9 +322,6 @@ const en: Dict = {
 
   // ---- Shared / misc (debug-sweep additions) ----
   "common.close": "Close",
-  "dev.earlyPreview": "Early preview",
-  "dev.underDevelopment": "Botforge is under active development — some features aren’t live yet.",
-  "dev.dismiss": "Dismiss",
   "settings.language": "Interface language",
   "hosting.couldntStop": "Couldn't stop the bot.",
   "hosting.couldntDeleteToken": "Couldn't remove the token.",
@@ -1003,9 +1000,6 @@ const ru: Dict = {
 
   // ---- Общее / разное (добавки дебаг-прохода) ----
   "common.close": "Закрыть",
-  "dev.earlyPreview": "Ранняя версия",
-  "dev.underDevelopment": "Botforge в активной разработке — часть функций ещё не запущена.",
-  "dev.dismiss": "Скрыть",
   "settings.language": "Язык интерфейса",
   "hosting.couldntStop": "Не удалось остановить бота.",
   "hosting.couldntDeleteToken": "Не удалось удалить токен.",
@@ -1672,9 +1666,6 @@ const pl: Dict = {
 
   // ---- Shared / misc ----
   "common.close": "Zamknij",
-  "dev.earlyPreview": "Wczesna wersja",
-  "dev.underDevelopment": "Botforge jest w aktywnym rozwoju — niektóre funkcje jeszcze nie działają.",
-  "dev.dismiss": "Zamknij",
   "settings.language": "Język interfejsu",
   "hosting.couldntStop": "Nie udało się zatrzymać bota.",
   "hosting.couldntDeleteToken": "Nie udało się usunąć tokena.",
@@ -2329,9 +2320,6 @@ const es: Dict = {
 
   // ---- Shared / misc ----
   "common.close": "Cerrar",
-  "dev.earlyPreview": "Vista previa",
-  "dev.underDevelopment": "Botforge está en desarrollo activo — algunas funciones aún no están disponibles.",
-  "dev.dismiss": "Descartar",
   "settings.language": "Idioma de la interfaz",
   "hosting.couldntStop": "No se pudo detener el bot.",
   "hosting.couldntDeleteToken": "No se pudo eliminar el token.",

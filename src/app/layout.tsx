@@ -4,7 +4,6 @@ import { brand } from "@/lib/brand";
 import { PostHogProvider } from "@/components/PostHogProvider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { I18nProvider } from "@/lib/i18n/I18nProvider";
-import { DevBanner } from "@/components/DevBanner";
 import "./globals.css";
 
 /**
@@ -85,10 +84,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <I18nProvider>
-            <PostHogProvider>
-              <DevBanner />
-              {children}
-            </PostHogProvider>
+            <PostHogProvider>{children}</PostHogProvider>
           </I18nProvider>
         </ThemeProvider>
         {/* Cinematic film grain over the entire product (below modals). */}

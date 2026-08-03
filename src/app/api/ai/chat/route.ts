@@ -277,11 +277,6 @@ async function handlePost(req: Request) {
         { error, usage: { used: monthTotal, limit: monthlyLimit } },
         { status: 429 },
       );
-    } else if (typeof count === "number") {
-      used = count;
-      // Read after the increment, so it includes this message — same basis as
-      // the daily figure beside it.
-      monthUsed = await monthlyMessagesUsed(supabase);
     }
 
     // The other ceiling: not how many messages, but what they cost. A count
@@ -289,8 +284,20 @@ async function handlePost(req: Request) {
     // another's is a review pass over a large project, and those differ by more
     // than an order of magnitude. Checked after the count so the common refusal
     // ("you've used today's messages") still comes first and costs no query.
+    //
+    // Run alongside the monthly-message read rather than after it: neither
+    // query depends on the other's result, and awaiting them one at a time
+    // just adds a second sequential round trip to Postgres ahead of every
+    // single message, paid or free.
     const usdCap = aiMonthlyUsdCap(plan);
-    const { over, spent } = await overMonthlyUsdCap(user.id, usdCap);
+    const [monthUsedForHeader, { over, spent }] = await Promise.all([
+      typeof count === "number" ? monthlyMessagesUsed(supabase) : Promise.resolve(null),
+      overMonthlyUsdCap(user.id, usdCap),
+    ]);
+    if (typeof count === "number") {
+      used = count;
+      monthUsed = monthUsedForHeader;
+    }
     if (over) {
       // Say what it is without saying what it cost us. "You've used this
       // month's assistant budget" is true and actionable; our margin is not

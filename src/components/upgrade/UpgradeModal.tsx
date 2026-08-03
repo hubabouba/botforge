@@ -68,6 +68,11 @@ export function UpgradeModal({
       });
       const data = await res.json().catch(() => ({}));
       if (data.url) window.location.href = data.url;
+      // No Checkout session at all: the account already had a live
+      // subscription and the server changed its price in place instead of
+      // minting a second one (see the comment in /api/checkout). There is
+      // nothing to redirect to — land where a completed Checkout would have.
+      else if (data.updated) window.location.href = "/dashboard?checkout=success";
       else setError(data.error || t("upgrade.checkoutFailed").replace("{status}", String(res.status)));
     } catch {
       setError(t("upgrade.networkError"));

@@ -3,7 +3,8 @@
  * to English for anything missing. Built in slices — start with the navbar +
  * hero; more sections get keys over time.
  *
- * NOTE: en/ru/pl are human-quality; es/de/fr are a solid first pass to review.
+ * NOTE: en/ru are human-quality; pl/es are a solid first pass to review.
+ * de/fr were removed rather than left to rot half-translated.
  */
 
 export type Locale = "en" | "ru" | "pl" | "es";
@@ -1664,6 +1665,14 @@ const pl: Dict = {
   "tree.clickAgainToDelete": "Kliknij ponownie, aby usunąć",
   "tree.fileOpFailed": "Ta zmiana się nie zapisała — sprawdź połączenie i spróbuj ponownie.",
 
+  // ---- PROGRESS.md, dziennik „na czym skończyłeś" ----
+  "progress.title": "Na czym skończyłeś",
+  "progress.intro":
+    "Botforge aktualizuje ten plik po każdej wiadomości do asystenta, najnowsze na górze, dzięki czemu zawsze widzisz, na czym skończyłeś. Możesz go usunąć w każdej chwili — wróci przy następnej wiadomości.",
+  "progress.asked": "Pytanie",
+  "progress.changed": "Zmienione pliki",
+  "progress.reply": "Asystent",
+
   // ---- Shared / misc ----
   "common.close": "Zamknij",
   "settings.language": "Język interfejsu",
@@ -1680,6 +1689,14 @@ const pl: Dict = {
   "editor.copied": "Skopiowano",
   "editor.copyFile": "Kopiuj zawartość pliku",
   "editor.shortcutsHint": "Ctrl+F szukaj · Ctrl+Z cofnij · Alt+↑/↓ przenieś wiersz · Shift+Alt+↑/↓ duplikuj · Ctrl+/ komentarz · Ctrl+S zapisz",
+  "editor.shortcuts": "Skróty klawiszowe",
+  "editor.scFind": "Szukaj",
+  "editor.scReplace": "Znajdź i zamień",
+  "editor.scSave": "Zapisz teraz",
+  "editor.scUndo": "Cofnij",
+  "editor.scComment": "Zakomentuj linie",
+  "editor.scMoveLine": "Przenieś linię w górę / w dół",
+  "editor.scDuplicate": "Duplikuj linię",
   "editor.findPlaceholder": "Szukaj",
   "editor.replacePlaceholder": "Zamień",
   "editor.replace": "Zamień",
@@ -1711,6 +1728,8 @@ const pl: Dict = {
   "chat.compactHint": "Masz mały ekran — dla najlepszego komfortu otwórz Botforge na komputerze. Ale i tutaj wszystko działa: opisz, jakiego bota chcesz, a ja napiszę pliki za Ciebie. W zakładce „Kod” zobaczysz efekt.",
   "chat.applied": "Zastosowano",
   "chat.apply": "Zastosuj",
+  "chat.openFile": "Otwórz {path} w edytorze",
+  "chat.historyFailed": "Nie udało się teraz wczytać rozmowy — jest zapisana. Odśwież stronę, aby spróbować ponownie.",
   "chat.try": "Wypróbuj",
   "chat.suggestion1": "Dodaj komendę /help",
   "chat.suggestion2": "Wyjaśnij, co robi ten bot",
@@ -1742,6 +1761,8 @@ const pl: Dict = {
   "hosting.crashedHint": "Bot uległ awarii — automatyczny restart…",
   "hosting.crashLoopingHint": "Automatyczny restart poddał się po powtarzających się awariach. Napraw błąd w logach i naciśnij Start.",
   "hosting.thisMonth": "w tym miesiącu",
+  "hosting.soundOn": "Dźwięk po uruchomieniu bota (wycisz)",
+  "hosting.soundOff": "Dźwięk wyciszony (włącz)",
   "hosting.stop": "Zatrzymaj",
   "hosting.setTokenFirst": "Najpierw ustaw {required}",
   "hosting.startBot": "Uruchom bota",
@@ -2318,6 +2339,14 @@ const es: Dict = {
   "tree.clickAgainToDelete": "Haz clic de nuevo para eliminar",
   "tree.fileOpFailed": "Ese cambio no se guardó — revisa tu conexión e inténtalo de nuevo.",
 
+  // ---- PROGRESS.md, el diario "dónde lo dejaste" ----
+  "progress.title": "Dónde lo dejaste",
+  "progress.intro":
+    "Botforge actualiza este archivo después de cada mensaje al asistente, el más reciente primero, para que siempre veas dónde lo dejaste. Puedes borrarlo cuando quieras — vuelve con tu próximo mensaje.",
+  "progress.asked": "Pediste",
+  "progress.changed": "Archivos modificados",
+  "progress.reply": "Asistente",
+
   // ---- Shared / misc ----
   "common.close": "Cerrar",
   "settings.language": "Idioma de la interfaz",
@@ -2334,6 +2363,14 @@ const es: Dict = {
   "editor.copied": "Copiado",
   "editor.copyFile": "Copiar contenido del archivo",
   "editor.shortcutsHint": "Ctrl+F buscar · Ctrl+Z deshacer · Alt+↑/↓ mover línea · Shift+Alt+↑/↓ duplicar · Ctrl+/ comentar · Ctrl+S guardar",
+  "editor.shortcuts": "Atajos de teclado",
+  "editor.scFind": "Buscar",
+  "editor.scReplace": "Buscar y reemplazar",
+  "editor.scSave": "Guardar ahora",
+  "editor.scUndo": "Deshacer",
+  "editor.scComment": "Comentar líneas",
+  "editor.scMoveLine": "Mover línea arriba / abajo",
+  "editor.scDuplicate": "Duplicar línea",
   "editor.findPlaceholder": "Buscar",
   "editor.replacePlaceholder": "Reemplazar",
   "editor.replace": "Reemplazar",
@@ -2365,6 +2402,8 @@ const es: Dict = {
   "chat.compactHint": "Estás en una pantalla pequeña — para la mejor experiencia abre Botforge en un ordenador. Aun así, aquí todo funciona: descríbeme el bot que quieres y yo escribo los archivos. La pestaña «Código» muestra el resultado.",
   "chat.applied": "Aplicado",
   "chat.apply": "Aplicar",
+  "chat.openFile": "Abrir {path} en el editor",
+  "chat.historyFailed": "No se pudo cargar esta conversación ahora mismo — sigue guardada. Recarga la página para volver a intentarlo.",
   "chat.try": "Prueba",
   "chat.suggestion1": "Añade un comando /help",
   "chat.suggestion2": "Explica qué hace este bot",
@@ -2396,6 +2435,8 @@ const es: Dict = {
   "hosting.crashedHint": "El bot falló — reiniciándolo automáticamente…",
   "hosting.crashLoopingHint": "El reinicio automático se rindió tras fallos repetidos. Corrige el error en los registros y pulsa Iniciar.",
   "hosting.thisMonth": "este mes",
+  "hosting.soundOn": "Sonido cuando el bot termine de iniciarse (silenciar)",
+  "hosting.soundOff": "Sonido silenciado (activar)",
   "hosting.stop": "Detener",
   "hosting.setTokenFirst": "Primero configura un {required}",
   "hosting.startBot": "Iniciar bot",

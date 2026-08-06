@@ -12,7 +12,9 @@
 --   * POST /api/checkout / billing-portal — creates Stripe sessions.
 --
 -- Plus /api/account/export, which runs one RPC per project and has no cap on a
--- Pro account's project count.
+-- Pro account's project count, and /api/projects/[id]/duplicate, which copies
+-- up to 200 files of up to 100k chars each and — same reasoning — has no cap
+-- to fall back on for Pro/Max, where PROJECT_LIMIT is Infinity.
 --
 -- Same shape as increment_ai_usage: one atomic check-and-record in Postgres, so
 -- two concurrent requests can't both slip through a read-then-write gap.

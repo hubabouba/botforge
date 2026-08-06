@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserPlan } from "@/lib/subscription";
 import { projectLimit } from "@/lib/plan";
 import { dbError } from "@/lib/apiError";
+import { allowAction, rateLimitMessage } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,16 @@ export async function POST(_req: Request, { params }: Ctx) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not signed in." }, { status: 401 });
+
+  // Pro and Max have no project-count cap at all (PROJECT_LIMIT is Infinity),
+  // so nothing else stops this from repeating: each call copies up to 200
+  // files of up to 100k chars, and duplicate_project's own limit check is a
+  // no-op for those tiers (p_limit arrives as -1, meaning unlimited). A loop —
+  // deliberate or a client-side bug firing the button repeatedly — has no
+  // other backstop.
+  if (!(await allowAction(user.id, "project.duplicate"))) {
+    return NextResponse.json({ error: rateLimitMessage("project.duplicate") }, { status: 429 });
+  }
 
   const plan = await getUserPlan(supabase, user.id, user.email);
   const limit = projectLimit(plan);

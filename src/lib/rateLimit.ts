@@ -15,7 +15,8 @@ export type LimitedAction =
   | "hosting.secret" // encrypt + write; cheap, but no reason to allow a flood
   | "checkout" // creates a Stripe Checkout session
   | "billing.portal" // creates a Stripe billing-portal session
-  | "account.export"; // one RPC per project, and Pro has no project cap
+  | "account.export" // one RPC per project, and Pro has no project cap
+  | "project.duplicate"; // copies up to 200 files of up to 100k chars each, and Pro/Max have no project cap to stop it repeating
 
 const HOUR = 3600;
 
@@ -30,6 +31,7 @@ const LIMITS: Record<LimitedAction, { max: number; windowSeconds: number }> = {
   checkout: { max: 10, windowSeconds: HOUR },
   "billing.portal": { max: 10, windowSeconds: HOUR },
   "account.export": { max: 5, windowSeconds: HOUR },
+  "project.duplicate": { max: 20, windowSeconds: HOUR },
 };
 
 /**

@@ -90,7 +90,14 @@ export default function PrivacyPage() {
         your message, and relevant console output are sent to them to produce a reply.{" "}
         <strong>Stripe</strong> — payments. <strong>Resend</strong> — the emails we send you about
         your subscription. <strong>Sentry</strong> — errors and session recordings.{" "}
-        <strong>PostHog</strong> — product analytics.
+        <strong>PostHog</strong> — product analytics. <strong>Meta (Facebook)</strong> — measuring
+        whether our advertising leads to a signup or a purchase.
+      </p>
+      <p>
+        <strong>Advertising measurement.</strong> If you arrive from a Facebook or Instagram ad, we
+        share with Meta that a signup or purchase happened and, for a purchase, its price — never
+        your name, email, or anything from inside a project. This is so we can tell whether the ad
+        spend is working, not to build an advertising profile of you elsewhere.
       </p>
       <p>
         Some of these process data outside your country under appropriate safeguards.

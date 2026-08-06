@@ -13,6 +13,7 @@ import {
   type Plan,
 } from "@/lib/plan";
 import { track } from "@/lib/analytics";
+import { fbTrack, stashPendingPurchase } from "@/lib/metaPixel";
 import { usePlan } from "@/hooks/usePlan";
 import { Close, Check, Lock } from "@/components/icons";
 import { useI18n } from "@/lib/i18n/I18nProvider";
@@ -60,6 +61,12 @@ export function UpgradeModal({
     setBusy(plan);
     setError("");
     track("upgrade_clicked", { plan, interval });
+    // The price at the moment checkout is attempted — the last point it's
+    // known client-side. Stashed for the Purchase event, which fires later on
+    // ?checkout=success, after the tab that knows this value is long closed.
+    const value = interval === "year" ? annualPrice(plan) : (PLANS.find((p) => p.id === plan)?.price ?? 0);
+    fbTrack("InitiateCheckout", { value, currency: "USD" });
+    stashPendingPurchase(value);
     try {
       const res = await fetch("/api/checkout", {
         method: "POST",

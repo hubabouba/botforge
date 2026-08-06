@@ -14,6 +14,7 @@ import {
 } from "@/lib/workspace/store";
 import { downloadZip } from "@/lib/workspace/zip";
 import { track } from "@/lib/analytics";
+import { fbTrack, consumePendingPurchase } from "@/lib/metaPixel";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { messages, type Locale } from "@/lib/i18n/messages";
 import { plural } from "@/lib/i18n/plural";
@@ -145,6 +146,12 @@ export function DashboardHome({ name, userId }: { name: string; userId: string }
     const params = new URLSearchParams(window.location.search);
     if (params.get("checkout") === "success") {
       track("checkout_completed");
+      // The value was stashed client-side the moment checkout was attempted
+      // (UpgradeModal) — the purchase itself is confirmed server-side by the
+      // Stripe webhook, well after that tab's JS is gone, so this is the only
+      // point left to attach a price to the Purchase event at all.
+      const value = consumePendingPurchase();
+      fbTrack("Purchase", value !== null ? { value, currency: "USD" } : undefined);
       params.delete("checkout");
       const qs = params.toString();
       window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));

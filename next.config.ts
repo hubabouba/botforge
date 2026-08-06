@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const isDev = process.env.NODE_ENV !== "production";
+// Only widen the CSP for Meta's pixel host when the pixel is actually
+// configured — the same least-privilege reasoning as the rest of this policy
+// (see the img-src comment below): no reason to allow a host nothing loads.
+const metaPixelEnabled = Boolean(process.env.NEXT_PUBLIC_META_PIXEL_ID);
 
 /**
  * Content-Security-Policy. Scripts allow 'unsafe-inline' (Next injects an
@@ -16,16 +20,17 @@ const isDev = process.env.NODE_ENV !== "production";
  */
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' https://*.posthog.com https://*.i.posthog.com${isDev ? " 'unsafe-eval'" : ""}`,
+  `script-src 'self' 'unsafe-inline' https://*.posthog.com https://*.i.posthog.com${metaPixelEnabled ? " https://connect.facebook.net" : ""}${isDev ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
   // Was `https:`, i.e. an image from any host on the internet. Nothing here
   // loads one — verified by grep: no <img>, no next/image, no remote src
   // anywhere in src/. The OG picture comes from our own /opengraph-image route.
   // `data:` covers the inline SVG textures, `blob:` the ZIP download preview
-  // and Sentry's replay canvas.
-  "img-src 'self' data: blob:",
+  // and Sentry's replay canvas. www.facebook.com is the pixel's own tracking
+  // call (/tr) — added only when the pixel is actually configured.
+  `img-src 'self' data: blob:${metaPixelEnabled ? " https://www.facebook.com" : ""}`,
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.i.posthog.com https://*.sentry.io https://*.ingest.sentry.io",
+  `connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.posthog.com https://*.i.posthog.com https://*.sentry.io https://*.ingest.sentry.io${metaPixelEnabled ? " https://www.facebook.com" : ""}`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",

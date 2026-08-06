@@ -10,6 +10,7 @@ import { Mail } from "@/components/icons";
 import { createClient } from "@/lib/supabase/client";
 import { useI18n } from "@/lib/i18n/I18nProvider";
 import { track } from "@/lib/analytics";
+import { fbTrack } from "@/lib/metaPixel";
 
 type Provider = "google" | "github";
 
@@ -72,7 +73,10 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
       setError(error.message);
       setStatus("idle");
     } else {
-      if (isSignup) track("signup_started", { method: "email" });
+      if (isSignup) {
+        track("signup_started", { method: "email" });
+        fbTrack("Lead");
+      }
       setStatus("sent");
     }
   }
@@ -80,7 +84,10 @@ export function AuthCard({ mode }: { mode: "login" | "signup" }) {
   async function signInWithProvider(provider: Provider) {
     setError(null);
     setBusy(provider);
-    if (isSignup) track("signup_started", { method: provider });
+    if (isSignup) {
+      track("signup_started", { method: provider });
+      fbTrack("Lead");
+    }
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
